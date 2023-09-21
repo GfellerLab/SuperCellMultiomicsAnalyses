@@ -1,0 +1,68 @@
+---
+title: "Multivelo results"
+author: "Leonard Herault"
+date: '2023-05-11'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(Seurat)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## load benchmark files
+
+```{r fig.height=0.8,fig.width=1}
+samples = c('humanHSPC','humanBrain')
+benchMultivelo = data.frame()
+benchMultiveloAll= data.frame()
+'../../benchmark/multiomicVelocity/humanHSPC/Subsampling/multivelo_benchmark.txt'
+
+for (r in c("Subsampling","SuperCellPostPro","singleCell")) {
+for (s in samples) {
+  benchmark <- read.table(paste0("../../benchmark/multiomicVelocity/",s,"/",r,"/multivelo_benchmark.txt"),header = T)[,c("max_rss","cpu_time")]
+  benchmarkAll = benchmark
+  if (r == "Subsampling") {
+    benchmarkPreprocessing <- read.table(paste0("../../benchmark/multiomicVelocity/",s,"/Subsampling_benchmark.txt"),header = T)[,c("max_rss","cpu_time")]
+    benchmarkAll = benchmark + benchmarkPreprocessing
+  }
+  if (r == "SuperCellPostPro") {
+    benchmarkPreprocessing <- read.table(paste0("../../benchmark/multiomicVelocity/",s,"/SuperCellPostPro_benchmark.txt"),header = T)[,c("max_rss","cpu_time")]
+    benchmarkAll = data.frame(max_rss = max(benchmark$max_rss,benchmarkPreprocessing$max_rss),
+                              cpu_time = benchmark$cpu_time + benchmarkPreprocessing$cpu_time)
+  }
+  rule = data.frame(rule = "multivelo",run = r,sample = s)
+  benchMultivelo <- rbind(benchMultivelo,cbind(rule,benchmark))
+  benchMultiveloAll <- rbind(benchMultiveloAll,cbind(rule,benchmarkAll))
+
+}
+}
+benchMultiveloAll$run <- factor(benchMultiveloAll$run,levels = c("singleCell","SuperCellPostPro","Subsampling"))
+benchMultiveloAll$cpu_time_min <- benchMultiveloAll$cpu_time / 60
+benchMultiveloAll$memory_GB <- benchMultiveloAll$max_rss / 1000
+
+for (s in samples) {
+
+cpu_time_min <- ggplot(benchMultiveloAll[benchMultiveloAll$sample == s,],aes(x=run,y=cpu_time_min,fill = run)) + 
+  geom_bar(stat = "identity") + facet_wrap("~sample") +
+  scale_x_discrete(guide = guide_axis(angle = 45))+ NoLegend() + theme(axis.title.x = element_blank())
+
+memory_GB <- ggplot(benchMultiveloAll[benchMultiveloAll$sample == s,],aes(x=run,y=memory_GB,fill = run)) + 
+  geom_bar(stat = "identity") + facet_wrap("~sample") +
+  scale_x_discrete(guide = guide_axis(angle = 45)) + NoLegend() + theme(axis.title.x = element_blank())
+
+plot(cowplot::plot_grid(cpu_time_min,memory_GB,ncol = 2))
+
+}
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

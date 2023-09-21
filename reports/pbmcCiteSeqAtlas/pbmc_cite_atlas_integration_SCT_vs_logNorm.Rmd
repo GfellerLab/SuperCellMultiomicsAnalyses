@@ -1,0 +1,938 @@
+---
+title: "pbmc_cite_atlas_integration"
+author: "Leonard Herault"
+date: '2023-02-02'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## package loading
+```{r}
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(future.apply)
+library(pbapply)
+library(igraph)
+library(ggplot2)
+library(SuperCellMultiomics)
+#library(gprofiler2)
+```
+
+```{r}
+#pbmc.combined <- readRDS("../output/correlationAnalyzis/CITEseq/pbmc_HIV_integrated/seuratCombinedWNN.rds")
+pbmc.combined.mc <- readRDS("~/work/SuperCellMultiomicsAnalyses//output/correlationAnalyzis/CITEseq/pbmc_HIV_integrated_MC/g20/fullLogNorm/seuratCombinedWNN.rds")
+
+metaFullRNA <- readRDS("~/work/SuperCellMultiomicsAnalyses//output/correlationAnalyzis/CITEseq/pbmc_HIV_integrated_MC/g20/fullLogNorm/seuratCombinedWNN.rds")@meta.data
+```
+
+
+
+
+```{r}
+# psc_batch <- DimPlot(pbmc.combined,reduction = "wnn.umap", group.by = "orig.ident")+  theme(axis.ticks = element_blank(),axis.text = element_blank(),plot.title = element_blank()) 
+# psc_ct <- DimPlot(pbmc.combined,reduction = "wnn.umap", group.by = 'celltype.l1')+  theme(axis.ticks = element_blank(),axis.text = element_blank(),plot.title = element_blank()) 
+
+pmc_batch <- DimPlot(pbmc.combined.mc,reduction = "wnn.umap", group.by = "orig.ident") +  theme(axis.ticks = element_blank(),axis.text = element_blank(),plot.title = element_blank()) 
+pmc_ct <- DimPlot(pbmc.combined.mc,reduction = "wnn.umap", group.by = 'celltype.l1') +  theme(axis.ticks = element_blank(),axis.text = element_blank(),plot.title = element_blank()) 
+
+pmc_ct_l2 <- DimPlot(pbmc.combined.mc,reduction = "wnn.umap", group.by = 'celltype.l2',cols = scales::hue_pal()(30)[sample(c(1:30),size = 30)]) +  theme(axis.ticks = element_blank(),axis.text = element_blank(),plot.title = element_blank()) 
+
+
+pmc_batch
+pmc_ct
+pmc_ct_l2
+
+
+cowplot::plot_grid(
+  # psc_ct+NoLegend(),
+  pmc_ct+NoLegend(),
+  # psc_batch+NoLegend(),
+  pmc_batch+NoLegend())
+```
+```{r}
+FeaturePlot(pbmc.combined.mc,features = "size")
+
+FeaturePlot(pbmc.combined.mc,features = "nCount_RNA")
+
+```
+```{r}
+VlnPlot(pbmc.combined.mc,features = c("size","celltype.l1_purity","celltype.l2_purity","celltype.l3_purity"),pt.size = 0,ncol = 4)
+```
+```{r}
+DefaultAssay(pbmc.combined.mc) <- 'integratedRNA'
+pbmc.combined.mc <- RunUMAP(pbmc.combined.mc, reduction = "pca",dims = c(1:40),reduction.name = "umap.rna")
+DimPlot(pbmc.combined.mc,reduction = "umap.rna",group.by = "celltype.l1")
+
+DefaultAssay(pbmc.combined.mc) <- 'integratedADT'
+pbmc.combined.mc <- RunUMAP(pbmc.combined.mc, reduction = "apca",dims = c(1:50),reduction.name = "umap.adt")
+DimPlot(pbmc.combined.mc,reduction = "umap.adt",group.by = "celltype.l1")
+```
+```{r}
+DefaultAssay(pbmc.combined.mc) <- 'integratedRNA'
+pbmc.combined.mc <- ScaleData(pbmc.combined.mc)
+pbmc.combined.mc <- RunUMAP(pbmc.combined.mc, reduction = "pca",dims = c(1:40),reduction.name = "umap.rna")
+DimPlot(pbmc.combined.mc,reduction = "umap.rna",group.by = "celltype.l1")
+pbmc.combined.mc <- ScaleData(pbmc.combined.mc,vars.to.regress = c("nCount_RNA"))
+pbmc.combined.mc <- RunPCA(pbmc.combined.mc, reduction.name = "scale.size.pca")
+pbmc.combined.mc <- RunUMAP(pbmc.combined.mc, reduction = "scale.size.pca",dims = c(1:40),reduction.name = "umap.scale.rna")
+DimPlot(pbmc.combined.mc,reduction = "umap.scale.rna",group.by = "celltype.l1")
+FeaturePlot(pbmc.combined.mc,reduction = "umap.scale.rna",features = "size")
+
+DefaultAssay(pbmc.combined.mc) <- 'integratedADT'
+pbmc.combined.mc <- RunUMAP(pbmc.combined.mc, reduction = "apca",dims = c(1:50),reduction.name = "umap.adt")
+DimPlot(pbmc.combined.mc,reduction = "umap.adt",group.by = "celltype.l1")
+```
+```{r}
+#pbmc.combined <- readRDS("../output/correlationAnalyzis/CITEseq/pbmc_HIV_integrated/seuratCombinedWNN.rds")
+pbmc.combined.mc <- readRDS("~/work/SuperCellMultiomicsAnalyses//output/correlationAnalyzis/CITEseq/pbmc_HIV_integrated_MC/g20/fullSCT//seuratCombinedWNN.rds")
+```
+
+
+
+
+```{r }
+# psc_batch <- DimPlot(pbmc.combined,reduction = "wnn.umap", group.by = "orig.ident")+  theme(axis.ticks = element_blank(),axis.text = element_blank(),plot.title = element_blank()) 
+# psc_ct <- DimPlot(pbmc.combined,reduction = "wnn.umap", group.by = 'celltype.l1')+  theme(axis.ticks = element_blank(),axis.text = element_blank(),plot.title = element_blank()) 
+
+pmc_batch <- DimPlot(pbmc.combined.mc,reduction = "wnn.umap", group.by = "orig.ident") +  theme(axis.ticks = element_blank(),axis.text = element_blank(),plot.title = element_blank()) 
+pmc_ct <- DimPlot(pbmc.combined.mc,reduction = "wnn.umap", group.by = 'celltype.l1') +  theme(axis.ticks = element_blank(),axis.text = element_blank(),plot.title = element_blank()) 
+
+pmc_ct_l2 <- DimPlot(pbmc.combined.mc,reduction = "wnn.umap", group.by = 'celltype.l2',cols = scales::hue_pal()(30)[sample(c(1:30),size = 30)]) +  theme(axis.ticks = element_blank(),axis.text = element_blank(),plot.title = element_blank()) 
+
+
+pmc_batch
+pmc_ct
+pmc_ct_l2
+
+cowplot::plot_grid(
+  # psc_ct+NoLegend(),
+  pmc_ct+NoLegend(),
+  # psc_batch+NoLegend(),
+  pmc_batch+NoLegend())
+```
+
+```{r}
+metaFullRNA$scNorm <- "LogNorm"
+
+pbmc.combined.mc@meta.data$scNorm <- "SCT"
+
+cn <- colnames(metaFullRNA)[colnames(metaFullRNA) %in% colnames(pbmc.combined.mc@meta.data)] 
+
+metaAll <- rbind(metaFullRNA[,cn],pbmc.combined.mc@meta.data[,cn])
+
+ggplot(metaAll,aes(x=scNorm,y=celltype.l1_purity)) + geom_boxplot()
+ggplot(metaAll,aes(x=scNorm,y=celltype.l2_purity)) + geom_boxplot()
+ggplot(metaAll,aes(x=scNorm,y=celltype.l3_purity)) + geom_boxplot()
+ggplot(metaAll,aes(x=scNorm,y=size)) + geom_boxplot()
+
+```
+
+
+
+```{r}
+FeaturePlot(pbmc.combined.mc,features = "size")
+
+FeaturePlot(pbmc.combined.mc,features = "nCount_RNA")
+
+```
+```{r}
+VlnPlot(pbmc.combined.mc,features = c("size","celltype.l1_purity","celltype.l2_purity","celltype.l3_purity"),pt.size = 0,ncol = 4)
+```
+
+
+
+
+
+
+
+
+```{r}
+DimPlot(pbmc.combined.mc,reduction = "wnn.umap", group.by = 'celltype.l3',label = T) +  theme(axis.ticks = element_blank(),axis.text = element_blank(),plot.title = element_blank()) + NoLegend()
+
+pbmc.combined.mc <-  FindClusters(pbmc.combined.mc,graph.name = "wsnn",resolution = 0.4) 
+```
+```{r}
+Idents(pbmc.combined.mc) <-"celltype.l1"
+monoDC <- subset(pbmc.combined.mc,idents = c("Mono","DC"))
+
+DimPlot(monoDC,reduction = "wnn.umap", group.by = 'celltype.l3',label = T) 
+
+DimPlot(monoDC,reduction = "wnn.umap", group.by = 'wsnn_res.0.4',label = T) 
+
+```
+```{r}
+DimPlot(monoDC,reduction = "wnn.umap", group.by = 'Phase',label = T) 
+DimPlot(monoDC,reduction = "wnn.umap", group.by = 'celltype.l2',label = T) 
+
+```
+
+
+```{r}
+```
+
+
+```{r}
+monoDC$time <- stringr::str_split_fixed(monoDC$orig.ident,pattern = "_",n=2)[,2]
+DimPlot(monoDC,reduction = "wnn.umap", group.by = 'time',label = T) 
+
+```
+```{r fig.height=5}
+DimPlot(monoDC,reduction = "wnn.umap", split.by = 'time',label = T) 
+DefaultAssay(monoDC) <- "SCT"
+FeaturePlot(monoDC,reduction = "wnn.umap",split.by = "time",features = c("IL1B","CCL3","IRF1"))
+```
+
+
+```{r}
+Idents(monoDC) <- "wsnn_res.0.4"
+monoDC <- PrepSCTFindMarkers(monoDC,assay = "SCT")
+markersMonoDc <- FindAllMarkers(monoDC,assay = "SCT")
+
+markersMonoDc <- markersMonoDc[markersMonoDc$p_val_adj < 0.05,]
+```
+
+
+```{r}
+markersMonoDc[markersMonoDc$cluster == 17 & markersMonoDc$avg_log2FC > 1,]
+cat(markersMonoDc[markersMonoDc$cluster == 17 & markersMonoDc$avg_log2FC > 1,"gene"],sep = "\n")
+```
+https://www.sciencedirect.com/science/article/pii/S0166354216302170
+```{r}
+markersMonoDc[markersMonoDc$cluster == 18 & markersMonoDc$avg_log2FC > 1,]
+cat(markersMonoDc[markersMonoDc$cluster == 18 & markersMonoDc$avg_log2FC > 1,"gene"],sep = "\n")
+```
+```{r fig.height=2}
+genes <- c("CCL2",
+"OAS3",
+"EIF2AK2",
+"MX2",
+"IFI44",
+"STAT1")
+
+VlnPlot(monoDC,features = genes,pt.size = 0,assay = "SCT")
+
+```
+```{r}
+genes <- c("GFI1B",
+"ITGA2B",
+"PF4",
+"SELP",
+"CD14",
+"FCGR3A")
+
+VlnPlot(monoDC,features = genes,pt.size = 0,assay = "SCT")
+
+```
+```{r}
+VlnPlot(monoDC,features = c("celltype.l1_purity","celltype.l2_purity"),pt.size = 0,assay = "SCT")
+
+```
+
+
+
+```{r}
+markersMonoDcADT <- FindMarkers(monoDC,assay = "ADT",ident.1 = 18,ident.2 = 0,only.pos = T)
+
+markersMonoDcADT <- markersMonoDcADT[markersMonoDcADT$p_val_adj < 0.05,]
+
+markersMonoDcADT
+
+VlnPlot(monoDC,features = rownames(markersMonoDcADT)[c(1:6)],pt.size = 0,assay = "ADT")
+
+```
+
+
+```{r}
+VlnPlot(pbmc.combined.mc,features = c("celltype.l1_purity","celltype.l2_purity","celltype.l3_purity"),pt.size = 0)
+```
+```{r}
+VlnPlot(pbmc.combined.mc,features = c("size"),pt.size = 0)
+
+```
+
+
+```{r fig.height=1.2,fig.width=2}
+# benchMC <- read.table("../benchmark/cite_atlas_integrated_wnn_analyzis_MC.txt",header = T)
+# bench <- rbind(benchMC,read.table("../benchmark/cite_atlas_integrated_wnn_analyzis.txt",header = T))
+# 
+# rownames(bench) <- c("Metacells γ = 20","single-cells")
+# 
+# bench$approach <- factor(rownames(bench),levels = rev(rownames(bench)))
+# 
+# ggplot(bench,aes(x = approach,y = cpu_time, fill= approach)) + geom_bar(stat = "identity") +
+#   scale_x_discrete(guide = guide_axis(angle = 45))+ ylab("cpu time (s)")+ NoLegend() +
+#   ggplot(bench,aes(x = approach,y = max_pss/1000, fill= approach)) + geom_bar(stat = "identity") + ylab("memory (GB)") +
+#   scale_x_discrete(guide = guide_axis(angle = 45))
+```
+
+
+
+# RNA SCT
+
+
+```{r}
+# pbmc.list <- PrepSCTIntegration(object.list = pbmc.list, anchor.features = features)
+# 
+# pbmc.anchors <- FindIntegrationAnchors(object.list = pbmc.list, 
+#                                        anchor.features = features, 
+#                                        reduction = "rpca",
+#                                        normalization.method = "SCT",
+#                                        dims = 1:40)
+DefaultAssay(pbmc.combined.mc) <- "RNA"
+pbmc.list <- SplitObject(pbmc.combined.mc,"orig.ident")
+
+remove(pbmc.combined.mc)
+gc()
+
+# #normalize and identify variable features for each dataset independently
+# pbmc.list <- lapply(X = pbmc.list, FUN = function(x) {DefaultAssay(x) <- "RNA";
+# x <- NormalizeData(x); return(x)})
+
+pbmc.list <- lapply(X = pbmc.list, FUN = function(x) { DefaultAssay(x) <- "RNA";x <- SCTransform(x, verbose = FALSE); return(x)})
+features <- SelectIntegrationFeatures(object.list = pbmc.list)
+pbmc.list <- lapply(X = pbmc.list, FUN = function(x) {
+  x <- RunPCA(x, features = features, verbose = FALSE)
+})
+
+pbmc.list <- PrepSCTIntegration(object.list = pbmc.list, anchor.features = features)
+
+# select features that are repeatedly variable across datasets for integration run PCA on each
+# dataset using these features
+
+
+
+
+reference <- which(endsWith(names(pbmc.list),suffix = "_0"))
+
+print(reference)
+
+
+pbmc.anchors <- FindIntegrationAnchors(object.list = pbmc.list, 
+                                       normalization.method  = "SCT", 
+                                       anchor.features = features, 
+                                       reference = reference,
+                                       reduction = "rpca",
+                                       dims = 1:40)
+
+remove(pbmc.list)
+gc()
+
+pbmc.combined.mc.rna <- IntegrateData(anchorset = pbmc.anchors,new.assay.name = "integratedRNA")
+
+
+remove(pbmc.anchors)
+
+gc()
+```
+
+```{r}
+pbmc.combined.mc <- readRDS("~/work/SuperCellMultiomicsAnalyses//output/correlationAnalyzis/CITEseq/pbmc_HIV_integrated_MC/20/seuratCombinedWNN_noRef.rds")
+
+DefaultAssay(pbmc.combined.mc) <- "integratedRNA"
+pbmc.combined.mc <- ScaleData(pbmc.combined.mc)
+pbmc.combined.mc <- RunPCA(pbmc.combined.mc, verbose = FALSE,reduction.name = "integrated.pca")
+pbmc.combined.mc[['integrated.pca']]@cell.embeddings
+
+
+
+
+scMcEmbeddings <- data.frame()
+rowNames <- c()
+
+metacells <- rownames(pbmc.combined.mc[['integrated.pca']]@cell.embeddings)
+
+for (m in metacells) {
+  
+  singlecells <- names(pbmc.combined$membership[pbmc.combined$membership == m])
+  
+  scMcEmb <- pbmc.combined.mc[['integrated.pca']]@cell.embeddings[rep(m,length(singlecells)),]
+  scMcEmb <-  data.frame(matrix(scMcEmb, length(singlecells)))
+  rownames(scMcEmb) <- singlecells
+  
+  scMcEmbeddings <- rbind(scMcEmbeddings,scMcEmb)
+  
+}
+
+scMcEmbeddings <- scMcEmbeddings[rownames(pbmc.combined[["pca"]]@cell.embeddings),]
+colnames(scMcEmbeddings) <- colnames(pbmc.combined[["pca"]]@cell.embeddings)
+
+pbmc.combined[["metacellIntegratedPCA"]] <- CreateDimReducObject(embeddings = as.matrix(scMcEmbeddings))
+
+```
+
+```{r}
+remove(pbmc.list)
+remove(scMcEmbeddings)
+remove(scMcEmb)
+pbmc.combined@assays$SCT <- NULL
+remove(pbmc.anchors)
+gc()
+```
+
+```{r}
+library(scIntegrationMetrics)
+
+meta.batch <- "orig.ident"
+meta.label <- "celltype.l1"
+lisi_perplexity <- 30 # number of neighbors for LISI (see below for details) to measure batch mixing
+
+integrationMetrics <- list()
+
+useMetrics <- c("CiLISI","CiLISI_means","norm_cLISI","norm_cLISI_means","celltype_ASW","celltype_ASW_means")
+
+
+
+method = "seurat_rpca_singlecells"
+method.reduction <- "pca"
+
+
+
+
+integrationMetrics[[method]] <- getIntegrationMetrics(object=pbmc.combined,
+                                                      metrics = useMetrics, 
+                                                      meta.label = meta.label, 
+                                                      meta.batch = meta.batch, 
+                                                      lisi_perplexity = lisi_perplexity,
+                                                      method.reduction = method.reduction,
+                                                      metricsLabels = unique(pbmc.combined@meta.data[[meta.label]]))
+
+
+integrationMetrics[["seurat_rpca_metacells"]] <- getIntegrationMetrics(object=pbmc.combined,
+                                                                       metrics = useMetrics, 
+                                                                       meta.label = meta.label, 
+                                                                       meta.batch = meta.batch, 
+                                                                       lisi_perplexity = lisi_perplexity,
+                                                                       method.reduction = "metacellIntegratedPCA",
+                                                                       metricsLabels = unique(pbmc.combined@meta.data[[meta.label]]))
+
+integrationMetrics[["seurat_rpca_MCs"]] <- getIntegrationMetrics(object=pbmc.combined.mc,
+                                                                 metrics = useMetrics, 
+                                                                 meta.label = meta.label, 
+                                                                 meta.batch = meta.batch, 
+                                                                 lisi_perplexity = lisi_perplexity,
+                                                                 method.reduction = "integrated.pca",
+                                                                 metricsLabels = unique(pbmc.combined@meta.data[[meta.label]]))
+```
+```{r}
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+library(STACAS)
+library(scGate)
+library(harmony)
+library(SeuratWrappers)
+library(batchelor)
+library(tidyr)
+library(scIntegrationMetrics)
+library(patchwork)
+library(tidytext)
+```
+
+```{r}
+integrationMetricsSummary <- data.frame(unlist(integrationMetrics)) %>% tibble::rownames_to_column() %>% dplyr::rename(value=unlist.integrationMetrics.) %>% separate(rowname, c("Method","Metric"), sep="\\.") #\\.[[:alpha:]]
+
+ggplot(integrationMetricsSummary,aes(x=reorder_within(Method,-value, Metric), y=value, fill=Method)) + geom_bar(stat="identity") + 
+  theme_bw() + 
+  theme(legend.position="none", axis.text.x=element_text(angle = 90, vjust = 0.5, hjust=1)) + xlab("Dataset") + facet_wrap(~Metric, scales = "free", ncol = 5)
+```
+```{r}
+DimPlot(pbmc.combined,reduction = "metacellIntegratedPCA",group.by = "orig.ident")
+DimPlot(pbmc.combined.mc,reduction = "integrated.pca",group.by = "orig.ident")
+DimPlot(pbmc.combined,reduction = "pca",group.by = "orig.ident")
+
+```
+
+```{r}
+pbmc.combined <- IntegrateData(anchorset = pbmc.anchors,normalization.method = "SCT",new.assay.name = "integratedSCT")
+```
+
+```{r}
+DefaultAssay(pbmc.combined) <- "integratedSCT"
+#pbmc.combined <- ScaleData(pbmc.combined, verbose = FALSE) Skipped with norm method = SCT
+pbmc.combined <- RunPCA(pbmc.combined, verbose = FALSE)
+pbmc.combined <- RunUMAP(pbmc.combined, dims = 1:40)
+
+DimPlot(pbmc.combined, group.by = "orig.ident")
+```
+```{r}
+DimPlot(pbmc.combined, group.by = "celltype.l1")
+DimPlot(pbmc.combined, group.by = "celltype.l2")
+
+```
+
+#ADT
+
+```{r}
+
+# normalize and identify variable features for each dataset independently
+pbmc.list <- lapply(X = pbmc.list, FUN = function(x) { DefaultAssay(x) <- "ADT"
+VariableFeatures(x) <- rownames(x[["ADT"]])
+x <- NormalizeData(x, normalization.method = 'CLR', margin = 2) %>% ScaleData(features = rownames(x)) %>% RunPCA(reduction.name = 'pca')
+return(x)})
+
+# select features that are repeatedly variable across datasets for integration run PCA on each
+# dataset using these features
+features <- SelectIntegrationFeatures(object.list = pbmc.list)
+
+```
+
+```{r}
+pbmc.anchors <- FindIntegrationAnchors(object.list = pbmc.list, 
+                                       anchor.features = features, 
+                                       reduction = "rpca",
+                                       dims = 1:50)
+```
+
+
+```{r}
+pbmc.combined.adt <- IntegrateData(anchorset = pbmc.anchors,new.assay.name = "integratedADT")
+```
+
+```{r}
+pbmc.combined[["integratedADT"]] <- pbmc.combined.adt[["integratedADT"]]
+
+remove(pbmc.combined.adt)
+gc()
+```
+
+
+```{r}
+DefaultAssay(pbmc.combined) <- "integratedADT"
+pbmc.combined <- ScaleData(pbmc.combined, verbose = FALSE) 
+pbmc.combined <- RunPCA(pbmc.combined, verbose = FALSE,reduction.name = "integrated.apca")
+pbmc.combined <- RunUMAP(pbmc.combined, dims = 1:50,reduction = 'integrated.apca')
+
+DimPlot(pbmc.combined, group.by = "orig.ident")
+
+
+DefaultAssay(pbmc.combined) <- "integratedSCT"
+pbmc.combined <- RunPCA(pbmc.combined, verbose = FALSE,reduction.name = "integrated.pca")
+pbmc.combined <- RunUMAP(pbmc.combined, dims = 1:50,reduction = 'integrated.pca')
+
+DimPlot(pbmc.combined, group.by = "orig.ident")
+```
+```{r}
+DimPlot(pbmc.combined, group.by = "celltype.l1")
+DimPlot(pbmc.combined, group.by = "celltype.l2")
+
+```
+```{r}
+
+pbmc.combined <- FindMultiModalNeighbors(
+  pbmc.combined, 
+  reduction.list = list("integrated.pca", "integrated.apca"), 
+  dims.list = list(1:40, 1:50), 
+  modality.weight.name = "RNA.weight",
+  return.intermediate = T
+)
+pbmc.combined <- RunUMAP(pbmc.combined, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_")
+
+
+DimPlot(pbmc.combined,reduction = "wnn.umap", group.by = "orig.ident")
+DimPlot(pbmc.combined,reduction = "wnn.umap", group.by = 'celltype.l1')
+DimPlot(pbmc.combined,reduction = "wnn.umap", group.by = 'celltype.l2')
+
+```
+```{r}
+DimPlot(pbmc.combined[,pbmc.combined$celltype.l1 %in% "other T"],reduction = "wnn.umap", group.by = 'celltype.l3')
+
+DimPlot(pbmc.combined[,pbmc.combined$celltype.l1 %in% "other"],reduction = "wnn.umap", group.by = 'celltype.l2')
+
+```
+
+```{r}
+pbmc.combined.mc.integrated <- readRDS("../output/correlationAnalyzis/CITEseq/pbmc_HIV/seuratCombinedWNN.rds")
+pbmc.combined.sc <- pbmc.combined.mc.integrated
+
+```
+
+```{r}
+pbmc.combined.mc.integrated <- SCimplify_for_Seurat(seurat = pbmc.combined.sc,
+                                                    assay = c('integratedSCT','integratedADT'),
+                                                    reduction = list("pca", "apca"), 
+                                                    dims = list(1:40, 1:50),
+                                                    graph.name = "knn",
+                                                    kernel = T,
+                                                    gamma = 20)
+```
+```{r}
+library(SuperCellMultiomics)
+DimPlotSC(seurat.mc = pbmc.combined.mc.integrated,seurat = pbmc.combined.sc, metacell.col = "celltype.l1") + theme_classic()
+```
+```{r}
+VlnPlot(pbmc.combined.mc.integrated,c('celltype.l1_purity','celltype.l1_purity','celltype.l3_purity','size'),ncol = 4,pt.size = 0.1)
+VlnPlot(pbmc.combined,c('celltype.l1_purity','celltype.l1_purity','celltype.l3_purity','size'),ncol = 4,pt.size = 0.1)
+
+```
+
+```{r}
+DefaultAssay(pbmc.combined.mc.integrated) <- "ADT"
+VariableFeatures(pbmc.combined.mc.integrated) <- rownames(pbmc.combined.mc.integrated)
+pbmc.combined.mc.integrated <-  NormalizeData(pbmc.combined.mc.integrated, normalization.method = 'CLR', margin = 2)
+pbmc.combined.mc.integrated <- ScaleData(pbmc.combined.mc.integrated, verbose = FALSE) 
+pbmc.combined.mc.integrated <- RunPCA(pbmc.combined.mc.integrated, verbose = FALSE,reduction.name = "apca")
+pbmc.combined.mc.integrated <- RunUMAP(pbmc.combined.mc.integrated, dims = 1:50,reduction = 'apca')
+
+DimPlot(pbmc.combined.mc.integrated, group.by = "orig.ident")
+
+
+DefaultAssay(pbmc.combined.mc.integrated) <- "RNA"
+pbmc.combined.mc.integrated <- SCTransform(pbmc.combined.mc.integrated, verbose = FALSE)
+pbmc.combined.mc.integrated <- RunPCA(pbmc.combined.mc.integrated, verbose = FALSE,reduction.name = "pca")
+pbmc.combined.mc.integrated <- RunUMAP(pbmc.combined.mc.integrated, dims = 1:50,reduction = 'pca')
+
+DimPlot(pbmc.combined.mc.integrated, group.by = "orig.ident")
+
+DimPlot(pbmc.combined.mc.integrated, group.by = "celltype.l1")
+
+```
+```{r}
+DimPlot(pbmc.combined.mc.integrated, group.by = "celltype.l1")
+DimPlot(pbmc.combined.mc.integrated, group.by = "celltype.l2")
+
+```
+```{r}
+
+pbmc.combined.mc.integrated <- FindMultiModalNeighbors(
+  pbmc.combined.mc.integrated, 
+  reduction.list = list("integrated.pca", "integrated.apca"), 
+  dims.list = list(1:40, 1:50), 
+  modality.weight.name = "RNA.weight",
+  return.intermediate = T
+)
+pbmc.combined.mc.integrated <- RunUMAP(pbmc.combined.mc.integrated, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_")
+
+
+DimPlot(pbmc.combined.mc.integrated,reduction = "wnn.umap", group.by = "orig.ident")
+DimPlot(pbmc.combined.mc.integrated,reduction = "wnn.umap", group.by = 'celltype.l1')
+DimPlot(pbmc.combined.mc.integrated,reduction = "wnn.umap", group.by = 'celltype.l2')
+
+```
+```{r}
+DimPlot(pbmc.combined.mc.integrated[,pbmc.combined.mc.integrated$celltype.l1 %in% "other T"],reduction = "wnn.umap", group.by = 'celltype.l3')
+
+DimPlot(pbmc.combined.mc.integrated[,pbmc.combined.mc.integrated$celltype.l1 %in% "other"],reduction = "wnn.umap", group.by = 'celltype.l2')
+
+```
+
+
+
+
+
+
+```{r}
+pbmc.combined@misc$membership  <- NULL
+for( s in pbmc.list) {
+  name <- s@meta.data$orig.ident[1]
+  newMemb <- paste0(name,"_",s@misc$membership)
+  pbmc.combined@misc$membership <- c(pbmc.combined@misc$membership ,newMemb)
+}
+
+pbmc.combined.mc.integrated$method = "sampleData"
+pbmc.combined$method = "integratedData"
+
+
+
+source("../R/functions/innerNormalizedVariance.R")
+pbmc.combined.mc.integrated$innerNormVar <- computeInnerNormVar(seurat = pbmc.combined.sc, 
+                                                                memberships = pbmc.combined.mc.integrated@misc$membership)
+
+pbmc.combined$innerNormVar <- computeInnerNormVar(seurat = pbmc.combined.sc, 
+                                                  memberships = pbmc.combined@misc$membership)
+
+
+metaTable <- pbmc.combined.mc.integrated@meta.data
+metaTable <- rbind(metaTable,pbmc.combined@meta.data[,colnames(metaTable)[colnames(metaTable) %in% colnames(pbmc.combined@meta.data)]])
+
+ggplot(metaTable,aes(x = method,y=celltype.l1_purity)) + geom_boxplot()
+ggplot(metaTable,aes(x = method,y=celltype.l2_purity)) + geom_boxplot()
+ggplot(metaTable,aes(x = method,y=celltype.l3_purity)) + geom_boxplot()
+ggplot(metaTable,aes(x = method,y=orig.ident_purity)) + geom_boxplot()
+
+ggplot(metaTable,aes(x = method,y=innerNormVar)) + geom_boxplot()
+ggplot(metaTable,aes(x = method,y=size)) + geom_boxplot()
+
+
+ggplot(metaTable,aes(x = method,y=size)) + geom_boxplot()
+
+```
+
+
+# Some benchmark metrics
+
+```{r}
+library(STACAS)
+if (!require("scIntegrationMetrics", quietly = TRUE))
+  devtools::install_github("carmonalab/scIntegrationMetrics") #calculates LISI and Silhouette
+library(scIntegrationMetrics)
+integrationMetrics <- list()
+```
+
+```{r}
+library(vegan)
+library(cluster)
+X = pbmc.combined@reductions[["pca"]]@cell.embeddings
+meta_data = pbmc.combined@meta.data
+label_colnames = "celltype.l1"
+
+compute_silhouette <- function (X, meta_data, label_colnames) 
+{
+  N <- nrow(meta_data)
+  sil_df <- data.frame(matrix(NA, N, length(label_colnames)))
+  sil_df <- Reduce(cbind, lapply(label_colnames, function(label_colname) {
+    labels <- data.frame(meta_data)[, label_colname, drop = TRUE]
+    if (any(is.na(labels))) {
+      message(paste("ASW: Cannot compute silhouette on missing values.", 
+                    "Skipping", label_colname))
+      return(rep(NA, N))
+    }
+    else if (sum(table(labels) > 0) < 2) {
+      message(paste("ASW: Cannot compute silhouette without at least 2 label levels.", 
+                    "Skipping", label_colname))
+      return(rep(NA, N))
+    }
+    else {
+      dists <- vegdist(X, method = "euclidean")
+      labels.num <- as.numeric(as.factor(labels))
+      #sil <- as.data.frame(silhouette(labels.num, dists))
+      sil <- silhouette(labels.num, dists)
+      return(sil[,"sil_width"])
+    }
+  }))
+  sil_df <- as.data.frame(sil_df)
+  colnames(sil_df) <- label_colnames
+  row.names(sil_df) <- row.names(meta_data)
+  return(sil_df)
+}
+
+
+```
+
+```{r}
+getIntegrationMetrics <- function (object, metrics = NULL, meta.label, meta.batch, lisi_perplexity = 30, 
+                                   method.reduction = "pca", metricsLabels = NULL) 
+{
+  metricsAvailable <- c("batch_LISI", "batch_nLISI", "batch_nLISI_means", 
+                        "batch_nLISI_perCellType", "batch_nLISI_perCellType_means", 
+                        "1-celltype_nLISI", "1-celltype_nLISI_means", "celltype_ASW", 
+                        "celltype_ASW_means")
+  if (is.null(metrics)) {
+    metrics <- metricsAvailable
+  }
+  if (!all(metrics %in% metricsAvailable)) {
+    stop("Error: 'metrics' is unknown. Please define one or more of 'batch_LISI', 'batch_nLISI', 'batch_nLISI_means', 'batch_nLISI_perCellType', 'batch_nLISI_perCellType_means','1-celltype_nLISI', '1-celltype_nLISI_means', 'celltype_ASW', 'celltype_ASW_means', or leave 'NULL' to calculate them all")
+  }
+  if (!is(object, "Seurat")) {
+    stop("Error: 'object' must be a 'Seurat' object.")
+  }
+  integrationMetrics <- list()
+  if (is.null(metricsLabels)) 
+    metricsLabels <- unique(object@meta.data[[meta.label]])
+  message(paste("Cell type labels:", paste(metricsLabels, collapse = ",")))
+  metricsLabels_logic <- object@meta.data[[meta.label]] %in% 
+    metricsLabels
+  batchNames <- unique(object@meta.data[[meta.batch]])
+  message(paste("Batches:", paste(batchNames, collapse = ",")))
+  if (any(c("batch_LISI", "batch_nLISI", "batch_nLISI_means") %in% 
+          metrics)) {
+    lisi.this <- compute_lisi(object@reductions[[method.reduction]]@cell.embeddings, 
+                              meta_data = object@meta.data, label_colnames = meta.batch, 
+                              perplexity = lisi_perplexity)[[1]]
+    if ("batch_LISI" %in% metrics) {
+      integrationMetrics[["batch_LISI"]] <- mean(lisi.this[metricsLabels_logic])
+    }
+    if ("batch_nLISI" %in% metrics) {
+      lisi.this.normalized <- (lisi.this - 1)/(length(batchNames) - 
+                                                 1)
+      integrationMetrics[["batch_nLISI"]] <- mean(lisi.this.normalized[metricsLabels_logic])
+      if ("batch_nLISI_means" %in% metrics) {
+        integrationMetrics[["batch_nLISI_means"]] <- mean(tapply(lisi.this.normalized, 
+                                                                 object@meta.data[[meta.label]], mean)[metricsLabels])
+      }
+    }
+  }
+  if (any(c("batch_nLISI_perCellType", "batch_nLISI_perCellType_means") %in% 
+          metrics)) {
+    lisi_splitByCelltype <- compute_lisi_splitBy(object@reductions[[method.reduction]]@cell.embeddings, 
+                                                 meta_data = object@meta.data, label_colnames = meta.batch, 
+                                                 perplexity = lisi_perplexity, split_by_colname = meta.label, 
+                                                 normalize = T)
+    if ("batch_nLISI_perCellType" %in% metrics) {
+      integrationMetrics[["batch_nLISI_perCellType"]] <- mean(unlist(lisi_splitByCelltype)[metricsLabels_logic])
+    }
+    if ("batch_nLISI_perCellType_means" %in% metrics) {
+      classMeans <- sapply(lisi_splitByCelltype, function(x) mean(x[, 
+                                                                    1]))[metricsLabels]
+      message("batch_nLISI_perCellType: ", paste(names(lisi_splitByCelltype), 
+                                                 round(classMeans, 2), " "))
+      integrationMetrics[["batch_nLISI_perCellType_means"]] <- mean(classMeans)
+    }
+  }
+  if (any(c("1-celltype_nLISI", "1-celltype_nLISI_means") %in% 
+          metrics)) {
+    lisi.this <- compute_lisi(object@reductions[[method.reduction]]@cell.embeddings, 
+                              meta_data = object@meta.data, label_colnames = meta.label, 
+                              perplexity = lisi_perplexity)[[1]]
+    lisi.this.normalized <- (lisi.this - 1)/(length(metricsLabels) - 
+                                               1)
+    if ("1-celltype_nLISI" %in% metrics) {
+      integrationMetrics[["1-celltype_nLISI"]] <- 1 - mean(lisi.this.normalized[metricsLabels_logic])
+    }
+    if ("1-celltype_nLISI_means" %in% metrics) {
+      integrationMetrics[["1-celltype_nLISI_means"]] <- 1 - 
+        mean(tapply(lisi.this.normalized, object@meta.data[[meta.label]], 
+                    mean)[metricsLabels])
+    }
+  }
+  if (any(c("celltype_ASW", "celltype_ASW_means") %in% metrics)) {
+    sil.this <- compute_silhouette(object@reductions[[method.reduction]]@cell.embeddings, 
+                                   meta_data = object@meta.data, label_colnames = meta.label)[[1]]
+    if ("celltype_ASW" %in% metrics) {
+      integrationMetrics[["celltype_ASW"]] <- mean(sil.this[metricsLabels_logic])
+    }
+    if ("celltype_ASW_means" %in% metrics) {
+      integrationMetrics[["celltype_ASW_means"]] <- mean(tapply(sil.this, 
+                                                                object@meta.data[[meta.label]], mean)[metricsLabels])
+    }
+  }
+  return(integrationMetrics)
+}
+```
+
+## TO DO create corresponding object at single cell level before computing  metrics
+
+```{r}
+
+
+useMetrics <- c("batch_LISI","batch_nLISI", "batch_nLISI_perCellType", "batch_nLISI_perCellType_means", 
+                "1-celltype_nLISI", "1-celltype_nLISI_means", "celltype_ASW", "celltype_ASW_means")
+
+# useMetrics <- c("batch_LISI","batch_nLISI", "batch_nLISI_perCellType", "batch_nLISI_perCellType_means", 
+# "1-celltype_nLISI", "1-celltype_nLISI_means")
+
+# nfeatures <- 2000 # number of highly variable genes for dimensionality reduction
+# ndim <- 20 # number of PCA components for dimensionality reduction 
+lisi_perplexity <- 30 # number of neighbors for LISI (see below for details) to measure batch mixing
+
+method = "SuperCellMulti_g20_Seurat_pca"
+method.reduction <- "pca"
+
+labs <- c("CD4 T","Mono","CD8 T", "NK","DC" ,"B")
+
+integrationMetrics <- list()
+
+integrationMetrics[["sampleData_apca"]] <- getIntegrationMetrics(object=pbmc.combined, 
+                                                                 metrics = useMetrics, 
+                                                                 meta.label = "celltype.l1", 
+                                                                 meta.batch = "orig.ident", 
+                                                                 method.reduction = method.reduction, 
+                                                                 lisi_perplexity <- 20,
+                                                                 metricsLabels = labs)
+
+integrationMetrics[["sampleData_pca"]] <- getIntegrationMetrics(object=pbmc.combined, 
+                                                                metrics = useMetrics, 
+                                                                meta.label = "celltype.l1", 
+                                                                meta.batch = "orig.ident", 
+                                                                method.reduction = "apca", 
+                                                                lisi_perplexity <- 20,
+                                                                metricsLabels = labs)
+
+
+integrationMetrics[["singleCells_pca"]] <- getIntegrationMetrics(object=pbmc.combined.sc, 
+                                                                 metrics = useMetrics, 
+                                                                 meta.label = "celltype.l1", 
+                                                                 meta.batch = "orig.ident", 
+                                                                 method.reduction = "apca", 
+                                                                 lisi_perplexity <- 20,
+                                                                 metricsLabels = labs)
+
+
+integrationMetrics[["singleCells_apca"]] <- getIntegrationMetrics(object=pbmc.combined.sc, 
+                                                                  metrics = useMetrics, 
+                                                                  meta.label = "celltype.l1", 
+                                                                  meta.batch = "orig.ident", 
+                                                                  method.reduction = "pca", 
+                                                                  lisi_perplexity <- 20,
+                                                                  metricsLabels = labs)
+```
+# Non integrated analysis
+
+
+```{r}
+DefaultAssay(pbmc.combined) <- "SCT"
+pbmc.combined <- SCTransform(pbmc.combined, verbose = FALSE)
+
+pbmc.combined <- RunPCA(pbmc.combined, verbose = FALSE)
+pbmc.combined <- RunUMAP(pbmc.combined, dims = 1:40,reduction = 'pca')
+DimPlot(pbmc.combined, group.by = "orig.ident")
+DimPlot(pbmc.combined, group.by = "celltype.l1")
+DimPlot(pbmc.combined, group.by = "celltype.l2")
+```
+
+```{r}
+DefaultAssay(pbmc.combined) <- "ADT"
+VariableFeatures(pbmc.combined) <- rownames(pbmc.combined[["ADT"]])
+pbmc.combined <- NormalizeData(pbmc.combined, normalization.method = 'CLR', margin = 2) %>% ScaleData() %>% RunPCA(reduction.name = 'apca')
+pbmc.combined <- RunUMAP(pbmc.combined, dims = 1:50,reduction = 'apca')
+DimPlot(pbmc.combined, group.by = "orig.ident")
+DimPlot(pbmc.combined, group.by = "celltype.l1")
+DimPlot(pbmc.combined, group.by = "celltype.l2")
+```
+
+
+
+```{r}
+
+pbmc.combined <- FindMultiModalNeighbors(
+  pbmc.combined, 
+  reduction.list = list("pca", "apca"), 
+  dims.list = list(1:40, 1:50), 
+  modality.weight.name = "RNA.weight",
+  return.intermediate = T
+)
+pbmc.combined <- RunUMAP(pbmc.combined, nn.name = "weighted.nn", reduction.name = "wnn.umap.noIntegration", reduction.key = "wnnUMAPnoInt_")
+
+
+DimPlot(pbmc.combined,reduction = "wnn.umap.noIntegration", group.by = "orig.ident")
+DimPlot(pbmc.combined,reduction = "wnn.umap.noIntegration", group.by = 'celltype.l1')
+DimPlot(pbmc.combined,reduction = "wnn.umap.noIntegration", group.by = 'celltype.l2')
+```
+
+
+```{r}
+method = "SuperCellMulti_g20_Merge_pca"
+integrationMetrics[[method]] <- getIntegrationMetrics(object=pbmc.combined, 
+                                                      metrics = useMetrics, 
+                                                      meta.label = "celltype.l1", 
+                                                      meta.batch = "orig.ident", 
+                                                      method.reduction = method.reduction, 
+                                                      lisi_perplexity <- 20,
+                                                      metricsLabels = labs)
+
+method = "SuperCellMulti_g20_Merge_apca"
+integrationMetrics[[method]] <- getIntegrationMetrics(object=pbmc.combined, 
+                                                      metrics = useMetrics, 
+                                                      meta.label = "celltype.l1", 
+                                                      meta.batch = "orig.ident", 
+                                                      method.reduction = "apca", 
+                                                      lisi_perplexity <- 20,
+                                                      metricsLabels = labs)
+```
+```{r}
+integrationMetrics
+```
+
+
+```{r fig.height=6,fig.width=4}
+integrationMetricsSummary <- data.frame(unlist(integrationMetrics)) %>% tibble::rownames_to_column() %>% dplyr::rename(value=unlist.integrationMetrics.) %>% tidyr::separate(rowname, c("Method","Metric"), sep="\\.") #\\.[[:alpha:]]
+
+
+ggplot(integrationMetricsSummary,aes(x= Method, y=value, fill=Method)) + geom_bar(stat="identity") + 
+  theme_bw() + 
+  theme(legend.position="none", axis.text.x=element_text(angle = 90, vjust = 0.5, hjust=1)) + xlab("Dataset") + facet_wrap(~Metric, scales = "free", ncol = 3)
+```
+

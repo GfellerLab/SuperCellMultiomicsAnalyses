@@ -1,0 +1,24 @@
+name: seaMetaCells
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.8
+  - cython
+  - ipython
+  - scanpy=1.8.2
+  - loompy=3.0.6
+  - python-igraph
+  - louvain
+  - fa2
+  - leidenalg
+  - seaborn
+  - numpy=1.23.5
+  - pandas=1.5.2
+  - pip
+  - pip:
+    - dfply
+    - ipywidgets==8.0.4
+    - git+https://github.com/dpeerlab/Palantir
+    - git+https://github.com/dpeerlab/SEACells
+    - metacells==0.8.0

@@ -1,0 +1,276 @@
+---
+title: "Bmcite Analyzis"
+output: html_document
+date: '2022-08-04'
+author: "Leonard Herault"
+---
+
+```{r setup, include=FALSE, echo = FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE)
+```
+
+In this tutorial we will construct multiomic metacells for the CITE-seq dataset of Bone marrow mononuclear cells from [(Stuart*, Butler* et al, Cell 2019)](https://www.cell.com/cell/fulltext/S0092-8674(19)30559-8).
+This dataset consists of 30,672 cells with two assays, RNA (17009 genes) and antibody-derived tags (ADT) (25 proteins).
+First we will follow Seurat [tutorial](https://satijalab.org/seurat/articles/weighted_nearest_neighbor_analysis.html) for multiomic analyzis.
+Then we will use homemade functions to use the SuperCell approach with Seurat in order to construc multiomic metacells.
+
+# Packages loading
+
+
+```{r loading,warning=FALSE}
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(future.apply)
+library(pbapply)
+library(igraph)
+library(ggplot2)
+library(SuperCellMultiomics)
+```   
+
+
+# Install and load bmcite multiomic data 
+Data are installed and loaded thanks to `SeuratData` package.
+
+# Loading results
+
+# single cell data 
+
+```{r}
+
+```
+
+
+```{r}
+sampleNames <- c("P1_0","P2_0", "P3_0", "P4_0", "P5_0", "P6_0", "P7_0", "P8_0")
+methods <- c("SuperCellMulti","SuperCellADT","SuperCellRNA","seacellsRNA","seacellsADT","MetaCellRNA","randomMetacells")
+gammas <- c(10,20,50,75,100,200)
+
+crData <- data.frame()
+metaData <- data.frame()
+
+for (s in sampleNames) {
+  for (m in methods) {
+    for (g in gammas) {
+      cr <- read.csv(paste0('../output/correlationAnalyzis/CITEseq/',s,'/',m,'/g',g,'/crData.csv'),row.names = 1)
+      crData <- rbind(crData,cr)
+      meta <- read.csv(paste0('../output/correlationAnalyzis/CITEseq/',s,'/',m,'/g',g,'/metaData.csv'),row.names = 1)
+      meta$gamma <- g 
+      meta$method <- m
+      metaData <- rbind(metaData,meta)
+    }
+    
+  }
+}
+
+```
+
+
+```{r}
+
+outliersMetaCell <- data.frame()
+for (s in sampleNames) {
+  m <- "MetaCellRNA"
+    for (g in gammas) {
+      memberships <- read.csv(paste0('../output/correlationAnalyzis/CITEseq/',s,'/',m,'/g',g,'/MetaCellMemberships.csv'),row.names = 1)
+      assignRes <- table(memberships[,1]< 0)
+      membUsed <- memberships[,1][memberships[,1]> 0]
+      out <- (assignRes/sum(table(memberships[,1]< 0)))[2]
+      trueGamma <- length(memberships[,1])/length(unique(membUsed))
+      res <- data.frame(gamma = g, sample = s, outlierPercent = out,trueGamma= trueGamma  )
+      outliersMetaCell <- rbind(outliersMetaCell,res)
+
+    }
+    
+  
+}
+
+ggplot(outliersMetaCell,aes(x=sample, y = trueGamma)) + geom_bar(stat="identity") + facet_wrap('~gamma')
+
+ggplot(outliersMetaCell,aes(x=gamma, y = trueGamma)) + geom_point() + facet_wrap('~sample') + geom_abline()
+
+ggplot(outliersMetaCell,aes(x=gamma, y = trueGamma,color = sample)) + geom_point()  + geom_abline()
+
+
+ggplot(outliersMetaCell,aes(x=gamma, y = outlierPercent)) + geom_bar(stat="identity") + facet_wrap('~sample')
+
+```
+
+
+```{r}
+crData$method <- factor(crData$input,levels = unique(crData$input))
+crData$input <- stringr::str_split_fixed(crData$input,pattern = "_",n=2)[,2]
+crData$tool <- stringr::str_split_fixed(crData$input,pattern = "_",n=2)[,1]
+crData$gamma <- factor(as.character(crData$gamma),levels = c(1,10,20,50,75,100,200))
+
+
+ggplot(crData,aes(y=w.cor,x = gamma,fill = method)) +geom_boxplot() + theme(legend.position = "bottom")
+
+```
+
+```{r}
+ggplot(crData[crData$method ],aes(y=w.cor,x = gamma,fill = method)) +geom_boxplot() + theme(legend.position = "bottom")
+
+```
+
+
+
+
+
+```{r}
+metaData$method <- plyr::mapvalues(x= metaData$method,
+                                   from = c("SuperCellMulti","SuperCellADT","SuperCellRNA", "seacellsRNA", "seacellsADT","MetaCellRNA","randomMetacells"),
+                                   to = c("SuperCell_Multi", "SuperCell_ADT", "SuperCell_RNA","SEACells_RNA", "SEACells_ADT" ,"MetaCell_RNA","random_NA"))
+
+metaData$method <- factor(metaData$method,levels = c("SuperCell_Multi", "SuperCell_RNA","SuperCell_ADT","SEACells_RNA", "SEACells_ADT" ,"MetaCell_RNA","random_NA"))
+metaData$input <- stringr::str_split_fixed(metaData$method,pattern = "_",n=2)[,2]
+metaData$tool <- stringr::str_split_fixed(metaData$input,pattern = "_",n=2)[,1]
+metaData$gamma <- factor(as.character(metaData$gamma),levels = c(1,10,20,50,75,100,200))
+
+
+ggplot(metaData,aes(y=celltype.l1_purity,x = gamma,fill = method)) +geom_boxplot()  + theme(legend.position = "bottom")
+
+ggplot(metaData[metaData$gamma %in% c("50","100","200"),],aes(y=celltype.l1_purity,x = gamma,fill = method)) +geom_boxplot() + theme(legend.position = "bottom")
+
+```
+
+
+
+
+
+
+
+```{r}
+ggplot(metaData,aes(y=celltype.l1_purity,x = gamma,fill = method)) +geom_boxplot()  + theme(legend.position = "bottom")
+
+```
+
+
+```{r}
+ggplot(metaData,aes(y=celltype.l2_purity,x = gamma,fill = method)) +geom_boxplot() + theme(legend.position = "bottom")
+```
+```{r}
+ggplot(metaData,aes(y=celltype.l3_purity,x = gamma,fill = method)) +geom_boxplot() + theme(legend.position = "bottom")
+
+```
+
+```{r fig.height=5,fig.width=5}
+ggplot(metaData,aes(y=log(separation_pca),x = log(compactness_pca))) +geom_point() + facet_wrap(c("gamma","method")) 
+
+```
+
+
+```{r}
+ggplot(metaData,aes(y=celltype.l2_purity,x = gamma,fill = method)) +geom_boxplot() +facet_wrap("~input",ncol = 2)
+ggplot(metaData,aes(y=celltype.l1_purity,x = gamma,fill = method)) +geom_boxplot() +facet_wrap("~input",ncol = 2)
+
+
+```
+
+
+
+
+```{r}
+metaData2 <- metaData
+#metaData2$compactness_pca[is.na(metaData2$compactness_pca)] <- 10^(-5)
+ggplot(metaData,aes(y=log(compactness_pca),x = gamma,fill = method))  +geom_boxplot()
+```
+```{r}
+ggplot(metaData,aes(y=log(separation_pca),x = gamma,fill = method))  +geom_boxplot()
+```
+```{r}
+metaData2 <- metaData
+#metaData2$compactness_apca[is.na(metaData2$compactness_apca)] <- 10^(-5)
+ggplot(metaData,aes(y=log(compactness_apca),x = gamma,fill = method))  +geom_boxplot()
+```
+```{r}
+ggplot(metaData,aes(y=log(separation_apca),x = gamma,fill = method))  +geom_boxplot()
+```
+```{r}
+ggplot(metaData,aes(y=log(innerNormVar),x = gamma,fill = method))  +geom_boxplot() + theme(legend.position = "bottom")
+
+ggplot(metaData,aes(y=log(innerNormVar),x = gamma,fill = method))  +geom_boxplot() + facet_wrap("~input")
+
+```
+
+```{r}
+ggplot(metaData,aes(y=size,x = gamma,fill = method))  +geom_boxplot() + theme(legend.position = "bottom")
+
+ggplot(metaData,aes(y=size,x = gamma,fill = method))  +geom_boxplot() + facet_wrap("~input")
+```
+```{r, fig.height= 4}
+ggplot(metaData[metaData$gamma %in% c(20,50,100)&metaData$method != "random_NA",],aes(y=log(compactness_pca), x = log(innerNormVar))) + geom_point()  + facet_wrap(c("gamma","method"),ncol = 6) 
+
+```
+```{r fig.height= 4}
+ggplot(metaData[metaData$gamma %in% c(20,50,100)&metaData$method != "random_NA",],aes(y=log(compactness_pca), x = log(compactness_apca))) + geom_point()  + facet_wrap(c("gamma","method"),ncol = 6) 
+```
+```{r fig.height= 4}
+ggplot(metaData[metaData$gamma %in% c(20,50,100)&metaData$method != "random_NA",],aes(y=log(separation_pca), x = log(separation_apca))) + geom_point()  + facet_wrap(c("gamma","method"),ncol = 6) 
+```
+```{r fig.height= 4}
+ggplot(metaData[metaData$gamma %in% c(20,50,100)&metaData$method != "random_NA",],aes(y=log(compactness_apca), x = log(separation_apca))) + geom_point()  + facet_wrap(c("gamma","method"),ncol = 6) 
+
+ggplot(metaData[metaData$gamma %in% c(20,50,100)&metaData$method != "random_NA",],aes(y=log(compactness_pca), x = log(separation_pca))) + geom_point()  + facet_wrap(c("gamma","method"),ncol = 6) 
+```
+
+
+```{r}
+# ggplot(metaData,aes(y=compactness_pca,x = gamma,fill = method))  +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaData$compactness_pca[metaData$gamma == 200],factor = 7))) + facet_wrap("~tool")
+```
+
+
+
+```{r}
+# metaTable <- metaData[metaData$gamma != "200",]
+# ggplot(metaData,aes(y=separation_pca,x = gamma,fill = method))  +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaData$separation_pca[metaData$gamma == 200],factor = 10)))
+# 
+# 
+# ggplot(metaTable,aes(y=separation_pca,x = gamma,fill = method))  +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaTable$separation_pca[metaTable$gamma == 100],factor = 5)))
+# ```
+# ```{r }
+# 
+# ggplot(metaData,aes(y=compactness_apca,x = gamma,fill = method))  +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaData$compactness_apca[metaData$gamma == 200],factor = 7)))
+# 
+# 
+# ggplot(metaTable,aes(y=compactness_apca,x = gamma,fill = method))  +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaTable$compactness_apca[metaTable$gamma == 100],factor = 8)))
+```
+```{r}
+# ggplot(metaData,aes(y=compactness_apca,x = gamma,fill = method))  +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaData$compactness_apca[metaData$gamma == 200],factor = 7))) + facet_wrap("~tool")
+```
+
+
+```{r}
+# metaTable <- metaData[metaData$gamma != "200",]
+# ggplot(metaData,aes(y=separation_apca,x = gamma,fill = method))  +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaData$separation_apca[metaData$gamma == 200],factor = 10)))
+# 
+# 
+# ggplot(metaTable,aes(y=separation_apca,x = gamma,fill = method))  +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaTable$separation_apca[metaTable$gamma == 100],factor = 5)))
+```
+
+```{r}
+# ggplot(metaData,aes(y=compactness_pca/separation_pca,x = gamma,fill = method))   +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaData$separation_apca[metaData$gamma == 200],factor = 14)))
+# 
+# ggplot(metaData,aes(y=compactness_apca/separation_apca,x = gamma,fill = method))   +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaData$separation_apca[metaData$gamma == 200],factor = 7)))
+```
+

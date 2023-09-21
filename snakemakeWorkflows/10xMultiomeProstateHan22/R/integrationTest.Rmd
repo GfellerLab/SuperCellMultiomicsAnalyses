@@ -1,0 +1,421 @@
+```{r}
+{library(Seurat)
+  library(dplyr)
+  library(Matrix)
+  library(ggplot2)
+  library(cowplot)
+  library(EnsDb.Mmusculus.v79)
+  library(Signac)
+  library(S4Vectors)
+  library(patchwork)
+  set.seed(1234)}
+
+```
+Get files
+```{r}
+metacells.files <- list.files("../../../output/10xMultiomeProstateHan22/",recursive = T,pattern = "metacells.rds",full.names = T,include.dirs = T)
+```
+
+
+```{r}
+metacell.objs <- lapply(metacells.files, FUN = function(x){ 
+  x <- readRDS(x)
+  DefaultAssay(x) <- "RNA"
+  x[["ATAC"]] <- NULL
+  return(x)
+}
+)
+```
+
+Same strategy as in the original study
+1 - integrate RNA,
+2 - discard low qual cluster
+3 - integrate ATAC/RNA on remaining cells
+4 - multimodal wnn
+
+Integrating RNA assay
+```{r}
+metacell.objs <- lapply(X = metacell.objs, FUN = function(x) {
+  x <- FindVariableFeatures(x)
+})
+
+features <- SelectIntegrationFeatures(object.list = metacell.objs)
+metacell.objs <- lapply(X = metacell.objs, FUN = function(x) {
+  x <- NormalizeData(x, verbose = FALSE)
+  x <- ScaleData(x, features = features, verbose = FALSE)
+  x <- RunPCA(x, features = features, verbose = FALSE)
+})
+
+
+names <- sapply(metacell.objs, function(x) {unique(x@meta.data$orig.ident)})
+```
+
+```{r}
+
+references <- which(startsWith(names,"WT_"))
+anchors <- FindIntegrationAnchors(object.list = metacell.objs, 
+                                  #reference = references, 
+                                  reduction = "rpca",
+                                  dims = 1:50)
+
+#all pairwise anchors
+# anchors <- FindIntegrationAnchors(object.list = rna.All.combined.list, reduction = "rpca",
+#                                   dims = 1:50)
+
+#This step would waste much time
+rna.All.combined.integrated <- IntegrateData(anchorset = anchors, dims = 1:50,k.weight = 50)
+#rm(metacell.objs,anchors)
+gc()
+DefaultAssay(rna.All.combined.integrated) <- "integrated"
+rna.All.combined.integrated <- ScaleData(rna.All.combined.integrated, verbose = FALSE)
+rna.All.combined.integrated <- RunPCA(rna.All.combined.integrated, verbose = FALSE)
+rna.All.combined.integrated <- RunUMAP(rna.All.combined.integrated, dims = 1:50)
+rna.All.combined.integrated <- FindNeighbors(rna.All.combined.integrated, dims = 1:50)
+rna.All.combined.integrated <- FindClusters(rna.All.combined.integrated, resolution = 0.4)
+```
+
+```{r}
+UMAPPlot(rna.All.combined.integrated,label = T)
+
+DefaultAssay(rna.All.combined.integrated) <- "RNA"
+FeaturePlot(rna.All.combined.integrated,features = c("Ebf1","Igkc","Plp1"))
+```
+```{r}
+VlnPlot(rna.All.combined.integrated,features = c("nFeature_RNA"),pt.size = 0.001,log = T)
+VlnPlot(rna.All.combined.integrated,features = c("nCount_RNA"),pt.size = 0.001,log = T)
+
+# rna.All.combined.integrated <- FindSubCluster(object = rna.All.combined.integrated,
+#                                               cluster = 0,
+#                                               resolution = 0.2,
+#                                               graph.name = "integrated_snn")
+# 
+# Idents(rna.All.combined.integrated) <- "sub.cluster"
+# UMAPPlot(rna.All.combined.integrated,label = T,group.by = "sub.cluster")
+# VlnPlot(rna.All.combined.integrated,features = c("nFeature_RNA"),pt.size = 0.001,log = T)
+# VlnPlot(rna.All.combined.integrated,features = c("nCount_RNA"),pt.size = 0.001,log = T)
+```
+```{r}
+DefaultAssay(rna.All.combined.integrated) <- "RNA"
+
+VlnPlot(rna.All.combined.integrated,"Ptprc")
+```
+
+
+```{r}
+DefaultAssay(rna.All.combined.integrated) <- "RNA"
+markersLowQual <- FindMarkers(rna.All.combined.integrated,ident.1 = 2,only.pos = T)
+
+head(markersLowQual,n=20)
+```
+
+Clean data analysis
+
+```{r}
+df <- rna.All.combined.integrated@meta.data %>%
+  group_by(integrated_snn_res.0.4) %>%
+  summarise(medNF = median(nFeature_RNA))
+
+lowQualClust <- df$integrated_snn_res.0.4[which.min(df$medNF)]
+
+
+rna.All.combined.integrated <- subset(rna.All.combined.integrated,idents = lowQualClust,invert = T)
+```
+
+
+```{r}
+metacell.objs <- SplitObject(rna.All.combined.integrated,split.by = "orig.ident")
+references <- which(startsWith(names,"WT_"))
+
+metacell.objs <- lapply(X = metacell.objs, FUN = function(x) {
+  x <- FindVariableFeatures(x)
+})
+
+features <- SelectIntegrationFeatures(object.list = metacell.objs)
+metacell.objs <- lapply(X = metacell.objs, FUN = function(x) {
+  x <- NormalizeData(x, verbose = FALSE)
+  x <- ScaleData(x, features = features, verbose = FALSE)
+  x <- RunPCA(x, features = features, verbose = FALSE)
+})
+
+
+
+anchors <- FindIntegrationAnchors(object.list = metacell.objs, 
+                                  #reference = references, 
+                                  reduction = "rpca",
+                                  dims = 1:50)
+
+#all pairwise anchors
+# anchors <- FindIntegrationAnchors(object.list = rna.All.combined.list, reduction = "rpca",
+#                                   dims = 1:50)
+
+#This step would waste much time
+rna.All.combined.integrated <- IntegrateData(anchorset = anchors, dims = 1:50)
+#rm(metacell.objs,anchors)
+gc()
+DefaultAssay(rna.All.combined.integrated) <- "integrated"
+rna.All.combined.integrated <- ScaleData(rna.All.combined.integrated, verbose = FALSE)
+rna.All.combined.integrated <- RunPCA(rna.All.combined.integrated, verbose = FALSE)
+rna.All.combined.integrated <- RunUMAP(rna.All.combined.integrated, dims = 1:50)
+rna.All.combined.integrated <- FindNeighbors(rna.All.combined.integrated, dims = 1:50)
+rna.All.combined.integrated <- FindClusters(rna.All.combined.integrated, resolution = 0.2)
+```
+
+```{r}
+UMAPPlot(rna.All.combined.integrated,label = T)
+```
+```{r}
+VlnPlot(rna.All.combined.integrated,features = c("nFeature_RNA"),pt.size = 0.001,log = T)
+VlnPlot(rna.All.combined.integrated,features = c("nCount_RNA"),pt.size = 0.001,log = T)
+
+# rna.All.combined.integrated <- FindSubCluster(object = rna.All.combined.integrated,
+#                                               cluster = 0,
+#                                               resolution = 0.2,
+#                                               graph.name = "integrated_snn")
+# 
+# Idents(rna.All.combined.integrated) <- "sub.cluster"
+# UMAPPlot(rna.All.combined.integrated,label = T,group.by = "sub.cluster")
+# VlnPlot(rna.All.combined.integrated,features = c("nFeature_RNA"),pt.size = 0.001,log = T)
+# VlnPlot(rna.All.combined.integrated,features = c("nCount_RNA"),pt.size = 0.001,log = T)
+```
+
+
+#Luminal
+```{r}
+DefaultAssay(rna.All.combined.integrated) <- "RNA"
+
+VlnPlot(rna.All.combined.integrated,features = c("Krt19","Nupr1","Lmo7","Ceacam1"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+# Neuroendocrine
+```{r }
+VlnPlot(rna.All.combined.integrated,features = c("Chga","Nrxn1","Hcn1","Fgf14"),ncol = 2,pt.size = 0,assay = "RNA")
+```
+# Basal
+```{r }
+VlnPlot(rna.All.combined.integrated,features = c("Krt14","Krt15","Krt5","Krt17"),ncol = 2,pt.size = 0,assay = "RNA")
+```
+
+# seminal vesicle
+```{r fig.height= 3, fig.width= 3.25}
+VlnPlot(rna.All.combined.integrated,features = c("Svs5","Svs2","Cdo1","Fyb2"),ncol = 2,pt.size = 0,assay = "RNA")
+```
+
+# Mesenchymal 1
+
+```{r}
+VlnPlot(rna.All.combined.integrated,features = c("Col1a2","Apod","Dcn","Serping1"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+# Mesenchymal 2
+```{r}
+VlnPlot(rna.All.combined.integrated,features = c("Col1a2","Apod","Flt1","Serping1"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+# Endothelial 1
+
+```{r }
+VlnPlot(rna.All.combined.integrated,features = c("Pecam1","Emcn","Selp","Flt1"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+
+# Neutrophil
+
+```{r}
+VlnPlot(rna.All.combined.integrated,features = c("S1009a","Clec4d","Cxcl2","Acod1"),ncol = 2,pt.size = 0,assay = "RNA")
+```
+
+# Macrophage
+```{r}
+VlnPlot(rna.All.combined.integrated,features = c("Cd74","Cd86","Cybb","Col1a"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+# T cell
+
+```{r }
+VlnPlot(rna.All.combined.integrated,features = c("Skap1","Itk","Ptpn22","Cd3e"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+# B cell
+```{r}
+VlnPlot(rna.All.combined.integrated,features = c("Igkc","Ebf1","Mef2c","Bank1"),ncol = 2,pt.size = 0,assay = "RNA")
+FeaturePlot(rna.All.combined.integrated,features = c("Igkc","Ebf1","Mef2c","Bank1"))
+
+```
+
+# Neuroendocrine
+```{r }
+VlnPlot(rna.All.combined.integrated,features = c("Cadm2","Kcnb2","Kcnip4","Cntn4"),ncol = 2,pt.size = 0,assay = "RNA")
+```
+# Neuron
+```{r }
+VlnPlot(rna.All.combined.integrated,features = c("Plp1"),ncol = 2,pt.size = 0,assay = "RNA")
+FeaturePlot(rna.All.combined.integrated,c("Plp1"))
+```
+
+
+```{r}
+VlnPlot(rna.All.combined.integrated,"Ptprc",assay = "RNA")
+```
+```{r}
+markers13 <- FindMarkers(rna.All.combined.integrated,ident.1 = 13,only.pos = T)
+markers13 <- markers13[markers13$p_val_adj < 0.05,]
+```
+
+```{r}
+rna.All.combined.integrated@meta.data$mc_name <- colnames(rna.All.combined.integrated)
+
+
+
+
+saveRDS(rna.All.combined.integrated,"../../../output/10xMultiomeProstateHan22/rna.All.combined.integrated.rds")
+remove(metacell.objs)
+remove(anchors)
+gc()
+```
+
+```{r}
+rna.All.combined.integrated <- readRDS("../../../output/10xMultiomeProstateHan22/rna.All.combined.integrated.rds")
+```
+
+## Adding ATAC data
+
+```{r}
+
+```
+```{r}
+rna.All.combined.integrated@meta.data$mc_name <- colnames(rna.All.combined.integrated)
+rna.All.combined.integrated@meta.data$mc_name <- stringr::str_split_fixed(rna.All.combined.integrated@meta.data$mc_name,"_",n=2)[,1]
+rna.All.combined.integrated@meta.data$mc_name <- paste(rna.All.combined.integrated$orig.ident,rna.All.combined.integrated$mc_name,sep = "_")
+rna.All.combined.integrated <- RenameCells(rna.All.combined.integrated,new.names =  rna.All.combined.integrated$mc_name )
+# metacell.objs.atac <- lapply(metacells.files, FUN = function(x){ 
+#   x <- readRDS(x)
+#   x <- RenameCells(x,add.cell.id = unique(x$orig.ident))
+#   x <- x[,colnames(x) %in% colnames(rna.All.combined.integrated)]
+#   x[["RNA"]] <- NULL
+#   return(x)
+# }
+# )
+
+kept.cells <- colnames(rna.All.combined.integrated)
+saveRDS(kept.cells,"../../../output/kept_cells.rds")
+remove(rna.All.combined.integrated)
+gc()
+```
+
+```{r}
+# metacells.files <- rev(list.files("../../../output/10xMultiomeProstateHan22/",recursive = T,pattern = "metacells.rds",full.names = T,include.dirs = T))
+# kept.cells <- as.vector(readRDS("../../../output/kept_cells.rds"))
+
+
+# metacell.objs.atac <- lapply(metacells.files,function(x) {
+#   x <- readRDS(x)
+#   smp <- unique(x$orig.ident)
+#   print(smp)
+#   x <- RenameCells(x,add.cell.id = unique(x$orig.ident))
+#   x <- x[,colnames(x) %in% kept.cells]
+#   x[["RNA"]] <- NULL
+#   gc()
+#   return(x)
+# })
+# atac.prostate.merge <- merge(metacell.objs.atac[[1]],metacell.objs.atac[2:15])
+# 
+# atac.prostate.merge <- merge(metacell.objs.atac[[1]],metacell.objs.atac[2:5])
+# gc()
+# metacell.objs.atac <- metacell.objs.atac[6:15]
+# gc()
+# atac.prostate.merge.2 <- merge(metacell.objs.atac[[1]],metacell.objs.atac[2:5])
+# gc()
+# metacell.objs.atac <- metacell.objs.atac[6:10]
+# gc()
+# atac.prostate.merge.3 <- merge(metacell.objs.atac[[1]],metacell.objs.atac[2:5])
+# gc()
+# remove(metacell.objs.atac)
+# atac.prostate.merge <- merge(atac.prostate.merge,atac.prostate.merge.2)
+# saveRDS(atac.prostate.merge ,"../../../output/10xMultiomeProstateHan22/atac.prostate.merge")
+
+atac.prostate.merge <- readRDS("../../../output/10xMultiomeProstateHan22/atac.prostate.merge.rds")
+rna.All.combined.integrated <- readRDS("../../../output/10xMultiomeProstateHan22/rna.All.combined.integrated.rds")
+rna.All.combined.integrated@meta.data$mc_name <- colnames(rna.All.combined.integrated)
+rna.All.combined.integrated@meta.data$mc_name <- stringr::str_split_fixed(rna.All.combined.integrated@meta.data$mc_name,"_",n=2)[,1]
+rna.All.combined.integrated@meta.data$mc_name <- paste(rna.All.combined.integrated$orig.ident,rna.All.combined.integrated$mc_name,sep = "_")
+rna.All.combined.integrated <- RenameCells(rna.All.combined.integrated,new.names =  rna.All.combined.integrated$mc_name )
+```
+
+
+```{r}
+
+#################add ATAC assay to RNA assay
+rna.All.combined.integrated[["ATAC"]]<- atac.prostate.merge[["ATAC"]] # killed on laptop
+remove(atac.prostate.merge)
+gc()
+DefaultAssay(rna.All.combined.integrated) <- "ATAC"
+rna.All.combined.integrated <- RunTFIDF(rna.All.combined.integrated)
+rna.All.combined.integrated <- FindTopFeatures(rna.All.combined.integrated, min.cutoff = 'q0')
+rna.All.combined.integrated <- RunSVD(rna.All.combined.integrated)
+
+DefaultAssay(rna.All.combined.integrated) <- "ATAC"
+rna.All.combined.integrated <- harmony::RunHarmony(
+  object = rna.All.combined.integrated,
+  group.by.vars = 'orig.ident',
+  reduction = 'lsi',
+  assay.use = 'ATAC',
+  project.dim = FALSE
+)
+```
+
+```{r}
+combined.metacells <- readRDS("../../../output/10xMultiomeProstateHan22/combinedMetacells.rds")
+
+
+combined.metacells <- RunUMAP(combined.metacells, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_")
+combined.metacells <- FindClusters(combined.metacells, resolution = 0.1,graph.name = "wsnn") 
+
+DimPlot(combined.metacells,reduction ="wnn.umap",label = T)
+```
+```{r}
+DefaultAssay(combined.metacells) <- "RNA"
+FeaturePlot(combined.metacells,reduction ="wnn.umap",features = c("Bank1","Igkc","Ebf1","Plp1"))
+```
+```{r}
+VlnPlot(combined.metacells,"Ptprc",assay = "RNA")
+
+```
+
+
+# Neutrophil
+
+```{r}
+VlnPlot(combined.metacells,features = c("S1009a","Clec4d","Cxcl2","Acod1"),ncol = 2,pt.size = 0,assay = "RNA")
+```
+
+# Macrophage
+```{r}
+VlnPlot(combined.metacells,features = c("Cd74","Cd86","Cybb","Col1a"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+# T cell
+
+```{r }
+VlnPlot(combined.metacells,features = c("Skap1","Itk","Ptpn22","Cd3e","Tox","Cd8a"),ncol = 2,pt.size = 0,assay = "RNA")
+```
+# B cells
+
+```{r}
+VlnPlot(combined.metacells,features = c("Bank1","Igkc","Ebf1"))
+
+```
+
+
+```{r}
+table(combined.metacells$wsnn_res.0.1)
+```
+```{r}
+DefaultAssay(combined.metacells) <- "ATAC"
+CoveragePlot(
+  object = combined.metacells,
+  group.by = 'wsnn_res.0.1',
+  region = "chr14-99700000-99760000"
+)
+```
+
+
