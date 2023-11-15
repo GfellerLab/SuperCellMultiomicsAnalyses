@@ -177,7 +177,13 @@ if (is.null(opt$inputSeuratMetacell)) {
       }
   } 
 } else {
-  seurat.mc <- readRDS(opt$inputSeuratMetacell)
+  
+  if (endsWith(opt$inputSeuratMetacell, "SuperCellHierarchy.rds")) { # SC hierarchy object as input
+    seurat.mc <- seurat
+    seurat.mc@misc$metacells_hierarchy<- readRDS(opt$inputSeuratMetacell)$metacells_hierarchy
+  } else {
+    seurat.mc <- readRDS(opt$inputSeuratMetacell)
+  }
   seurat.mc.multi <- SCimplify_for_Seurat(seurat = seurat, seurat.mc = seurat.mc, gamma = opt$gamma)
 }
 
@@ -215,24 +221,28 @@ if (!is.null(opt$doAnalysis)) {
   seurat.mc.multi <- metacellCompactnessSeparation(sc.seurat = seurat,SC_seurat = seurat.mc.multi,preprocessing_method = "pca",dims = opt$qcRNAcomp)
   seurat.mc.multi <- metacellCompactnessSeparation(sc.seurat = seurat,SC_seurat = seurat.mc.multi,preprocessing_method = "apca",dims = opt$qcADTcomp)
   
+  seurat.mc.multi <- metacellSilhouetteSeurat(seurat.sc = seurat,seurat.mc = seurat.mc.multi,reduction.name.sc = "pca",dims = opt$qcRNAcomp)
+  seurat.mc.multi <- metacellSilhouetteSeurat(seurat.sc = seurat,seurat.mc = seurat.mc.multi,reduction.name.sc = "apca",dims = opt$qcADTcomp)
+  
+  
   
   ## Inner normalized variance
   
   seurat.mc.multi$innerNormVar <- computeInnerNormVar(seurat = seurat, memberships = seurat.mc.multi@misc$membership)
   
   
-  ## Cell cycle analysis
-  
-  DefaultAssay(seurat.mc.multi) <- "RNA"
-  
-  s.genes <- cc.genes$s.genes
-  g2m.genes <- cc.genes$g2m.genes
-  seurat.mc.multi <- CellCycleScoring(seurat.mc.multi, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
-  
-  pdf(paste0(opt$outdir,"/cellCyclePLot.pdf"))
-  plot(ggplot2::ggplot(seurat.mc.multi@meta.data,aes(x=size,y=G2M.Score,color = Phase)) + geom_point())
-  plot(ggplot2::ggplot(seurat.mc.multi@meta.data,aes(x=orig.ident,y=Phase_purity)) + geom_boxplot())
-  dev.off()
+  # ## Cell cycle analysis To remove cell cycle phase is not available for all datasets
+  # 
+  # DefaultAssay(seurat.mc.multi) <- "RNA"
+  # 
+  # s.genes <- cc.genes$s.genes
+  # g2m.genes <- cc.genes$g2m.genes
+  # seurat.mc.multi <- CellCycleScoring(seurat.mc.multi, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+  # 
+  # pdf(paste0(opt$outdir,"/cellCyclePLot.pdf"))
+  # plot(ggplot2::ggplot(seurat.mc.multi@meta.data,aes(x=size,y=G2M.Score,color = Phase)) + geom_point())
+  # plot(ggplot2::ggplot(seurat.mc.multi@meta.data,aes(x=orig.ident,y=Phase_purity)) + geom_boxplot())
+  # dev.off()
   
   
   write.csv(seurat.mc.multi@meta.data,paste0(opt$outdir,"/metaData.csv"))
