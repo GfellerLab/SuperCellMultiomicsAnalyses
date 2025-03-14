@@ -1,0 +1,8 @@
+[1] sctransform_0.4.1           glmGamPoi_1.14.3
+ [3] Signac_1.14.0               MetacellAnalysisToolkit_1.0
+ [5] scIntegrationMetrics_1.1    harmony_1.2.3
+ [7] Rcpp_1.0.13-1               Seurat_5.1.0
+ [9] SeuratObject_5.0.2          sp_2.1-4
+[11] STACAS_2.2.2
+
+irlba_2.3.5.1
