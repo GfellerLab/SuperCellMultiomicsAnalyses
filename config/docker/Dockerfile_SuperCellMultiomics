@@ -1,0 +1,78 @@
+FROM continuumio/miniconda3 as builder
+# install mamba
+RUN conda install -c conda-forge mamba
+# Copy your Conda environment file
+COPY MetacellAnalysisToolkit_env.yml /tmp/MetacellAnalysisToolkit_env.yml
+
+# Create the environment using Mamba
+RUN mamba env create -f /tmp/MetacellAnalysisToolkit_env.yml
+
+ENV PATH /opt/conda/envs/MetacellAnalysisToolkit/bin:$PATH
+
+Run Rscript -e "library(Seurat);packageVersion('Seurat')"
+
+RUN Rscript -e "install.packages('ggsignif', repos = 'https://cran.rstudio.com/')"
+
+Run Rscript -e "install.packages('SuperCell', repos = 'https://cran.rstudio.com/',upgrade = 'never')"
+RUN Rscript -e "remotes::install_github('satijalab/seurat-data',upgrade = 'never')"
+Run Rscript -e "install.packages('BiocManager', repos = 'https://cran.rstudio.com/')"
+
+RUN Rscript -e "remotes::install_github('GfellerLab/MetacellAnalysisToolkit',upgrade = 'never')"
+RUN Rscript -e "remotes::install_github('rstudio/reticulate',upgrade = 'never')"
+
+
+
+RUN Rscript -e "BiocManager::install('limma')"
+
+
+RUN Rscript -e "BiocManager::install('JASPAR2024')"
+RUN Rscript -e "options(timeout = 1200);BiocManager::install('BSgenome.Hsapiens.UCSC.hg38');library('BSgenome.Hsapiens.UCSC.hg38')"
+
+
+
+RUN Rscript -e "BiocManager::install('EnsDb.Hsapiens.v86')"
+RUN Rscript -e "BiocManager::install('EnsDb.Mmusculus.v79')"
+RUN Rscript -e "BiocManager::install('TFBSTools');library('TFBSTools')"
+RUN Rscript -e "BiocManager::install('biovizBase')"
+RUN Rscript -e "BiocManager::install('EnsDb.Mmusculus.v79')"
+
+    
+RUN Rscript -e "BiocManager::install('chromVAR');library(chromVAR)"
+Run Rscript -e "BiocManager::install('motifmatchr')"
+Run Rscript -e "install.packages('harmony', repos = 'https://cran.rstudio.com/')"
+
+RUN Rscript -e "remotes::install_github('carmonalab/scIntegrationMetrics',upgrade = 'never')"
+
+RUN Rscript -e "remotes::install_github('carmonalab/STACAS',upgrade = 'never')"
+Run Rscript -e "remotes::install_github('immunogenomics/presto',upgrade = 'never')"
+
+#Run Rscript -e "options(timeout = 1200);remotes::install_github('GreenleafLab/ArchR',version = '1.0.2',upgrade = 'never', repos = BiocManager::repositories());library(ArchR))"
+#Run Rscript -e "ArchR::installExtraPackages()"
+Run Rscript -e "install.packages('survey',repos = 'https://cran.rstudio.com/')"
+
+Run Rscript -e "install.packages('argparse',repos = 'https://cran.rstudio.com/')"
+
+RUN Rscript -e "remotes::install_github('quadbio/Pando',version = 'v1.1.1',upgrade = 'never')"
+RUN wget https://www.bioconductor.org/packages/release/bioc/src/contrib/decoupleR_2.12.0.tar.gz && \
+    R -e "install.packages('decoupleR_2.12.0.tar.gz', repos = NULL, type = 'source')"
+#RUN Rscript -e "BiocManager::install('AUCell',version = '1.28.0')"
+
+# Build argument for GitHub token
+ARG GITHUB_PAT
+ENV GITHUB_PAT=${GITHUB_PAT}
+
+# Install private repository using the GitHub token
+RUN Rscript -e "remotes::install_github('GfellerLab/SuperCellMultiomics',upgrade = 'never');library('SuperCellMultiomics')"
+
+# Second stage: Final image without the token
+FROM continuumio/miniconda3
+
+# Copy environment from the builder stage
+COPY --from=builder /opt/conda /opt/conda
+
+# Set the PATH for the final image
+ENV PATH /opt/conda/envs/MetacellAnalysisToolkit/bin:$PATH
+
+# Continue with the rest of the instructions, like installing other packages
+
+
