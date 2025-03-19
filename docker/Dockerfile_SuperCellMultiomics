@@ -1,0 +1,101 @@
+# Use Ubuntu 22.04 as the base image
+FROM ubuntu:22.04
+
+# Avoid prompts from apt
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install common dependencies, Python, and R
+#RUN apt-get update && apt-get install -y \
+#    software-properties-common \
+#    dirmngr \
+#    wget \
+#    curl \
+#    libcurl4-openssl-dev \
+#    libssl-dev \
+#    libxml2-dev \
+#    libcairo2-dev \
+#    libxt-dev \
+#    libgsl-dev \
+#    libgit2-dev \
+#    git \
+#    cmake \
+#    python3 \
+#    python3-pip \
+#    python3-venv \
+#    && apt-get clean \
+#    && rm -rf /var/lib/apt/lists/*
+#dpkg-query -W -f='${Package}=${Version}\n' > package_list.txt
+#mv package_list.txt /tmp/package_list.txt
+
+COPY package_list.txt /tmp/package_list.txt
+RUN apt-get update && apt-get install -y $(cat /tmp/package_list.txt) && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN pip install MACS2==2.2.9.1
+
+RUN apt-get update && apt-get install -y tzdata
+RUN ln -sf /usr/share/zoneinfo/Europe/Zurich /etc/localtime
+RUN echo "Europe/Zurich" > /etc/timezone
+
+# Set environment variables for Conda
+ENV CONDA_DIR=/opt/conda
+ENV PATH="$CONDA_DIR/bin:$PATH"
+
+# Download and install Miniconda
+RUN wget -O miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-py39_25.1.1-0-Linux-x86_64.sh && \
+    bash miniconda.sh -b -p $CONDA_DIR && \
+    rm miniconda.sh
+
+# conda update -y conda
+
+# Install Mamba for faster package management
+RUN conda install -n base -c conda-forge mamba=2.0.7 -y
+
+# Copy your Conda environment file
+COPY MetacellAnalysisToolkit_env.yml /tmp/MetacellAnalysisToolkit_env.yml
+
+# Create the environment using Mamba
+RUN mamba env create -f /tmp/MetacellAnalysisToolkit_env.yml
+
+# Clean up Conda cache to reduce image size
+RUN conda clean --all -y
+
+ENV PATH=/opt/conda/envs/MetacellAnalysisToolkit/bin:$PATH
+
+Run Rscript -e "install.packages('SuperCell', version = '1.0.1', repos = 'https://cran.rstudio.com/', upgrade = 'never')"
+
+RUN wget https://www.bioconductor.org/packages/release/bioc/src/contrib/decoupleR_2.12.0.tar.gz && \
+    R -e "install.packages('decoupleR_2.12.0.tar.gz', repos = NULL, type = 'source', dependencies = FALSE)"
+
+# Install packages from github specifying the commit
+RUN Rscript -e "remotes::install_github('satijalab/seurat-data@4dc08e022f51c324bc7bf785b1b5771d2742701d', upgrade = 'never'); library(SeuratData)"
+RUN Rscript -e "remotes::install_github('carmonalab/scIntegrationMetrics@v1.1',upgrade = 'never'); library(scIntegrationMetrics)"
+RUN Rscript -e "remotes::install_github('carmonalab/STACAS@0a88c5efca924e40c5f49d375e369b739f6eae5c',upgrade = 'never'); library(STACAS)"
+Run Rscript -e "remotes::install_github('immunogenomics/presto@7636b3d0465c468c35853f82f1717d3a64b3c8f6',upgrade = 'never'); library(presto)"
+RUN Rscript -e "remotes::install_github('quadbio/Pando@v1.1.1',upgrade = 'never'); library(Pando)"
+RUN Rscript -e "devtools::install_version('dlm', version = '1.1.5', repos = 'http://cran.us.r-project.org')"
+RUN Rscript -e "devtools::install_version('Rmagic', version = '2.0.3', repos = 'http://cran.us.r-project.org')"
+RUN Rscript -e "devtools::install_github('inofechm/cutoff.scATOMIC@a43fd5e1e8f0e3b71ec446970e4316f305939a17', upgrade = 'never')"
+RUN Rscript -e "devtools::install_github('abelson-lab/scATOMIC@v2.0.3', upgrade = 'never')"
+
+RUN git clone https://github.com/GfellerLab/MetacellAnalysisToolkit && \
+    cd MetacellAnalysisToolkit && \
+    find . -type f -name DESCRIPTION -exec iconv -f ISO-8859-1 -t UTF-8 {} -o {}.utf8 \; && \
+    mv DESCRIPTION.utf8 DESCRIPTION && \
+    Rscript -e "devtools::install('.', upgrade = 'never')"
+RUN rm -rf MetacellAnalysisToolkit
+
+# Install private repository using the GitHub token
+ARG GITHUB_PAT
+RUN Rscript -e "remotes::install_github('GfellerLab/SuperCellMultiomics@dev_ag', upgrade = 'never', auth_token=Sys.getenv('GITHUB_PAT'));library('SuperCellMultiomics')"
+
+# Remove GitHub PAT from the environment to keep it secure
+RUN unset GITHUB_PAT && \
+    sed -i '/GITHUB_PAT/d' /etc/environment && \
+    [ -f ~/.Renviron ] && sed -i '/GITHUB_PAT/d' ~/.Renviron || true
+
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN conda clean --all -y
+RUN rm -rf /opt/conda/pkgs/*
+
+CMD ["bash"]
