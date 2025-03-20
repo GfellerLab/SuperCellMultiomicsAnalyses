@@ -1,3 +1,5 @@
+library(reticulate)
+use_python("/opt/conda/envs/MetacellAnalysisToolkit/bin/python", required = TRUE)
 library(SeuratData)
 library(Seurat)
 library(Signac)
@@ -14,7 +16,7 @@ spec = matrix(c(
   "k.wnn", "k", 1, "numeric", "k for the knn used in the wnn analysis",
   "nVarGenes", "v", 1, "numeric", "number of variable genes",
   'minCutOff', "c", 1, "character", "ATAC features selection cut off (default q0)"
-  
+
 ), byrow=TRUE, ncol=5)
 
 opt = getopt(spec)
@@ -27,7 +29,7 @@ opt = getopt(spec)
 # opt$fragmentFile <- "~/Documents/multiomicsMetacells/multiome_PBMC_data/fragments_files/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
 # opt$inputSeurat <- "pbmcMultiome"
 # opt$outdir <- "output/correlationAnalyzis/pbmcMultiome/singlecell_analysis"
-# frag.file <- opt$fragmentFile 
+# frag.file <- opt$fragmentFile
 # opt$RNAcomp <- "1:50"
 # opt$ATACcomp <- "2:50"
 # opt$minCutOff <- "q0"
@@ -35,7 +37,7 @@ opt = getopt(spec)
 
 if(is.null(opt$RNAnormalization)) {
   opt$RNAnormalization <- "logNormalize"
-  
+
 }
 
 if (is.null(opt$minCutOff)) {
@@ -55,7 +57,7 @@ if(endsWith(opt$inputSeurat,suffix = "rds")) {
   pbmc <- readRDS(opt$inputSeurat)
 }else{
   data("pbmc.atac")
-  
+
   # Now add in the ATAC-seq data
   # we'll only use peaks in standard chromosomes
   grange.counts <- StringToGRanges(rownames(pbmc.atac))
@@ -64,7 +66,7 @@ if(endsWith(opt$inputSeurat,suffix = "rds")) {
   annotations <- GetGRangesFromEnsDb(ensdb = EnsDb.Hsapiens.v86)
   seqlevelsStyle(annotations) <- 'UCSC'
   genome(annotations) <- "hg38"
-  
+
   chrom_assay <- CreateChromatinAssay(
     counts = pbmc.atac@assays$ATAC@counts,
     genome = 'hg38',
@@ -77,26 +79,26 @@ if(endsWith(opt$inputSeurat,suffix = "rds")) {
     meta.data = pbmc.atac@meta.data
   )
   message("atac object created...")
-  
+
   remove(pbmc.atac)
   gc()
-  
+
 }
 
 addCellTypePBMC <- function(pbmc) {
   pbmc$celltype <- pbmc$seurat_annotations
-  
+
   pbmc$celltype[grepl(pattern = "CD8 TEM",x = pbmc$celltype)] <- "CD8 Mem"
-  
+
   pbmc$celltype[grepl(pattern = "CD4 TEM",x = pbmc$celltype)] <- "CD4 Mem"
   pbmc$celltype[grepl(pattern = "CD4 TCM",x = pbmc$celltype)] <- "CD4 Mem"
-  
+
   pbmc$celltype[grepl(pattern = "CD8 TEM",x = pbmc$celltype)] <- "CD8 Mem"
-  
+
   pbmc$celltype[grepl(pattern = "Intermediate B",x = pbmc$celltype)] <- "B Interm"
   pbmc$celltype[grepl(pattern = "Naive B",x = pbmc$celltype)] <- "B Naive"
   pbmc$celltype[grepl(pattern = "Memory B",x = pbmc$celltype)] <- "B Mem"
-  
+
   Idents(pbmc) <- "celltype"
   return(pbmc)
 }
@@ -114,11 +116,11 @@ if ("seurat_annotations" %in% colnames(pbmc@meta.data)) {
 
 
 # pbmc$coarse.annotation <- pbmc$seurat_annotations
-# 
+#
 # #pbmc$coarse.annotation[grepl(pattern = "B",x = pbmc$coarse.annotation)] <- "B"
-# 
+#
 # pbmc$coarse.annotation[grepl(pattern = "CD8 TEM",x = pbmc$coarse.annotation)] <- "CD8 Mem"
-# 
+#
 # pbmc$coarse.annotation[grepl(pattern = "CD4 TEM",x = pbmc$coarse.annotation)] <- "CD4 Mem"
 # pbmc$coarse.annotation[grepl(pattern = "CD4 TCM",x = pbmc$coarse.annotation)] <- "CD4 Mem"
 
@@ -126,7 +128,7 @@ if ("seurat_annotations" %in% colnames(pbmc@meta.data)) {
 
 
 # #We define a color palette for this new annotations.
-# 
+#
 # color <- c("CD4 Naive"="#999999","NK"="#004949","CD8 Naive"="#009292","CD14 Mono"="#ff6db6",
 #            "gdT"="#490092", "CD4 Mem"="#006ddb","cDC"="#b66dff","Treg"="#6db6ff",
 #            "Intermediate B"="#b6dbff","Memory B"= "#8494FF","Naive B" = "#00A9FF",
@@ -164,5 +166,3 @@ anndata::write_h5ad(adata,paste0(opt$outdir,"/seurat.ATAC.h5ad"))
 # SeuratDisk::SaveH5Seurat(pbmc, filename =  paste0(opt$outdir,"/seurat.ATAC.h5Seurat"))
 # SeuratDisk::Convert(paste0(opt$outdir,"/seurat.ATAC.h5Seurat"), dest =paste0(opt$outdir,"/seurat.ATAC.h5ad"),assay ="ATAC")
 # system(command = paste0("rm -f ",paste0(opt$outdir,"/seurat.ATAC.h5Seurat")))
-
-

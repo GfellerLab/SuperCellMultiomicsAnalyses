@@ -1,3 +1,5 @@
+library(reticulate)
+use_python("/opt/conda/envs/MetacellAnalysisToolkit/bin/python", required = TRUE)
 library(SeuratData)
 library(Seurat)
 library(Signac)
@@ -12,10 +14,10 @@ spec = matrix(c(
   'outdir',     'o',1, "character", 'Outdir path (default ./)',
   'fragmentFile', "f",1,  "character", "Fragment file path",
   "k.wnn", "k", 1, "numeric", "k for the knn used in the wnn analysis",
-  "RNAnormalization", "a", 1, "character", "normalisation method for RNA (logNormalize or SCTransform)", 
+  "RNAnormalization", "a", 1, "character", "normalisation method for RNA (logNormalize or SCTransform)",
   "nVarGenes", "v", 1, "numeric", "number of variable genes",
   'minCutOff', "c", 1, "character", "ATAC features selection cut off (default q0)"
-  
+
 ), byrow=TRUE, ncol=5)
 
 opt = getopt(spec)
@@ -28,7 +30,7 @@ opt = getopt(spec)
 # opt$fragmentFile <- "~/Documents/multiomicsMetacells/multiome_PBMC_data/fragments_files/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
 # opt$inputSeurat <- "pbmcMultiome"
 # opt$outdir <- "output/correlationAnalyzis/pbmcMultiome/singlecell_analysis"
-# frag.file <- opt$fragmentFile 
+# frag.file <- opt$fragmentFile
 # opt$RNAcomp <- "1:50"
 # opt$ATACcomp <- "2:50"
 # opt$minCutOff <- "q0"
@@ -36,7 +38,7 @@ opt = getopt(spec)
 
 if(is.null(opt$RNAnormalization)) {
   opt$RNAnormalization <- "logNormalize"
-  
+
 }
 
 if (is.null(opt$minCutOff)) {
@@ -77,18 +79,18 @@ if ("seurat_annotations" %in% colnames(pbmc@meta.data)) {
 
 addCellTypePBMC <- function(pbmc) {
   pbmc$celltype <- pbmc$seurat_annotations
-  
+
   pbmc$celltype[grepl(pattern = "CD8 TEM",x = pbmc$celltype)] <- "CD8 Mem"
-  
+
   pbmc$celltype[grepl(pattern = "CD4 TEM",x = pbmc$celltype)] <- "CD4 Mem"
   pbmc$celltype[grepl(pattern = "CD4 TCM",x = pbmc$celltype)] <- "CD4 Mem"
-  
+
   pbmc$celltype[grepl(pattern = "CD8 TEM",x = pbmc$celltype)] <- "CD8 Mem"
-  
+
   pbmc$celltype[grepl(pattern = "Intermediate B",x = pbmc$celltype)] <- "B Interm"
   pbmc$celltype[grepl(pattern = "Naive B",x = pbmc$celltype)] <- "B Naive"
   pbmc$celltype[grepl(pattern = "Memory B",x = pbmc$celltype)] <- "B Mem"
-  
+
   Idents(pbmc) <- "celltype"
   return(pbmc)
 }
@@ -97,7 +99,7 @@ pbmc <- addCellTypePBMC(pbmc)
 
 
 # #We define a color palette for this new annotations.
-# 
+#
 # color <- c("CD4 Naive"="#999999","NK"="#004949","CD8 Naive"="#009292","CD14 Mono"="#ff6db6",
 #            "gdT"="#490092", "CD4 Mem"="#006ddb","cDC"="#b66dff","Treg"="#6db6ff",
 #            "Intermediate B"="#b6dbff","Memory B"= "#8494FF","Naive B" = "#00A9FF",
@@ -117,11 +119,11 @@ if (opt$RNAnormalization == "SCTransform") {
   pbmc <- SCTransform(pbmc, verbose = FALSE,conserve.memory = T) %>% RunPCA()
 } else {
   rnaAssay = "RNA"
-  pbmc <- NormalizeData(pbmc, verbose = FALSE) %>% FindVariableFeatures(pbmc,nFeature = opt$nVarGenes) %>% ScaleData(pbmc) %>% RunPCA() 
+  pbmc <- NormalizeData(pbmc, verbose = FALSE) %>% FindVariableFeatures(pbmc,nFeature = opt$nVarGenes) %>% ScaleData(pbmc) %>% RunPCA()
 }
 
 
-## Save in h5ad 
+## Save in h5ad
 adata <- anndata::AnnData(X = Matrix::t(GetAssayData(object = pbmc,slot = "counts",assay = "RNA")),
                           obs = pbmc@meta.data,
                           #raw = adata.raw,
@@ -135,5 +137,3 @@ anndata::write_h5ad(adata,paste0(opt$outdir,"/seurat.RNA.h5ad"))
 # SeuratDisk::Convert(paste0(opt$outdir,"/seurat.RNA.h5Seurat"), dest =paste0(opt$outdir,"/seurat.RNA.h5ad"),assay ="RNA",overwrite = T)
 # }
 # system(command = paste0("rm -f ",paste0(opt$outdir,"/seurat.RNA.h5Seurat")))
-
-
