@@ -1,3 +1,5 @@
+library(reticulate)
+use_python("/opt/conda/envs/MetacellAnalysisToolkit/bin/python", required = TRUE)
 library(SeuratData)
 library(Seurat)
 library(Signac)
@@ -13,7 +15,7 @@ spec = matrix(c(
   'outdir',     'o',1, "character", 'Outdir path (default ./)',
   'fragmentFile', "f",2,  "character", "Fragment file path (rep1+rep2)",
   "k.wnn", "k", 1, "numeric", "k for the knn used in the wnn analysis",
-  "RNAnormalization", "a", 1, "character", "normalisation method for RNA (logNormalize or SCTransform)", 
+  "RNAnormalization", "a", 1, "character", "normalisation method for RNA (logNormalize or SCTransform)",
   "nVarGenes", "v", 1, "numeric", "number of variable genes",
   'minCutOff', "c", 1, "character", "ATAC features selection cut off (default q0)"
 ), byrow=TRUE, ncol=5)
@@ -28,7 +30,7 @@ opt = getopt(spec)
 # opt$fragmentFile <- "~/Documents/multiomicsMetacells/multiome_PBMC_data/fragments_files/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
 # opt$inputSeurat <- "pbmcMultiome"
 # opt$outdir <- "output/correlationAnalyzis/pbmcMultiome/singlecell_analysis"
-# frag.file <- opt$fragmentFile 
+# frag.file <- opt$fragmentFile
 
 # opt$minCutOff <- "q0"
 # opt$RNAnormalization <- "SCTransform"
@@ -60,7 +62,7 @@ rna.count <- Matrix::t(rna$raw$X)
 rownames(rna.count) <- rna$var_names
 colnames(rna.count) <- rna$obs_names
 
-hspc <- CreateSeuratObject(counts = rna.count,meta.data = rna$obs) 
+hspc <- CreateSeuratObject(counts = rna.count,meta.data = rna$obs)
 
 rep1.ori <- colnames(hspc)[grepl(x = colnames(hspc),pattern = "rep1")]
 rep1 <- sub(x= rep1.ori,"cd34_multiome_rep1#",replacement = "")
@@ -84,18 +86,18 @@ annotations <- GetGRangesFromEnsDb(ensdb = EnsDb.Hsapiens.v86)
 seqlevelsStyle(annotations) <- 'UCSC'
 genome(annotations) <- "hg38"
 
-# frag_rep1 <- CreateFragmentObject(path = opt$fragmentFile[1],cells = rep1)
-# frag_rep2 <- CreateFragmentObject(path = opt$fragmentFile[2],cells = rep2)
+frag_rep1 <- CreateFragmentObject(path = opt$fragmentFile[1],cells = rep1)
+frag_rep2 <- CreateFragmentObject(path = opt$fragmentFile[2],cells = rep2)
 
 
 # Cells(frag_rep1) <- rep1.ori
 # Cells(frag_rep2) <- rep2.ori
-# frag.file <- list(frag_rep1,frag_rep2)
+frag.file <- list(frag_rep1,frag_rep2)
 chrom_assay <- CreateChromatinAssay(
   counts = atac.count,
   sep = c(":", "-"),
   genome = 'hg38',
-  # fragments = frag.file,
+  fragments = frag.file,
   #min.cells = 10,
   annotation = annotations
 )
@@ -110,7 +112,7 @@ hspc[["ATAC"]] <- chrom_assay
 if (opt$RNAnormalization == "SCTransform") {
   rnaAssay = "SCT"
   DefaultAssay(hspc) <- "RNA"
-  hspc <- SCTransform(hspc, verbose = FALSE,conserve.memory = T) %>% RunPCA() 
+  hspc <- SCTransform(hspc, verbose = FALSE,conserve.memory = T) %>% RunPCA()
 } else {
   rnaAssay = "RNA"
   hspc <- NormalizeData(hspc, verbose = FALSE) %>% FindVariableFeatures(nFeature = opt$nVarGenes) %>% ScaleData() %>% RunPCA()

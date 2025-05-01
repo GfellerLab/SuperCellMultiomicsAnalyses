@@ -1,8 +1,10 @@
+library(reticulate)
+use_python("/opt/conda/envs/MetacellAnalysisToolkit/bin/python", required = TRUE)
 library(SeuratData)
 library(Seurat)
 library(Signac)
 library(dplyr)
-library(EnsDb.Hsapiens.v86)
+# library(EnsDb.Hsapiens.v86)
 library(BSgenome.Hsapiens.UCSC.hg38)
 library(SuperCellMultiomics)
 library(getopt)
@@ -15,7 +17,7 @@ spec = matrix(c(
   "RNAcomp", "p", 1, "character", "range of RNA components to consider for metacell identification  (eg 1:50 for RNA pca)",
   "ATACcomp", "q", 1, "character", "range of ATAC components to consider for metacell identification (eg 2:50 for ATAC pca)",
   "RNAassay", "r", 1, "character", "RNA assay name with computed pca (default RNA)",
-  "ATACassay", "a", 1, "character", "ATAC assay name with computed lsi (default ATAC)" , 
+  "ATACassay", "a", 1, "character", "ATAC assay name with computed lsi (default ATAC)" ,
   "k.wnn", "k", 1, "numeric", "k for the knn used in the wnn used for metacell identification",
   "gamma", "g", 1, "numeric", "gamma used for metacell identificaiton",
   "kernel", "e", 1, "logical", "whether to use a kernel",
@@ -25,7 +27,7 @@ spec = matrix(c(
   "inputSeuratMetacell", "m", 1, "character", "seurat metacell object if available to rescale directly",
   "aggregateFragmentfile", "f", 0, "logical", 'whether to aggregate fragment file or not (default FALSE)',
   "returnMemberships", "b", 0, "logical", "wether to return only memberships (default seurat object with memberships inn misc slot)"
-  
+
 ), byrow=TRUE, ncol=5)
 
 opt = getopt(spec)
@@ -48,6 +50,18 @@ opt = getopt(spec)
 #outputDirMcFragment <- "~/work/SuperCellMultiomicsAnalyses/input/pbmcMultiome/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
 #fragmentFiles <- list()
 #fragmentFiles[["ATAC"]] <- "~/work/SuperCellMultiomicsAnalyses/input/pbmcMultiome/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
+# opt <- list()
+# opt$inputSeurat <- "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/output/hspcMultiomePersad/singlecells_analysis/seuratWNN.rds"
+# opt$outdir <- "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/output/hspcMultiomePersad/SuperCellMulti/g100/"
+# opt$memberships <- "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/output/hspcMultiomePersad/SuperCellMulti/g100/SuperCellMemberships.csv"
+# opt$aggregateFragmentfile <- TRUE
+# opt$gamma <- 100
+# opt$mergeFragments = F
+# opt$threads = 8
+# outputDirMcFragment <- NULL #"~/work/SuperCellMultiomicsAnalyses/input/hspcMultiomePersad/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
+# opt$RNAcomp <- "1:50"
+# opt$ATACcomp <- "2:50"
+# opt$kernel <- T
 
 if(is.null(opt$returnMembership)) {
   return.seurat <- T
@@ -73,7 +87,7 @@ if (is.null(opt$aggregateFragmentfile)) {
 
 if(is.null(opt$RNAnormalization)) {
   opt$RNAnormalization <- "logNormalize"
-  
+
 }
 
 if (!is.null(opt$RNAcomp)) {
@@ -102,12 +116,12 @@ dir.create(opt$outdir,recursive = T,showWarnings = F)
 
 if (endsWith(opt$inputSeurat,'h5ad')) {
   return.seurat <- F
-  file.name <- strsplit(opt$inputSeurat,split = ".h5ad")[[1]][1] 
+  file.name <- strsplit(opt$inputSeurat,split = ".h5ad")[[1]][1]
   adata <- anndata::read_h5ad(opt$inputSeurat)
   if(!is.null(adata$raw)) {
     counts <- Matrix::t(adata$raw$X)
     rownames(counts) <- rownames(adata$raw$var)
-    
+
   } else{
     counts <- Matrix::t(adata$X)
     rownames(counts) <- rownames(adata$var)
@@ -137,17 +151,23 @@ if (is.null(opt$inputSeuratMetacell)) {
   } else {
     fragmentFiles <- NULL
   }
-  
+
   print(fragmentFiles)
-  
-  if (opt$randomMetacells) {  
+
+  if (opt$randomMetacells) {
     print("constructing random metacell")
     randomMC <- 1:floor(ncol(seurat)/opt$gamma)
     randomMemberships <-sample(c(randomMC, sample(randomMC, ncol(seurat)-length(randomMC), replace=TRUE)))
     names(randomMemberships) <- colnames(seurat)
     randomMemberships.v5 <- paste0("Metacell_",randomMemberships)
-    names(randomMemberships.v5) <- names(randomMemberships)
-    
+
+    if(opt$aggregateFragmentfile) {
+      cell.names.fragments <- Fragments(seurat)[[1]]@cells
+      names(randomMemberships.v5) <- cell.names.fragments[names(randomMemberships)]
+    } else {
+      names(randomMemberships.v5) <- names(randomMemberships)
+    }
+
     seurat.mc.multi <- SCimplify_for_Seurat_v5(seurat = seurat,
                                                membership=randomMemberships)
     # fragmentFiles = fragmentFiles,
@@ -157,92 +177,98 @@ if (is.null(opt$inputSeuratMetacell)) {
                                           tmp_path =paste0(opt$outdir,"/tmp/"),
                                           output_path = outputDirMcFragment,
                                           membership = randomMemberships.v5)
-    
+
     frag.mc <- CreateFragmentObject(mc.frag.path,
                                     cells = colnames(seurat.mc.multi))
-    
+
     Fragments(seurat.mc.multi[["ATAC"]]) <- frag.mc
-    
+
   }
-  if (!is.null(opt$memberships)) {  
+  if (!is.null(opt$memberships)) {
     print("aggregating data with the given memberships")
     membershipsTable <- read.csv(opt$memberships)
     if (is(membershipsTable[,2])[1] == "numeric") { #for MetaCell memberships with discarded outliers with a negative values
       membershipsTable[membershipsTable$membership < 0,2] <- NA
       memberships <- membershipsTable[,2]
     } else { # for SEACells memberships with the names of the archetypes in characters
-      memberships <- as.numeric(plyr::mapvalues(x = membershipsTable[,2],from = unique(membershipsTable[,2]), to = c(1:length(unique(membershipsTable[,2])))))  
+      memberships <- as.numeric(plyr::mapvalues(x = membershipsTable[,2],from = unique(membershipsTable[,2]), to = c(1:length(unique(membershipsTable[,2])))))
     }
-    
-    # 
-    
+
+    #
+
     names(memberships) <- membershipsTable[,1]
-    
+
     #AggregateExpression in SCimplify_for_Seurat_v5 remove cells with NA (MetaCell outliers) before aggregating expression
     seurat.mc.multi <- SCimplify_for_Seurat_v5(seurat = seurat,
                                                membership=memberships
     )
-    
-    
+
+
     memberships.v5 <- paste0("Metacell_",memberships)
-    names(memberships.v5) <- names(memberships)
-    
+
+    if(opt$aggregateFragmentfile) {
+      cell.names.fragments <- Fragments(seurat)[[1]]@cells
+      names(memberships.v5) <- cell.names.fragments[names(memberships)]
+    } else {
+      names(memberships.v5) <- names(memberships)
+    }
+
     mc.frag.path <- AggregateFragmentFile(input_file = fragmentFiles[["ATAC"]],
                                           tmp_path =paste0(opt$outdir,"/tmp/"),
                                           output_path = outputDirMcFragment,
                                           membership = memberships.v5)
-    
+
     frag.mc <- CreateFragmentObject(mc.frag.path,
                                     cells = colnames(seurat.mc.multi))
-    
+
     Fragments(seurat.mc.multi[["ATAC"]]) <- frag.mc
-    
+
   }
-  
+
   if (!is.null(opt$RNAcomp)|!is.null(opt$ATACcomp)) {
-    
+
     if (!is.null(opt$RNAcomp)&!is.null(opt$ATACcomp)) {
-      
+
       seurat.mc.multi <- SCimplify_for_Seurat_v5(
-        seurat, 
+        seurat,
         assay = c(opt$RNAassay,opt$ATACassay),
         k.knn = opt$k.wnn,
-        reduction = list("pca", "lsi"), 
-        dims = list(opt$RNAcomp, opt$ATACcomp), 
+        reduction = list("pca", "lsi"),
+        dims = list(opt$RNAcomp, opt$ATACcomp),
         graph.name = "knn",
         kernel = opt$kernel,
         gamma = opt$gamma,
         return.seurat = return.seurat
       )
-      
+
       if (return.seurat) {
         memberships.v5 <- paste0("Metacell_",memberships)
         names(memberships.v5) <- names(memberships)
-        
+
         mc.frag.path <- AggregateFragmentFile(input_file = fragmentFiles[["ATAC"]],
                                               tmp_path =paste0(opt$outdir,"/tmp/"),
                                               output_path = outputDirMcFragment,
                                               membership = memberships.v5)
-        
+
         frag.mc <- CreateFragmentObject(mc.frag.path,
                                         cells = colnames(seurat.mc.multi))
-        
+
         Fragments(seurat.mc.multi[["ATAC"]]) <- frag.mc
-        
+
       }
-      
-      
-      
-      
-      
+
+
+
+
+
     } else {
       if (is.null(opt$RNAcomp)&!is.null(opt$ATACcomp)) {
         print("identifying metacells on ATAC modality")
         seurat.mc.multi <- SCimplify_for_Seurat_v5(
-          seurat, 
+          seurat,
           assay = c(opt$ATACassay),
           k.knn = opt$k.wnn,
-          reduction = list("lsi"), 
+          reduction = list("lsi"),
           dims = list(opt$ATACcomp),
           kernel = opt$kernel,
           gamma = opt$gamma,
@@ -251,56 +277,56 @@ if (is.null(opt$inputSeuratMetacell)) {
         if (return.seurat) {
           memberships.v5 <- paste0("Metacell_",memberships)
           names(memberships.v5) <- names(memberships)
-          
+
           mc.frag.path <- AggregateFragmentFile(input_file = fragmentFiles[["ATAC"]],
                                                 tmp_path =paste0(opt$outdir,"/tmp/"),
                                                 output_path = outputDirMcFragment,
                                                 membership = memberships.v5)
-          
+
           frag.mc <- CreateFragmentObject(mc.frag.path,
                                           cells = colnames(seurat.mc.multi))
-          
+
           Fragments(seurat.mc.multi[["ATAC"]]) <- frag.mc
-          
+
         }
       }
-      
+
       if (!is.null(opt$RNAcomp)&is.null(opt$ATACcomp)) {
         print("identifying metacells on RNA modality")
         seurat.mc.multi <- SCimplify_for_Seurat_v5(
-          seurat, 
+          seurat,
           assay = c(opt$RNAassay),
           k.knn = opt$k.wnn,
-          reduction = list("pca"), 
-          dims = list(opt$RNAcomp), 
+          reduction = list("pca"),
+          dims = list(opt$RNAcomp),
           kernel = opt$kernel,
           gamma = opt$gamma,
           return.seurat = return.seurat)
-        
+
         if (return.seurat) {
           memberships.v5 <- paste0("Metacell_",memberships)
           names(memberships.v5) <- names(memberships)
-          
+
           mc.frag.path <- AggregateFragmentFile(input_file = fragmentFiles[["ATAC"]],
                                                 tmp_path =paste0(opt$outdir,"/tmp/"),
                                                 output_path = outputDirMcFragment,
                                                 membership = memberships.v5)
-          
+
           frag.mc <- CreateFragmentObject(mc.frag.path,
                                           cells = colnames(seurat.mc.multi))
-          
+
           Fragments(seurat.mc.multi[["ATAC"]]) <- frag.mc
-          
+
         }
       }
     }
-  } 
+  }
 } else {
   seurat.mc <- readRDS(opt$inputSeuratMetacell)
-  
-  
+
+
   seurat.mc.multi <- SCimplify_for_Seurat_v5(seurat = seurat, seurat.mc = seurat.mc, gamma = opt$gamma)
-  
+
 }
 
 

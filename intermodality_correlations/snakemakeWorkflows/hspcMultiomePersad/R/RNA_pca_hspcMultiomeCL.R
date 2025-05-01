@@ -1,3 +1,5 @@
+library(reticulate)
+use_python("/opt/conda/envs/MetacellAnalysisToolkit/bin/python", required = TRUE)
 library(SeuratData)
 library(Seurat)
 library(Signac)
@@ -12,10 +14,10 @@ spec = matrix(c(
   'outdir',     'o',1, "character", 'Outdir path (default ./)',
   'fragmentFile', "f",1,  "character", "Fragment file path",
   "k.wnn", "k", 1, "numeric", "k for the knn used in the wnn analysis",
-  "RNAnormalization", "a", 1, "character", "normalisation method for RNA (logNormalize or SCTransform)", 
+  "RNAnormalization", "a", 1, "character", "normalisation method for RNA (logNormalize or SCTransform)",
   "nVarGenes", "v", 1, "numeric", "number of variable genes",
   'minCutOff', "c", 1, "character", "ATAC features selection cut off (default q0)"
-  
+
 ), byrow=TRUE, ncol=5)
 
 opt = getopt(spec)
@@ -28,7 +30,7 @@ opt = getopt(spec)
 # opt$fragmentFile <- "~/Documents/multiomicsMetacells/multiome_PBMC_data/fragments_files/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
 # opt$inputSeurat <- "pbmcMultiome"
 # opt$outdir <- "output/correlationAnalyzis/pbmcMultiome/singlecell_analysis"
-# frag.file <- opt$fragmentFile 
+# frag.file <- opt$fragmentFile
 # opt$RNAcomp <- "1:50"
 # opt$ATACcomp <- "2:50"
 # opt$minCutOff <- "q0"
@@ -36,7 +38,7 @@ opt = getopt(spec)
 
 if(is.null(opt$RNAnormalization)) {
   opt$RNAnormalization <- "logNormalize"
-  
+
 }
 
 if (is.null(opt$minCutOff)) {
@@ -51,19 +53,20 @@ if (is.null(opt$outdir)) {
 
 dir.create(opt$outdir,recursive = T,showWarnings = F)
 
+
 if(endsWith(opt$input,suffix = "h5ad")) {
   rna <- anndata::read_h5ad(opt$input)
-  
+
   rna.count <- Matrix::t(rna$raw$X)
   rownames(rna.count) <- rna$var_names
   colnames(rna.count) <- rna$obs_names
-  
-  hspc <- CreateSeuratObject(counts = rna.count,meta.data = rna$obs) 
+
+  hspc <- CreateSeuratObject(counts = rna.count,meta.data = rna$obs)
 }
 
 if(endsWith(opt$input,suffix = "rds")) {
   hspc <- readRDS(opt$input)
-} 
+}
 
 
 
@@ -73,11 +76,11 @@ if (opt$RNAnormalization == "SCTransform") {
   hspc <- SCTransform(hspc, verbose = FALSE,conserve.memory = T) %>% RunPCA()
 } else {
   rnaAssay = "RNA"
-  hspc <- NormalizeData(hspc, verbose = FALSE) %>% FindVariableFeatures(nFeature = opt$nVarGenes) %>% ScaleData() %>% RunPCA() 
+  hspc <- NormalizeData(hspc, verbose = FALSE) %>% FindVariableFeatures(nFeature = opt$nVarGenes) %>% ScaleData() %>% RunPCA()
 }
 
 
-## Save in h5ad 
+## Save in h5ad
 # SeuratDisk::SaveH5Seurat(hspc, filename =  paste0(opt$outdir,"/seurat.RNA.h5Seurat"))
 # SeuratDisk::Convert(paste0(opt$outdir,"/seurat.RNA.h5Seurat"), dest =paste0(opt$outdir,"/seurat.",rnaAssay,".h5ad"),assay =rnaAssay)
 # if (rnaAssay != "RNA") {
@@ -96,7 +99,6 @@ anndata::write_h5ad(adata,paste0(opt$outdir,"/seurat.RNA.h5ad"))
 # adata <- anndata::AnnData(X = Matrix::GetAssayData(object = hspc,slot = "data",assay = "RNA"),
 #                           obs = hspc@meta.data
 #                           )
-# 
+#
 # anndata::write_h5ad(adata,paste0(opt$outdir,"/seurat.RNA.h5ad"))
 # }
-
