@@ -1,133 +1,31 @@
   description: |
     This config file works with the Snakefile_final workflow 10X data
-    
+
   author: "Leonard Herault"
-  
-  testKernel:
-    cellTypesMixology : ["A549",  "H1975",  "H2228",   "H838", "HCC827"]
-    cellTypesBmCiteSeq : ["Treg","Prog_Mk","CD56_bright_NK","Memory_B","CD16_Mono","LMPP"]
-    cellTypesPBMCcellType10Xmultiome : ["Treg","NK",'pDC',"Plasma","HSPC","MAIT"]
 
-  seuratDatasets : ["bmcite","pbmcMultiome"]
-
-  GAMMA : ["10","20","50","75","100","200"]
+  GAMMA : ["10","20","30","50","75","100","200"] #,"30","50","75","100","200"
+  pando_method_mc : ["aggregate", "LSI1_norm", "LSI1_norm_svy", "LSI2_norm", "LSI2_norm_svy", "meanSC_norm", "meanSC_norm_svy"]
+  pando_method_sc : ["sc"]
 
   pbmcCiteSeqAtlas:
     GAMMA : ["20"]
     samples : ["P1_0","P2_0","P3_0","P4_0","P5_0","P6_0","P7_0","P8_0"]
     methods : ["SuperCellMulti","SuperCellRNA", "SuperCellADT", "seacellsRNA", "seacellsADT","MetaCellRNA","randomMetacells"]
 
-  multiomicVelocity:
-    samples : ["humanBrain","humanHSPC"] 
-    runs : ["Subsampling","SuperCellPostPro","singleCell"]
-    
-  covidRen21:
-    url : "https://drive.google.com/open?id=1IwWcn4W-YKgNbz4DpNweM2cKxlx1hbM0&authuser=0"
-  
-  R4.1_env: "/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/SuperCellMultiomicsAnalyses/config/R4.1_env.yml"
-  
-  seuratV5_env: '/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/SuperCellMultiomicsAnalyses/config/seurat_v5.yml'
-  
-  scenic_env: '/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/SuperCellMultiomicsAnalyses/config/scenic.yml'
-  
-  linger_env: '/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/SuperCellMultiomicsAnalyses/config/linger_env.yml'
-  
-  seacells: "/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/bin/miniconda3/envs/seaMetaCells"
-  
-  seaMetaCells_env: "/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/SuperCellMultiomicsAnalyses/config/seaMetaCells_env.yml"
-  
-  metacell2_0_9_env: "/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/SuperCellMultiomicsAnalyses/config/metacell2_0.9_env.yml"
-  
-  han_env: "/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/SuperCellMultiomicsAnalyses/config/han_env.yml"
-  
-  JASPAR2024_env: "/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/SuperCellMultiomicsAnalyses/config/JASPAR2024_env.yml"
-  
-  scATOMIC_env: "/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/SuperCellMultiomicsAnalyses/config/scATOMIC_env.yml"
-  
-  scenic:
-    sums: "https://resources.aertslab.org/cistarget/databases/sha256sum.txt"
-    cis_target_10kbp_up_10kbp_down_url: "https://resources.aertslab.org/cistarget/databases/homo_sapiens/hg38/refseq_r80/mc_v10_clust/gene_based/hg38_10kbp_up_10kbp_down_full_tx_v10_clust.genes_vs_motifs.rankings.feather"
-    cis_target_500bp_up_100bp_down_url: "https://resources.aertslab.org/cistarget/databases/homo_sapiens/hg38/refseq_r80/mc_v10_clust/gene_based/hg38_500bp_up_100bp_down_full_tx_v10_clust.genes_vs_motifs.rankings.feather"
-    motif_url: "https://resources.aertslab.org/cistarget/motif2tf/motifs-v10nr_clust-nr.hgnc-m0.001-o0.0.tbl"
-
-  
-
   dir:
-    base: "/scratch/lheraul1/SuperCellMultiomicsAnalyses"
-    inputData: "/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/SuperCellMultiomicsAnalyses" #Modify to dir path with results form workflow of herault et al, 2021
-    
+    inputData: "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/results/SuperCellMultiomicsAnalyses"
+
   pbmcMultiome:
     fragmentFile: "https://cf.10xgenomics.com/samples/cell-arc/2.0.0/pbmc_granulocyte_sorted_10k/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
+    genome: "hg38"
 
   hspcMultiomePersad:
-    fragmentFileRep1: "/home/leonard/Documents/multiomicsMetacells/HSPC_persad/BM_CD34_Rep1_atac_fragments.tsv.gz"
-    fragmentfileRep2: "/home/leonard/Documents/multiomicsMetacells/HSPC_persad/BM_CD34_Rep2_atac_fragments.tsv.gz"
-    anndataATAC: "/home/leonard/Documents/multiomicsMetacells/HSPC_persad/cd34_multiome_atac.h5ad"
-    anndataRNA: "/home/leonard/Documents/multiomicsMetacells/HSPC_persad/cd34_multiome_rna.h5ad"
-    
-  urlHspcMultiomePersad:  
+    genome: "hg38"
+
+  urlHspcMultiomePersad:
     urlFragmentFileRep1: "https://zenodo.org/records/6383269/files/BM_CD34_Rep1_atac_fragments.tsv.gz"
     urlFraglentFileIndexRep1: "https://zenodo.org/records/6383269/files/BM_CD34_Rep1_atac_fragments.tsv.gz.tbi"
     urlFragmentFileRep2: "https://zenodo.org/records/6383269/files/BM_CD34_Rep2_atac_fragments.tsv.gz"
-    urlFraglentFileIndexRep2: "https://zenodo.org/records/6383269/files/BM_CD34_Rep2_atac_fragments.tsv.gz.tbi?"
+    urlFraglentFileIndexRep2: "https://zenodo.org/records/6383269/files/BM_CD34_Rep2_atac_fragments.tsv.gz.tbi"
     urlAnndataATAC: "https://zenodo.org/records/6383269/files/cd34_multiome_atac.h5ad"
     urlAnndataRNA: "https://zenodo.org/records/6383269/files/cd34_multiome_rna.h5ad"
-    
-    
-  humanHSPC:
-    processedRNA:  "https://figshare.com/ndownloader/files/40064320"
-    processedATAC: "https://figshare.com/ndownloader/files/40064311"
-    label: "leiden"
-    cellCycleOpt: "-s"
-    adjLikelihood: "-l"
-    rawFeatures: "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE209nnn/GSE209878/suppl/GSE209878_3423-MV-2_features.tsv.gz"
-    rawCells: "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE209nnn/GSE209878/suppl/GSE209878_3423-MV-2_barcodes.tsv.gz"
-    rawMatrices: "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE209nnn/GSE209878/suppl/GSE209878_3423-MV-2_matrix.mtx.gz"
-  
-  humanBrain:
-    processedRNA: "https://figshare.com/ndownloader/files/40064350"
-    processedATAC: "https://figshare.com/ndownloader/files/40064347"
-    label: "cluster"
-    cellCycleOpt: ""
-    adjLikelihood: ""
-    rawh5: 
-      - "https://atrev.s3.amazonaws.com/brainchromatin/hft_ctx_w21_dc2r2_r1/outs/filtered_feature_bc_matrix.h5"
-      - "https://atrev.s3.amazonaws.com/brainchromatin/hft_ctx_w21_dc2r2_r2/outs/filtered_feature_bc_matrix.h5"
-    rawSceRNA: "https://atrev.s3.amazonaws.com/brainchromatin/Multiome_RNA_SCE.RDS"
-    rawSceATAC: "https://atrev.s3.amazonaws.com/brainchromatin/Multiome_ATAC_SCE.RDS"
-    
-  prostateHanSamples:
-    - "WT_1"
-    - "WT_2"
-    - "2W_1"
-    - "2W_2"
-    - "1M_1"
-    - "1M_2"
-    - "2_5M_1"
-    - "2_5M_2"
-    - "2_5M_3"
-    - "2_5M_4"
-    - "3_5M_1"
-    - "3_5M_2"
-    - "4_5M_1"
-    - "4_5M_2"
-    - "6M"
-    
-  cleanProstateHanSamples:
-    - "WT_1"
-    - "WT_2"
-    - "2W_1"
-    - "2W_2"
-    - "1M_1"
-    - "1M_2"
-    - "2_5M_1"
-    - "2_5M_2"
-    - "2_5M_3"
-    - "2_5M_4"
-    - "3_5M_1"
-    - "3_5M_2"
-    - "4_5M_2"
-    - "6M"
-    
-  pathCellRangerProstateData: "input/prostateCancer10xMultiome/sibcb2/gaodonglab2/lifei/NEPC/sc_REG/sc-RNA-ATAC/cell_ranger_outs/"
-

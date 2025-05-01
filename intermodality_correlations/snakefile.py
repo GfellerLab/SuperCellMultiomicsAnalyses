@@ -10,80 +10,95 @@ print(config)
 #baseDir = config["dir"]["base"]
 #inputDataDir = config["dir"]["inputData"]
 
-SuperCellMultiomics = config["R4.1_env"]
-seuratV5 = config["seuratV5_env"]
-han_env = config["han_env"]
-linger_env = config["linger_env"]
-metacell2_0_9_env = config["metacell2_0_9_env"]
-scenic_env = config["scenic_env"]
-SuperCellMultiomics_pyenv = config["seaMetaCells_env"]
-JASPAR2024 = config["JASPAR2024_env"]
-SupervisedTools = config["scATOMIC_env"]
+# cellTypesMixology = config["testKernel"]["cellTypesMixology"]
+#
+# cellTypesBmCiteSeq = config["testKernel"]["cellTypesBmCiteSeq"]
+# cellTypesPBMCcellType10Xmultiome = config["testKernel"]["cellTypesPBMCcellType10Xmultiome"]
 
-## Retrieving python env for computing compactness/velocity in R with reticulate
-#Seacells = config["seacells"]
-snakemake_conda_env = [f for f in os.listdir('.snakemake/conda') if f.endswith(".yaml")]
-for e in snakemake_conda_env:
-    with open(".snakemake/conda/"+e) as f:
-        first_line = f.readline().strip('\n')
-        if "seaMetaCells" in first_line:
-            Seacells = ".snakemake/conda/"+os.path.splitext(e)[0]
-            break
-        
-print(Seacells)
+# seuratDatasets = ["bmcite","pbmcMultiome"]
 
-
-cellTypesMixology = config["testKernel"]["cellTypesMixology"]
-
-cellTypesBmCiteSeq = config["testKernel"]["cellTypesBmCiteSeq"]
-cellTypesPBMCcellType10Xmultiome = config["testKernel"]["cellTypesPBMCcellType10Xmultiome"]
-
-seuratDatasets = ["bmcite","pbmcMultiome"]
-
-GAMMA = config["GAMMA"]
-
-GAMMA_CITE_ATLAS = config["pbmcCiteSeqAtlas"]["GAMMA"]
-
+# GAMMA_CITE_ATLAS = config["pbmcCiteSeqAtlas"]["GAMMA"]
+#
 pbmcCiteSamples = config["pbmcCiteSeqAtlas"]["samples"]
 
-CiteAtlasMethod =  config["pbmcCiteSeqAtlas"]["methods"]
+# CiteAtlasMethod =  config["pbmcCiteSeqAtlas"]["methods"]
+#
+# velocitySamples = config["multiomicVelocity"]["samples"]
+#
+# multiveloRuns = config["multiomicVelocity"]["runs"]
 
-velocitySamples = config["multiomicVelocity"]["samples"] 
+GAMMA = config["GAMMA"]
+GAMMA_seacells = [20,30,50,75,100,200]
+pando_method_mc = config["pando_method_mc"]
+pando_method_sc = config["pando_method_sc"]
 
-multiveloRuns = config["multiomicVelocity"]["runs"] 
-
-wdir = os.getcwd() 
+wdir = os.getcwd()
 
 #wildcard_constraints: pbmcCiteSmp= '^P[1-9]'
-wildcard_constraints: kernel= '(FALSE|TRUE)'
+# wildcard_constraints: kernel= '(FALSE|TRUE)'
 
 
-include: "snakemakeWorkflows/installations/snakefile.py"
-include: "snakemakeWorkflows/10xMultiomeProstateHan22/snakefile.py"
-include: "snakemakeWorkflows/multiomicVelocity/snakefile.py"
-include: "snakemakeWorkflows/testKernel/snakefile.py"
 include: "snakemakeWorkflows/pbmcMultiome/snakefile.py"
 include: "snakemakeWorkflows/hspcMultiomePersad/snakefile.py"
 include: "snakemakeWorkflows/pbmcCiteSeqAtlas/snakefile.py"
-include: "snakemakeWorkflows/bmCiteSeq/snakefile.py"
-include: "snakemakeWorkflows/covidRen21/snakefile.py"
-include: "snakemakeWorkflows/PBMC_Boukhaled/snakefile.py"
-
-
 
 rule all:
-  input:  "reports/bmCiteSeq/bm_cite_analysis.html",
-          "reports/pbmcMultiome/pbmcMultiome.html",
-          "reports/pbmcCiteSeqAtlas/pbmc_cite_atlas_integration_metacell_analysis.html",
-           "output/testKernel/pbmcMultiome/detectRarePop/all_seeds_processed_at_all_gammas"
-        #"output/pbmcCiteSeqAtlas/pbmcCiteSeqAtlas_sup_metacells_supSTACAS/g20/metacell_SCT_STACAS_logNorm/seuratCombinedWNN_2.rds",
-        #"output/pbmcCiteSeqAtlas/pbmcCiteSeqAtlas_sup_metacells_supSTACAS/g20/metacell_SCT_STACAS_logNorm/RNA_scATOMIC/seuratCombinedWNN.rds",
-         #"output/pbmcCiteSeqAtlas/pbmcCiteSeqAtlas_sup_metacells_supSTACAS/g20/metacell_SCT_STACAS_logNorm/RNA_scGate/seuratCombinedWNN.rds",
-        #"output/pbmcCiteSeqAtlas/pbmcCiteSeqAtlas_sup_metacells_supSTACAS/g20/metacell_SCT_STACAS_logNorm/RNA_unsup/seuratCombinedWNN.rds"
-    #"reports/bmCiteSeq/bm_cite_analysis.html"
-        #"reports/pbmcMultiome/pbmcMultiome.html"
-         #"reports/hspcMultiomePersad/hspcMultiomePersad.html"
-         #"reports/pbmcCiteSeqAtlas/Correlation_MC_metrics_pbmc_cite_atlas_analysis.html"
+  input:
+    "input/pbmcMultiome/pbmcMultiome_broad_peaks.rds",
+    "output/hspcMultiomePersad/singlecells_analysis/seurat.RNA.h5ad",
+    "output/pbmcMultiome/singlecells_analysis/seurat.RNA.h5ad",
+    "output/pbmcMultiome/singlecells_analysis/seurat.ATAC.h5ad",
+    "output/hspcMultiomePersad/singlecells_analysis/seurat_multimodal.rds",
+    "output/hspcMultiomePersad/singlecells_analysis/seuratWNN.rds",
+    "output/pbmcMultiome/singlecells_analysis/seurat_multimodal.rds",
+    "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds",
+    # metacell outputs
+    expand("output/hspcMultiomePersad/SuperCellMulti/g{gamma}/seurat.multiome.mc.rds", gamma = GAMMA),
+    expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.mc.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsRNA","seacellsATAC","MetaCellRNA"]),
+    # expand("output/pbmcMultiome/SuperCellATAC/g{gamma}/seurat.multiome.mc.rds", gamma = GAMMA),
+    # expand("output/pbmcMultiome/MetaCellRNA/g{gamma}/seurat.multiome.mc.rds", gamma = GAMMA),
+    # expand("output/pbmcMultiome/seacellsRNA/g{gamma}/seurat.multiome.mc.rds", gamma = GAMMA),
+    # expand("output/pbmcMultiome/seacellsATAC/g{gamma}/seurat.multiome.mc.rds", gamma = GAMMA),
+    # seurat objects with activities
+    "output/hspcMultiomePersad/singlecells_analysis/seurat.multiome.activities.rds",
+    "output/pbmcMultiome/singlecells_analysis/seurat.multiome.activities.rds",
+    # expand("output/hspcMultiomePersad/SuperCellMulti/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA),
+    expand("output/hspcMultiomePersad/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells"]),
+    expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsRNA","seacellsATAC","MetaCellRNA"]),
+    # #random metacellls output
+    # expand("output/hspcMultiomePersad/randomMetacells/g{gamma}/seurat.multiome.mc.rds", gamma = GAMMA),
+    # expand("output/pbmcMultiome/randomMetacells/g{gamma}/seurat.multiome.mc.rds", gamma = GAMMA),
+    # metacell metrics
+    expand("output/hspcMultiomePersad/{inputMetacells}/g{gamma}/seurat.multiome.mcMetrics.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells"]),
+    expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.mcMetrics.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsRNA","seacellsATAC","MetaCellRNA"]),
+    # multimodal markers
+    expand("output/pbmcMultiome/singlecells_analysis/multimodalMarkers_ttest.rds"),
+    expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/multimodalMarkers_surveyweightedt.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsRNA","seacellsATAC","MetaCellRNA"]),
+    expand("output/pbmcMultiome/singlecells_analysis/CorrTables.rds"),
+    expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/CorrTables.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsRNA","seacellsATAC","MetaCellRNA"]),
+    expand("output/hspcMultiomePersad/singlecells_analysis/CorrTables.rds"),
+    expand("output/hspcMultiomePersad/{inputMetacells}/g{gamma}/CorrTables.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells"]),
+    # expand("output/hspcMultiomePersad/randomMetacells/g{gamma}/CorrTables.rds", gamma = GAMMA),
+    expand("output/pbmcMultiome/singlecells_analysis/multimodalMarkers_mainCellTypes_ttest.rds"),
+    expand("output/pbmcMultiome/SuperCellMulti/g{gamma}/multimodalMarkers_mainCellTypes_surveyweightedt.rds", gamma = GAMMA),
+    # expand("output/hspcMultiomePersad/singlecells_analysis/multimodalMarkers_ttest.rds"),
+    # expand("output/hspcMultiomePersad/SuperCellMulti/g{gamma}/multimodalMarkers_surveyweightedt.rds", gamma = GAMMA),
+    #
+    expand("output/pbmcMultiome/SuperCellMulti/g{gamma}/grn_object_{pandoMC}.rds", gamma = GAMMA, pandoMC = pando_method_mc),
+    expand("output/pbmcMultiome/singlecells_analysis/grn_object_{pandoSC}.rds", pandoSC = pando_method_sc),
+    expand("output/pbmcMultiome/SuperCellMulti/pando_metrics_summary_p_thresh0.1.RData"),
+    expand("output/pbmcMultiome/SuperCellMulti/pando_metrics_summary_p_thresh0.05.RData")
+    # "reports/pbmcMultiome/pbmcMultiome.html"
+    # "input/GSM5008737_ADT_3P/features.tsv.gz",
+    # expand("output/pbmcCiteSeqAtlas/{pbmcCiteSmp}/singlecells_analysis/seurat_multimodal.rds", pbmcCiteSmp = pbmcCiteSamples)
+    # "reports/pbmcCiteSeqAtlas/pbmc_cite_atlas_integration_metacell_analysis.html",
+    #"output/pbmcCiteSeqAtlas/pbmcCiteSeqAtlas_sup_metacells_supSTACAS/g20/metacell_SCT_STACAS_logNorm/seuratCombinedWNN_2.rds",
+    #"output/pbmcCiteSeqAtlas/pbmcCiteSeqAtlas_sup_metacells_supSTACAS/g20/metacell_SCT_STACAS_logNorm/RNA_scATOMIC/seuratCombinedWNN.rds",
+    #"output/pbmcCiteSeqAtlas/pbmcCiteSeqAtlas_sup_metacells_supSTACAS/g20/metacell_SCT_STACAS_logNorm/RNA_scGate/seuratCombinedWNN.rds",
+    #"output/pbmcCiteSeqAtlas/pbmcCiteSeqAtlas_sup_metacells_supSTACAS/g20/metacell_SCT_STACAS_logNorm/RNA_unsup/seuratCombinedWNN.rds"
+    #"reports/pbmcMultiome/pbmcMultiome.html"
+    #"reports/hspcMultiomePersad/hspcMultiomePersad.html"
+    #"reports/pbmcCiteSeqAtlas/Correlation_MC_metrics_pbmc_cite_atlas_analysis.html"
 
 # rule all:
 #   input: expand("output/multiomicVelocity/{velocitySmp}/{runMv}/multivelo_result.h5ad",velocitySmp = velocitySamples,runMv = multiveloRuns),
@@ -122,6 +137,3 @@ rule all:
 #           #"output/pbmcMultiome/singlecells_analysis/SCENIC/cis_target/regulons.json",
 #           "reports/pbmcMultiome/bench_global_trans_reg.html",
 #            "reports/pbmcMultiome/bench_monocytes_trans_reg.html"
-
-
-
