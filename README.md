@@ -30,7 +30,15 @@ git clone
 
     dot -Tpng dag.dot > dag.png
 
-### command line to launch the snakemake workflow on a cluster with slurm and singularity
+### command line to launch the snakemake workflow (snakemake v7.15.2) on a cluster with slurm and singularity
+
+#### load singularity module
+
+    module load singularityce
+   
+
+#### launch snakemake
+
    snakemake -j 30 \
         -kps snakefile.py \
         --configfile config/workflow.yml \
