@@ -1,0 +1,38 @@
+Seurat2PB.custom <- function (object, sample, assay = "RNA", cluster = "seurat_clusters"){
+  if (!is(object, "SeuratObject") & !is(object, "Seurat")) 
+    stop("object must belong to either the SeuratObject or Seurat classes")
+  if (!requireNamespace("SeuratObject", quietly = TRUE)) 
+    stop("SeuratObject package required but is not installed (or can't be loaded)")
+  if (packageVersion("SeuratObject") < "5.0.0") {
+    counts <- SeuratObject::GetAssayData(object, assay = assay, 
+                                         slot = "counts")
+  }else {
+    counts <- SeuratObject::GetAssayData(object, assay = assay, 
+                                         layer = "counts")
+  }
+  if (is.null(counts)) 
+    stop("object doesn't contain raw RNA counts")
+  meta <- object@meta.data
+  if (!sample %in% names(meta)) 
+    stop("sample information can not be found in meta.data")
+  if (!cluster %in% names(meta)) 
+    stop("cluster information can not be found in meta.data")
+  sp <- meta[, sample]
+  clst <- meta[, cluster]
+  if (length(table(sp)) == 1) 
+    warning("Only 1 sample found in meta.data. Please check whether sample information is specified correctly.")
+  if (length(table(clst)) == 1) 
+    warning("Only 1 cluster found in meta.data. Please check whether cluster information is specified correctly.")
+  genes <- data.frame(gene = rownames(object[[assay]]))
+  genes <- cbind(genes, object[[assay]][[]])
+  sp_clst <- factor(paste(sp, clst, sep = "_cluster"))
+  group_mat <- Matrix::sparse.model.matrix(~0 + sp_clst)
+  colnames(group_mat) <- gsub("^sp_clst", "", colnames(group_mat))
+  counts.pb <- counts %*% group_mat
+  levels(sp_clst)
+  sp.pb <- gsub("_cluster.*$", "", levels(sp_clst))
+  clst.pb <- gsub("^.*_cluster", "", levels(sp_clst))
+  sample.pb <- data.frame(sample = sp.pb, cluster = clst.pb)
+  DGEList(counts = as.matrix(counts.pb), samples = sample.pb, 
+          genes = genes)
+}

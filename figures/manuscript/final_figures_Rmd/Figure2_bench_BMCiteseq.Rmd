@@ -1,0 +1,2085 @@
+---
+title: "Figure1"
+author: "Leonard Herault"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+SuperCellMulti identifies robust multiomics metacells increasing inter-modality consistency compared to single cells. 
+
+# Package loading
+```{r setup, include=FALSE}
+library(SuperCellMultiomics)
+library(Seurat)
+library(ggplot2)
+library(scales)
+```
+
+```{r}
+library(Cairo)
+options(bitmapType = "cairo")
+```
+
+
+
+
+## Bone marrow cite seq results
+
+Single cells
+```{r single-cell loading}
+bm <- readRDS("../../output/bmCiteSeq/singlecells_analysis/seuratWNN.rds")
+bm
+
+
+
+
+addCellType <- function(bm) {
+  bm$celltype <- as.vector(bm$celltype.l2)
+  bm$celltype[startsWith(bm$celltype,"Prog_B")] <- "Prog_B"
+  bm$celltype[startsWith(bm$celltype,"CD8 Effector")] <- "CD8 Effector"
+  bm$celltype[startsWith(bm$celltype,"CD8 Memory")] <- "CD8 Mem"
+  # bm$celltype[startsWith(bm$celltype,"CD8 ")] <- "CD8"
+  # bm$celltype[startsWith(bm$celltype,"CD4 ")] <- "CD4"
+  bm$celltype[bm$celltype == "Naive B"] <- "B Naive"
+  bm$celltype[bm$celltype == "Memory B"] <- "B Mem"
+  bm$celltype[bm$celltype == "CD4 Memory"] <- "CD4 Mem"
+  bm$celltype[bm$celltype == "Plasmablast"] <- "Plasma"
+  
+  
+  #bm$celltype[endsWith(bm$celltype,"Mono")] <- "Mono"
+  
+  bm$celltype[startsWith(bm$celltype,"CD56 bright NK")] <- "NK"
+  bm$celltype[startsWith(bm$celltype,"Prog_Mk")] <- "MEP"
+  bm$celltype[startsWith(bm$celltype,"Prog_RBC")] <- "MEP"
+  bm$celltype.l2 <- factor(bm$celltype.l2) 
+  bm$celltype <- factor(bm$celltype) 
+  
+  return(bm)
+}
+
+bm <- addCellType(bm)
+
+colors  <- c('#E5D2DD', '#53A85F', '#F1BB72', '#F3B1A0', '#D6E7A3', '#57C3F3', '#476D87',
+             '#E95C59', '#E59CC4', '#AB3282', '#BD956A', '#8C549C',
+             '#9FA3A8', '#E0D4CA', '#5F3D69', '#58A4C3', "#b20000",'#E4C755', '#F7F398',
+             '#AA9A59', '#E63863', '#E39A35', '#C1E6F3', '#6778AE', '#91D0BE', '#B53E2B',
+             '#712820', '#DCC1DD', '#CCE0F5', '#CCC9E6', '#625D9E', '#68A180', '#3A6963',
+             '#968175')
+
+show_col(colors)
+
+
+
+color.celltypes.bm  <- c("MEP" = '#D6E7A3',
+                         "gdT" = '#E95C59',
+                         "GMP" = '#476D87',
+                         "LMPP" = '#3A6963',
+                         "Prog_DC" =  '#625D9E', 
+                         'Prog_B' = "#AA9A59",
+                         "CD14 Mono" =  "#F1BB72",
+                         "CD16 Mono" = "#53A85F",
+                         "CD4 Mem" = '#91D0BE',
+                         "CD4 Naive" = "#F3B1A0",
+                         "CD8 Effector" = "#AB3282",
+                         "CD8 Mem" = "#BD956A",
+                         "CD8 Naive" = "#8C549C",
+                         "cDC2" = "#9FA3A8",
+                         "gdT" = "#E0D4CA",
+                         "MAIT" = "#E4C755",
+                         "Plasma" = "#ff6db6",
+                         'B Mem' = "#F7F398",
+                         "B Naive" = "#E63863",
+                         "NK" = "#6778AE",
+                         "pDC" = "#712820",
+                         "Treg" ='#57C3F3',
+                         "HSC" = "#58A4C3")
+
+# 
+# color.celltypes.l2 <- colors[1:length(unique(bm$celltype.l2))]
+# bm$celltype.l2 <- factor(bm$celltype.l2) 
+# 
+# 
+# names(color.celltypes.l2) <- levels(bm$celltype.l2)
+# 
+# color.celltypes <- c(na.exclude(color.celltypes.l2[levels(bm$celltype)]),
+#                      "MEP" = "#b20000",
+#                      "CD4" =  '#F1BB72',
+#                      "CD8 Effector" = '#57C3F3',
+#                      'CD8 Memory' = '#E95C59',
+#                      "Prog_B" ='#C1E6F3')
+# 
+# bm$celltype <- factor(bm$celltype) 
+# 
+# 
+# names(color.celltypes) <- levels(bm$celltype)
+# names(color.celltypes.l2) <- levels(bm$celltype.l2)
+
+
+
+```
+
+```{r control_single_cell}
+DimPlot(bm,group.by = "celltype.l2",cols = colors)
+DimPlot(bm,group.by = "celltype",cols = color.celltypes.bm)
+
+
+```
+
+
+
+# Metacalls on single cell WNN UMAP
+
+```{r load_mc_g75}
+bm.supercell.adt <- readRDS("../../output/bmCiteSeq//SuperCellADT/g75/seurat.cite.mc.rds")
+bm.supercell.adt <- addCellType(bm.supercell.adt)
+
+bm.seacells.adt <- readRDS("../../output/bmCiteSeq_backup/seacellsADT//g75/seurat.cite.mc.rds")
+bm.seacells.adt <- addCellType(bm.seacells.adt)
+
+bm.seacells.rna <- readRDS("../../output/bmCiteSeq_backup/seacellsRNA//g75/seurat.cite.mc.rds")
+bm.seacells.rna <- addCellType(bm.seacells.rna)
+
+bm.supercell.rna <- readRDS("../../output/bmCiteSeq/SuperCellRNA//g75/seurat.cite.mc.rds")
+bm.supercell.rna <- addCellType(bm.supercell.rna)
+
+bm.supercell.multi <- readRDS("../../output/bmCiteSeq//SuperCellMulti//g75/seurat.cite.mc.rds")
+bm.supercell.multi <- addCellType(bm.supercell.multi)
+
+bm.metacell.rna <- readRDS("../../output/bmCiteSeq/MetaCellRNA//g75/seurat.cite.mc.rds")
+bm.metacell.rna <- addCellType(bm.metacell.rna)
+
+
+```
+
+
+
+```{r}
+cn <- c(colnames(bm.supercell.multi@meta.data)[!colnames(bm.supercell.multi@meta.data) %in% c("innerNormVar","celltype")],"input","gamma")
+metrics <- data.frame()
+
+for (g in c(20,50,75,100)){
+  # for (i in c('SuperCellMulti','SuperCellRNA',"SuperCellADT","randomMetacells","seacellsRNA","seacellsADT","MetaCellRNA")){
+  for (i in c('SuperCellMulti','SuperCellRNA',"SuperCellADT","seacellsRNA","seacellsADT","MetaCellRNA")){  
+    file <- paste0("../../output/bmCiteSeq/",
+                   i,"/g",
+                   g,
+                   "/seurat.cite.mc.rds")
+    if (file.exists(file)) {
+      pbmc.mc <- readRDS(file)
+      if (i == '') {i <- "MULTI"}
+      pbmc.mc@meta.data$input <- i
+      pbmc.mc@meta.data$gamma <- g
+      metrics <- rbind(metrics,pbmc.mc@meta.data[,cn])
+    }
+  }
+  
+  
+}
+```
+
+```{r}
+library(ggpubr)
+fig1.A <- DimPlotSC(seurat = bm,
+                    seurat.mc = bm.supercell.multi,
+                    metacell.col = "celltype",
+                    sc.col = "celltype",
+                    mc.color = color.celltypes.bm ,
+                    sc.color = color.celltypes.bm) + theme_classic()  +
+  guides(fill=guide_legend(ncol =2,title = "Cell types",
+                           override.aes = list(size=4)),
+         colour = "none",
+         size = guide_legend(title = "Size"))
+
+
+
+umap.sc.multi <-  fig1.A + NoLegend() +scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
+                                                  breaks = c(100,200,300,400))
+
+legend.celltypes <- ggpubr::get_legend(fig1.A+scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
+                                                         breaks = c(100,200,300,400)),
+                                       position  = c(0.5,0)) 
+
+umap.sc.rna <- DimPlotSC(seurat = bm,
+                         seurat.mc = bm.supercell.rna,
+                         metacell.col = "celltype",
+                         sc.col = "celltype",
+                         mc.color = color.celltypes.bm ,
+                         sc.color = color.celltypes.bm) + theme_classic() + NoLegend() +scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
+                                                                                                   breaks = c(100,200,300,400))
+umap.sc.adt <- DimPlotSC(seurat = bm,
+                         seurat.mc = bm.supercell.adt,
+                         metacell.col = "celltype",
+                         sc.col = "celltype",
+                         mc.color = color.celltypes.bm ,
+                         sc.color = color.celltypes.bm) + theme_classic() + NoLegend() +scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
+                                                                                                   breaks = c(100,200,300,400))
+umap.sea.rna <- DimPlotSC(seurat = bm,
+                          seurat.mc = bm.seacells.rna,
+                          metacell.col = "celltype",
+                          sc.col = "celltype",
+                          mc.color = color.celltypes.bm ,
+                          sc.color = color.celltypes.bm) + theme_classic() + NoLegend() +scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
+                                                                                                    breaks = c(100,200,300,400))
+umap.sea.adt <- DimPlotSC(seurat = bm,
+                          seurat.mc = bm.seacells.adt,
+                          metacell.col = "celltype",
+                          sc.col = "celltype",
+                          mc.color = color.celltypes.bm ,
+                          sc.color = color.celltypes.bm) + theme_classic() + NoLegend() +scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
+                                                                                                    breaks = c(100,200,300,400))
+umap.mc.rna <- DimPlotSC(seurat = bm,
+                         seurat.mc = bm.metacell.rna,
+                         metacell.col = "celltype",
+                         sc.col = "celltype",
+                         mc.color = color.celltypes.bm ,
+                         sc.color = color.celltypes.bm) + theme_classic() + NoLegend() +scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
+                                                                                                   breaks = c(100,200,300,400))
+blank <- element_blank()
+```
+
+
+```{r fig.height=5,fig.width=7}
+fig1.A$layers[[1]] <- NULL
+fig1.A
+```
+
+
+## Supplementary fig1F
+
+```{r fig.height=10,fig.width=11}
+
+cowplot::plot_grid(umap.sc.multi + ggtitle("SuperCell Protein+RNA"),umap.sc.adt + ggtitle("SuperCell Protein") ,umap.sc.rna + ggtitle("SuperCell RNA"),
+                   legend.celltypes,umap.sea.adt + ggtitle("SEACells Protein"), umap.sea.rna + ggtitle("SEACells RNA"),
+                   blank,blank,umap.mc.rna + ggtitle("MetaCell2 RNA")
+)
+```
+```{r fig.height=10,fig.width=11}
+# umap.sc <- DimPlot(pbmc,group.by = "celltype",cols = color.celltypes.pbmc,reduction = "wnn.umap") + theme_classic() + ggtitle("Single cells") + NoLegend()
+# umap.sc
+
+umap.sc <- umap.sc.multi
+umap.sc$layers[[2]] <- NULL
+
+legend.celltypes <- ggpubr::get_legend(fig1.A +scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
+                                                          breaks = c(100,200,300,400)) + theme(
+                                                            # legend.position = "bottom",        # Position legend at the bottom
+                                                            legend.box = "horizontal"# One column for shapes
+                                                          ) +guides(
+                                                            fill = guide_legend(ncol =2,title = "Cell types",
+                                                                                override.aes = list(size=4)),  # One column for colors
+                                                            size = guide_legend(ncol = 1)
+                                                          ))
+
+figS2A <- cowplot::plot_grid(umap.sc.multi + ggtitle("SuperCell Protein+RNA"),
+                             umap.sc.adt + ggtitle("SuperCell Protein") ,
+                             umap.sc.rna + ggtitle("SuperCell RNA"),
+                             umap.sc + ggtitle("Single-cells"),
+                             umap.sea.adt + ggtitle("SEACells Protein"), 
+                             umap.sea.rna + ggtitle("SEACells RNA"),
+                             legend.celltypes,blank,
+                             umap.mc.rna + ggtitle("MetaCell2 RNA")
+)
+figS2A
+```
+```{r}
+pdf(file = "figS2A.pdf",height = 11,width=11)
+figS2A
+dev.off()
+```
+## Fig 2A benchmark plot
+
+set method color
+```{r}
+library(scales)
+library(ggthemes)
+
+input.colors.cite <- c(colorblind_pal()(8)[2:4],"darkgrey")
+
+
+names(input.colors.cite) <- c("Protein","Protein+RNA","RNA","None")
+```
+
+
+
+
+
+```{r}
+#Set compactness to 0 (best score) for metacell of size 1
+table(metrics[is.na(metrics$compactness_apca),"gamma"])
+table(metrics[is.na(metrics$compactness_pca),"input"])
+
+
+#metrics$compactness_lsi[is.na(metrics$compactness_lsi)] <- 0
+
+#metrics$compactness_pca[is.na(metrics$compactness_pca)] <- 0
+
+
+metrics$gamma <- factor(as.character(metrics$gamma),levels =c(20,50,75,100))
+
+metrics$method <- plyr::mapvalues(x= metrics$input, 
+                                  from = c('SuperCellMulti','SuperCellRNA',"SuperCellADT","randomMetacells","seacellsRNA","seacellsADT","MetaCellRNA"),
+                                  to = c('SuperCell Protein+RNA','SuperCell RNA',"SuperCell Protein","Random None","SEACells RNA","SEACells Protein","MetaCell2 RNA"))
+
+metrics$tool <- stringr::str_split_fixed(metrics$method,pattern = " ",n = 2)[,1]
+metrics$input <- stringr::str_split_fixed(metrics$method,pattern = " ",n = 2)[,2]
+
+
+metrics$input <- factor(as.character(metrics$input),levels = c("RNA","Protein","Protein+RNA","None"))
+
+method.levels <- c('SuperCell Protein+RNA',"SuperCell Protein","SEACells Protein",
+                   'SuperCell RNA',"SEACells RNA","MetaCell2 RNA","Random None")
+
+metrics$method <- factor(metrics$method,
+                         levels = method.levels)
+# 
+```
+
+
+```{r fig.height=4,fig.width=4}
+comparisons <- list(c('SuperCell Protein+RNA',"SuperCell Protein"),
+                    c('SuperCell Protein+RNA',"SEACells Protein"),
+                    c('SuperCell Protein+RNA','SuperCell RNA'),
+                    c('SuperCell Protein+RNA',"SEACells RNA"),
+                    c('SuperCell Protein+RNA',"MetaCell2 RNA"))
+
+comparison.inter.modality <- list(c('SuperCell Protein',"SEACells Protein"),
+                                  c('SuperCell RNA','SEACells RNA'),
+                                  c('SuperCell RNA',"MetaCell2 RNA"))
+
+library(ggsignif)
+metrics$purity <- metrics$celltype.l2_purity
+purity.bmc.cite.g20 <- ggplot(metrics[metrics$gamma %in% c(20),],aes(y=purity,x = method,fill = input)) +
+  geom_boxplot() + theme_bw() +
+  #facet_wrap("gamma",nrow = 1) + 
+  scale_y_continuous(limits = c(0.1,1.5),breaks = c(0.2,0.6,1)) + 
+  geom_signif(comparisons = comparisons,step_increase=0.125,map_signif_level=T,extend_line = -0.005,textsize = 2)+
+  geom_signif(comparisons = comparison.inter.modality,step_increase=0.125,map_signif_level=T,extend_line = -0.005,textsize = 2) +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom") + scale_fill_manual(values = input.colors.cite)
+
+purity.bmc.cite.g20 + NoLegend()
+```
+```{r fig.height=4,fig.width=4}
+purity.bmc.cite.g75 <- ggplot(metrics[metrics$gamma %in% c(75),],aes(y=purity,x = method,fill = input)) + 
+  geom_boxplot() + theme_bw() +
+  #facet_wrap("gamma",nrow = 1) + 
+  scale_y_continuous(limits = c(0.1,1.5),breaks = c(0.2,0.6,1)) + 
+  geom_signif(comparisons = comparisons,step_increase=0.125,map_signif_level=T,extend_line = -0.005,textsize = 2)+
+  geom_signif(comparisons = comparison.inter.modality,step_increase=0.125,map_signif_level=T,extend_line = -0.005,textsize = 2) +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite)
+
+
+purity.bmc.cite.g75 + NoLegend()
+```
+
+
+```{r fig.height=4,fig.width=4}
+use.gamma = c(20,75) 
+
+benchTable <- data.frame()
+methodToBenchFiles <- c('seurat.cite.mc.txt','seurat.cite.mc.txt','seurat.cite.mc.txt','seacellMemberships.txt',"seacellMemberships.txt","MetaCellMemberships.txt")
+methodToTools <- c('SuperCell','SuperCell','SuperCell','SEACells',"SEACells","MetaCell")
+names(methodToBenchFiles) <- c('SuperCellMulti','SuperCellRNA','SuperCellADT',"seacellsADT","seacellsRNA","MetaCellRNA")
+
+for (g in c(use.gamma)){
+  for (i in names(methodToBenchFiles) ){
+    bench <- read.table(paste0("../../benchmark/bmCiteSeq/",
+                               i,"/g",
+                               g,"/",
+                               "/benchIdentification.txt"),header = T)
+    
+    bench$method <- i
+    bench$gamma <- g
+    benchTable <- rbind(benchTable,bench)
+    
+  }}
+
+# ggplot(benchTable,aes(x = method,y = cpu_time, fill= method)) + geom_bar(stat = "identity") +
+#   scale_x_discrete(guide = guide_axis(angle = 60))+ ylab("cpu time (s)")+ NoLegend() +
+#   ggplot(benchTable,aes(x = method,y = max_pss/1024, fill= method)) + geom_bar(stat = "identity") + ylab("memory (GB)") +
+#   scale_x_discrete(guide = guide_axis(angle = 60))
+# 
+# 
+#  +
+#   ggplot(benchTable,aes(x = method,y = s, fill= method)) + geom_bar(stat = "identity") +
+#   scale_x_discrete(guide = guide_axis(angle = 60))+ ylab("Runtime (s)")+ NoLegend()
+
+benchTable$gamma <- factor(benchTable$gamma)
+benchTable <-  rbind(benchTable,c(rep(1,10),"Random","20"))
+benchTable <-  rbind(benchTable,c(rep(1,10),"Random","75"))
+
+benchTable$method <- plyr::mapvalues(x= benchTable$method, 
+                                     from = c('SuperCellMulti','SuperCellRNA',"SuperCellADT",
+                                              "Random","seacellsRNA","seacellsADT","MetaCellRNA"),
+                                     to = c('SuperCell Protein+RNA','SuperCell RNA',"SuperCell Protein",
+                                            "Random None","SEACells RNA","SEACells Protein","MetaCell2 RNA"))
+
+benchTable$input <- stringr::str_split_fixed(benchTable$method,pattern = " ",n=2)[,2]
+
+benchTable$input <- factor(as.character(benchTable$input),levels = c('Protein+RNA',"Protein","RNA","None"))
+
+
+benchTable$method <- factor(benchTable$method,
+                            levels = method.levels)
+
+benchTable$cpu_time <- as.numeric(benchTable$cpu_time )
+
+
+cpu.time.plot.g75 <- ggplot(benchTable[benchTable$gamma == 75 & benchTable$method != "Random None",],aes(x = method,y = cpu_time,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + scale_y_log10()  +
+  ylab("cpu time (s)") + 
+  scale_fill_manual(values = input.colors.cite) + theme(axis.title.x = element_blank())
+
+
+cpu.time.plot.g20 <- ggplot(benchTable[ benchTable$gamma == 20 & benchTable$method != "Random None",],aes(x = method,y = cpu_time,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + scale_y_log10()   +
+  ylab("cpu time (s)") + 
+  scale_fill_manual(values = input.colors.cite)+ theme(axis.title.x = element_blank())
+
+# cpu.time.plot <- ggplot(benchTable[benchTable$method != "Random None" & g == 75,],aes(x = method,y = cpu_time,fill = input)) + 
+#   geom_bar(stat = "identity", position="dodge") +
+#   scale_x_discrete(guide = guide_axis(angle = 60)) +
+#   ylab("cpu time (s)") + 
+#   theme(legend.position = c(0.8,0.6),
+#         axis.title.x = element_blank(),
+#         axis.text.x = element_blank()) + 
+#   scale_fill_manual(values = input.colors.cite)
+
+cpu.time.plot.g75 + NoLegend()
+
+cpu.time.plot.g20 + NoLegend()
+
+```
+
+```{r fig.height=4,fig.width=4}
+
+
+cpu.time.plot.g75 <- ggplot(benchTable[benchTable$gamma == 75 & benchTable$method != "Random None",],aes(x = method,y = cpu_time,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + scale_y_log10()  +
+  ylab("cpu time (s)") + 
+  scale_fill_manual(values = input.colors.cite) + theme(axis.title.x = element_blank())
+
+
+cpu.time.plot.g20 <- ggplot(benchTable[ benchTable$gamma == 20 & benchTable$method != "Random None",],aes(x = method,y = cpu_time,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + scale_y_log10()   +
+  ylab("cpu time (s)") + 
+  scale_fill_manual(values = input.colors.cite)+ theme(axis.title.x = element_blank())
+
+
+
+cpu.time.plot.g75 + NoLegend()
+
+cpu.time.plot.g20 + NoLegend()
+```
+```{r fig.height=4,fig.width=4}
+
+
+mem.plot.g75 <- ggplot(benchTable[benchTable$gamma == 75 & benchTable$method != "Random None",],aes(x = method,y = as.numeric(max_rss)/1024,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + scale_y_log10()  +
+  ylab("Memory (Gb)") + 
+  scale_fill_manual(values = input.colors.cite) + theme(axis.title.x = element_blank())
+
+
+mem.plot.g20 <- ggplot(benchTable[ benchTable$gamma == 20 & benchTable$method != "Random None",],aes(x = method,y = as.numeric(max_rss)/1024,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + scale_y_log10()   +
+  ylab("Memory (Gb)") + 
+  scale_fill_manual(values = input.colors.cite) + 
+  scale_fill_manual(values = input.colors.cite)+ theme(axis.title.x = element_blank())
+
+
+mem.plot.g75 + NoLegend()
+
+mem.plot.g20 + NoLegend()
+```
+## With preprocessing
+```{r fig.height=3,fig.width=4}
+use.gamma = c(20,75) 
+
+benchTable <- data.frame()
+benchTable2 <- data.frame()
+
+
+methodToBenchFiles <- c('benchIdentification.txt','benchIdentification.txt','benchIdentification.txt','benchIdentification.txt',"benchIdentification.txt","benchIdentification.txt")
+methodToTools <- c('SuperCell','SuperCell','SuperCell','SEACells',"SEACells","MetaCell")
+names(methodToBenchFiles) <- c('SuperCellMulti','SuperCellRNA','SuperCellADT',"seacellsADT","seacellsRNA","MetaCellRNA")
+
+preprocess.bench.rna <- read.table("../../benchmark/bmCiteSeq/singlecells_analysis/seurat.RNA.txt",header = T) 
+
+preprocess.bench.atac <- read.table("../../benchmark/bmCiteSeq/singlecells_analysis/seurat.ADT.txt",header = T) 
+
+preprocess.bench.multi <- read.table("../../benchmark/bmCiteSeq/singlecells_analysis/seurat_multimodal.txt",header = T) 
+
+
+
+for (g in c(use.gamma)){
+  for (i in names(methodToBenchFiles) ){
+    
+    bench <- read.table(paste0("../../benchmark/bmCiteSeq/",
+                               i,"/g",
+                               g,"/",
+                               methodToBenchFiles[i]),header = T)
+    
+    
+    bench2 <- bench[c("s","max_rss","max_pss","cpu_time")]
+    if (i != "MetaCellRNA") {
+      if(endsWith(x = i,suffix = "RNA")) {
+        preprocess <- preprocess.bench.rna
+      }
+      if(endsWith(x = i,suffix = "ATAC")) {
+        preprocess <- preprocess.bench.atac
+      }
+      if(endsWith(x = i,suffix = "Multi")) {
+        preprocess <- preprocess.bench.multi
+      }
+      
+      bench2 <- colSums(rbind(bench2[c("s","cpu_time")],
+                              preprocess[c("s","cpu_time")]))
+      
+      bench2$max_rss <- max(unlist(c(bench["max_rss"],preprocess["max_rss"])))
+      bench2$max_rss <- max(unlist(c(bench["max_rss"],preprocess["max_rss"])))
+    } else {
+      bench2 <- bench[c("s","cpu_time","max_rss")]
+    }
+    bench$method <- i
+    bench$gamma <- g
+    bench2$method <- i
+    bench2$gamma <- g
+    
+    benchTable <- rbind(benchTable,bench)
+    benchTable2 <- rbind(benchTable2,bench2)
+    
+  }}
+
+getBenchTable <- function(benchTable) {
+  benchTable$gamma <- factor(benchTable$gamma)
+  # benchTable <-  rbind(benchTable,c(rep(1,10),"Random","20"))
+  # benchTable <-  rbind(benchTable,c(rep(1,10),"Random","75"))
+  
+  benchTable$method <- plyr::mapvalues(x= benchTable$method, 
+                                       from = c('SuperCellMulti','SuperCellRNA',"SuperCellADT",
+                                                "seacellsRNA","seacellsADT","MetaCellRNA"),
+                                       to = c('SuperCell Protein+RNA','SuperCell RNA',"SuperCell Protein",
+                                              "SEACells RNA","SEACells Protein","MetaCell2 RNA"))
+  
+  benchTable$input <- stringr::str_split_fixed(benchTable$method,pattern = " ",n=2)[,2]
+  
+  benchTable$input <- factor(as.character(benchTable$input),levels = c('Protein+RNA',"Protein","RNA","None"))
+  benchTable$method <- factor(benchTable$method,
+                              levels = method.levels)
+  
+  benchTable$cpu_time <- as.numeric(benchTable$cpu_time )
+  benchTable$s <- as.numeric(benchTable$s )
+  benchTable$max_rss <- as.numeric(benchTable$max_rss )
+  
+  return(benchTable)
+}
+
+benchTable <- getBenchTable(benchTable)
+benchTable2 <- getBenchTable(benchTable2)
+
+
+
+cite.cpu.time.plot.g75.id <- ggplot(benchTable[benchTable$gamma == 75,],aes(x = method,y = cpu_time,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60))  +
+  ylab("cpu time (s)") + 
+  scale_fill_manual(values = input.colors.cite)
+
+
+cite.run.time.plot.g75.id <- ggplot(benchTable[benchTable$gamma == 75,],aes(x = method,y = s/60,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60))  +
+  ylab("Runtime (min)") + 
+  scale_fill_manual(values = input.colors.cite)
+
+
+cite.cpu.time.plot.g20.id <- ggplot(benchTable[ benchTable$gamma == 20,],aes(x = method,y = cpu_time,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + scale_y_log10()   +
+  ylab("cpu time (s)") + 
+  scale_fill_manual(values = input.colors.cite)
+
+cite.run.time.plot.g20.id <- ggplot(benchTable[benchTable$gamma == 20,],aes(x = method,y = s/60,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60))  +
+  ylab("Runtime (min)") + 
+  scale_fill_manual(values = input.colors.cite)
+
+
+
+```
+With preprocessing for SuperCell and SEACells
+```{r}
+cite.cpu.time.plot.g75 <- ggplot(benchTable2[benchTable2$gamma == 75,],aes(x = method,y = cpu_time/60,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60))  + scale_y_log10()   +
+  ylab("cpu time (min)") + 
+  scale_fill_manual(values = input.colors.cite)
+
+
+cite.run.time.plot.g75 <- ggplot(benchTable2[benchTable2$gamma == 75,],aes(x = method,y = s/60,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60))  + scale_y_log10()   +
+  ylab("Runtime (min)") + 
+  scale_fill_manual(values = input.colors.cite)
+
+
+cite.cpu.time.plot.g20 <- ggplot(benchTable2[ benchTable2$gamma == 20,],aes(x = method,y = cpu_time/60,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + scale_y_log10()   +
+  ylab("cpu time (min)") + 
+  scale_fill_manual(values = input.colors.cite)
+
+cite.run.time.plot.g20 <- ggplot(benchTable2[benchTable2$gamma == 20,],aes(x = method,y = s/60,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() + scale_y_log10()   +
+  scale_x_discrete(guide = guide_axis(angle = 60))  +
+  ylab("Runtime (min)") + 
+  scale_fill_manual(values = input.colors.cite)
+
+input.colors.cite
+
+cite.cpu.time.plot.g75
+cite.run.time.plot.g75
+
+cite.cpu.time.plot.g20
+cite.run.time.plot.g20
+```
+Memory with preprocessing
+```{r}
+cite.memory.plot.g75 <- ggplot(benchTable2[benchTable2$gamma == 75,],aes(x = method,y = max_rss/1024,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60))  +
+  ylab("Memory (GB)") + 
+  scale_fill_manual(values = input.colors.cite)
+
+
+cite.memory.plot.g75.id <- ggplot(benchTable[benchTable$gamma == 75,],aes(x = method,y = max_rss/1024,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60))  +
+  ylab("Memory (GB)") + 
+  scale_fill_manual(values = input.colors.cite)
+
+
+cite.memory.plot.g20 <- ggplot(benchTable2[ benchTable2$gamma == 20,],aes(x = method,y = max_rss/1024,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + scale_y_log10()   +
+  ylab("Memory (GB)") + 
+  scale_fill_manual(values = input.colors.cite)
+
+cite.memory.plot.g20.id <- ggplot(benchTable[benchTable$gamma == 20,],aes(x = method,y = max_rss/1024,fill = input)) + 
+  geom_bar(stat = "identity", position="dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60))  +
+  ylab("Memory (GB)") + 
+  scale_fill_manual(values = input.colors.cite)
+
+
+
+cite.memory.plot.g75
+cite.memory.plot.g75.id
+
+cite.memory.plot.g20
+cite.memory.plot.g20.id
+```
+
+Combined scalability plot g20
+```{r}
+benchTable2$workflow <- "with preprocessing"
+benchTable$workflow <- "identification only"
+
+
+
+
+
+benchTable2$workflow <- factor(benchTable2$workflow,levels = c("with preprocessing","identification only"))
+
+cite.memory.plot.g20 <- ggplot(benchTable2[benchTable2$gamma == 20,],
+                               aes(x = method,y = max_rss/1024,fill = input)) + 
+  geom_bar(stat = "identity",col = "black",position = "dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60))  +
+  ylab("Memory (GB)") + 
+
+  scale_fill_manual(values = input.colors.cite) + theme(axis.title.x = element_blank())
+
+cite.cpu.time.plot.g20 <- ggplot(benchTable2[ benchTable2$gamma == 20,],
+                                 aes(x = method,y = cpu_time/60,fill = input)) + 
+  geom_bar(stat = "identity",col = "black",position = "dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + scale_y_log10()   +
+  ylab("cpu time (min)") + 
+
+  scale_fill_manual(values = input.colors.cite)  + theme(axis.title.x = element_blank())
+
+cite.run.time.plot.g20 <- ggplot(benchTable2[benchTable2$gamma == 20,],
+                                 aes(x = method,y = s/60,fill = input)) + 
+  geom_bar(stat = "identity",col = "black",position = "dodge") + theme_bw() + scale_y_log10()   +
+  scale_x_discrete(guide = guide_axis(angle = 60))  +
+  ylab("Runtime (min)") + 
+  
+  scale_fill_manual(values = input.colors.cite) + theme(axis.title.x = element_blank())
+
+cite.cpu.time.plot.g20
+cite.run.time.plot.g20
+
+cite.memory.plot.g20
+
+```
+
+at gamma 75
+
+```{r}
+benchTable2$workflow <- "with preprocessing"
+benchTable$workflow <- "identification only"
+
+
+
+benchTable2$workflow <- factor(benchTable2$workflow,levels = c("with preprocessing","identification only"))
+
+cite.memory.plot.g75 <- ggplot(benchTable2[benchTable2$gamma == 75,],
+                               aes(x = method,y = max_rss/1024,fill = input)) + 
+  geom_bar(stat = "identity",col = "black",position = "dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60))  +
+  ylab("Memory (GB)") + 
+  
+  scale_fill_manual(values = input.colors.cite) + theme(axis.title.x = element_blank())
+
+cite.cpu.time.plot.g75 <- ggplot(benchTable2[ benchTable2$gamma == 75,],
+                                 aes(x = method,y = cpu_time/60,fill = input)) + 
+  geom_bar(stat = "identity",col = "black",position = "dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + scale_y_log10()   +
+  ylab("cpu time (min)") + 
+  
+  scale_fill_manual(values = input.colors.cite)  + theme(axis.title.x = element_blank())
+
+cite.run.time.plot.g75 <- ggplot(benchTable2[benchTable2$gamma == 75,],
+                                 aes(x = method,y = s/60,fill = input)) + 
+  geom_bar(stat = "identity",col = "black",position = "dodge") + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60))  + scale_y_log10()   +
+  ylab("Runtime (min)") + 
+
+  scale_fill_manual(values = input.colors.cite) + theme(axis.title.x = element_blank())
+
+cite.cpu.time.plot.g75
+cite.run.time.plot.g75
+
+cite.memory.plot.g75
+
+```
+
+
+
+
+```{r fig.height=4,fig.width=4}
+hline <- median(metrics[metrics$gamma %in% c(75) & metrics$method == "SuperCell Protein+RNA","compactness_pca"])
+compactness_pca.bmc.cite.g75 <- ggplot(metrics[metrics$gamma %in% c(75),],aes(y=compactness_pca,x = method,fill = input)) + 
+  geom_boxplot() + theme_bw() + 
+  scale_y_log10(limits = c(0.00001,20000))+  geom_hline(yintercept =hline,color = "darkblue",linetype = "longdash")  +
+  geom_signif(comparisons = comparisons,step_increase=0.125,map_signif_level=T,extend_line = -0.005,textsize = 2)+
+  geom_signif(comparisons = comparison.inter.modality,step_increase=0.125,map_signif_level=T,extend_line = -0.005,textsize = 2) +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Compactness RNA")
+
+
+compactness_pca.bmc.cite.g75 + NoLegend()
+```
+```{r fig.height=4,fig.width=4}
+hline <- median(metrics[metrics$gamma %in% c(75) & metrics$method == "SuperCell Protein+RNA","compactness_pca"])
+
+compactness_apca.bmc.cite.g75 <- ggplot(metrics[metrics$gamma %in% c(75),],aes(y=compactness_apca,x = method,fill = input)) + 
+  geom_boxplot() +theme_bw()+
+  geom_boxplot() + scale_y_log10(limits = c(0.000001,30000))+  geom_hline(yintercept =hline,color = "darkblue",linetype = "longdash")  +
+  geom_signif(comparisons = comparisons,step_increase=0.125,map_signif_level=T,extend_line = -0.005,textsize = 2)+
+  geom_signif(comparisons = comparison.inter.modality,step_increase=0.125,map_signif_level=T,extend_line = -0.005,textsize = 2) +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Compactness Prot.") + theme(axis.title.x = element_blank())
+
+
+compactness_apca.bmc.cite.g75 + NoLegend()
+```
+
+
+
+```{r fig.height=4,fig.width=4}
+separation_pca.g75 <- ggplot(metrics[metrics$gamma %in% c(75),],aes(y=separation_pca,x = method,fill = input)) + 
+  geom_boxplot() + theme_bw() + scale_y_log10(limits = c(0.0005,2000))+
+  #facet_wrap("gamma",nrow = 1) + 
+  #ylim(c(0,1.425)) + 
+  geom_signif(comparisons = comparisons,step_increase=0.125,map_signif_level=T,extend_line = -0.005,textsize = 2)+
+  geom_signif(comparisons = comparison.inter.modality,step_increase=0.125,map_signif_level=T,extend_line = -0.005,textsize = 2) +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Separation RNA") + theme(axis.title.x = element_blank())
+
+
+separation_pca.g75 + NoLegend()
+```
+
+
+
+```{r fig.height=4,fig.width=4}
+separation_apca.g75 <- ggplot(metrics[metrics$gamma %in% c(75),],aes(y=separation_apca,x = method,fill = input)) + 
+  geom_boxplot() + theme_bw() +  scale_y_log10(limits = c(0.001,500))+
+  #facet_wrap("gamma",nrow = 1) + 
+  #ylim(c(0,1.425)) + 
+  geom_signif(comparisons = comparisons,step_increase=0.125,map_signif_level=T,extend_line = -0.005,textsize = 2)+
+  geom_signif(comparisons = comparison.inter.modality,step_increase=0.125,map_signif_level=T,extend_line = -0.005,textsize = 2) +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Separation Prot.") + theme(axis.title.x = element_blank())
+
+
+separation_apca.g75 + NoLegend()
+```
+
+
+New version no reversed, scaling without random
+
+```{r fig.width=4,fig.height=4}
+library(dplyr)
+bench.75.no.random <- metrics[metrics$gamma %in% c(75) & metrics$method != "Random None",]
+bench.75.no.random$pct_known <- 0
+
+# add semi sup tests for scaling comp/sep
+semi.sup.multi <- read.csv("../../output/bmCiteSeq//SuperCellMulti/testSemiSup/g75/results_test_semisup.csv",row.names = 1)
+semi.sup.multi$gamma <- 75
+semi.sup.multi$input <- "Protein+RNA" 
+semi.sup.multi$tool <- "ssSuperCell" 
+semi.sup.multi$method <- "SuperCell Protein+RNA" 
+
+semi.sup.rna <- read.csv("../../output/bmCiteSeq//SuperCellRNA//testSemiSup/g75/results_test_semisup.csv",row.names = 1)
+semi.sup.rna$gamma <- 75
+semi.sup.rna$input <- "RNA" 
+semi.sup.rna$tool <- "ssSuperCell" 
+semi.sup.rna$method <- "SuperCell RNA" 
+
+cn <- colnames(bench.75.no.random)[colnames(bench.75.no.random) %in% colnames(semi.sup.multi)]
+
+bench.75.no.random <- rbind(bench.75.no.random[,cn],semi.sup.multi[,cn],semi.sup.rna[,cn])
+
+
+
+minMaxScaling <- function(x) {
+  y <- (x-min(x))/(max(x)-min(x))
+  return(y)
+}
+
+bench.75.no.random$compactness_pca_scaled <- minMaxScaling(bench.75.no.random$compactness_pca)
+bench.75.no.random$compactness_apca_scaled <- minMaxScaling(bench.75.no.random$compactness_apca)
+
+bench.75.no.random$multimodal_compactness <- (bench.75.no.random$compactness_pca_scaled + bench.75.no.random$compactness_apca_scaled) / 2
+
+
+bench.75.no.random$separation_pca_norm <- (bench.75.no.random$separation_pca)
+bench.75.no.random$separation_apca_norm <- (bench.75.no.random$separation_apca)
+
+bench.75.no.random$separation_pca_scaled <- minMaxScaling(bench.75.no.random$separation_pca_norm)
+bench.75.no.random$separation_apca_scaled <- minMaxScaling(bench.75.no.random$separation_apca_norm)
+
+bench.75.no.random$multimodal_separation <- (bench.75.no.random$separation_pca_scaled + bench.75.no.random$separation_apca_scaled) / 2
+
+# limits <- bench.75.no.random[bench.75.no.random$method != "Random None",] %>%
+#   group_by(method) %>%
+#   summarize(
+#     ymin = quantile(multimodal_compactness, 0.25) - 1.5 * IQR(multimodal_compactness),
+#     ymax = quantile(multimodal_compactness, 0.75) + 1.5 * IQR(multimodal_compactness)
+#   ) %>%
+#   ungroup() %>%
+#   summarize(
+#     ymin = min(ymin),
+#     ymax = max(ymax)
+#   )
+#
+# step_increase <- 0.075*0.25/(limits$ymax-limits$ymin)
+
+bench.75.unsup <- bench.75.no.random[bench.75.no.random$tool != "ssSuperCell",]
+
+sig.multimodal.compactness.g75  <- ggplot(bench.75.unsup,aes(y=multimodal_compactness,x = method,fill = input)) +
+  geom_boxplot(outlier.shape = NA) + theme_bw() +
+  #facet_wrap("gamma",nrow = 1) +
+  #ylim(c(0,1.425)) +
+  geom_signif(comparisons = comparisons,
+              y_position = 0.08,
+              step_increase=0.03,
+              tip_length = 0.007,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3)+
+  geom_signif(comparisons = comparison.inter.modality,
+              y_position = 0.08,
+              step_increase=0.03,
+              tip_length = 0.007,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3) +
+  scale_x_discrete(guide = guide_axis(angle = 60)) +
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Multimodal Compactness") +  # Hides outliers
+  coord_cartesian(ylim = c(0, 0.245))
+
+
+sig.multimodal.compactness.g75
+```
+
+
+
+
+```{r fig.height=4,fig.width=4}
+
+
+
+sig.multimodal.separation.g75 <- ggplot(bench.75.unsup,aes(y=multimodal_separation,x = method,fill = input)) + 
+  geom_boxplot(outlier.shape = NA)  + theme_bw() +
+  
+  geom_signif(comparisons = comparisons,
+              step_increase=0.03,
+              tip_length = 0.007,
+              map_signif_level=T,
+              extend_line = -0.005,textsize = 3,
+              y_position = 0.1) +
+  geom_signif(comparisons = comparison.inter.modality,
+              step_increase=0.03,
+              tip_length = 0.007,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3,
+              y_position = 0.1) +
+  scale_x_discrete(guide = guide_axis(angle = 60))  + scale_fill_manual(values = input.colors.cite) + ylab("Multimodal Separation")  +  # Hides outliers
+  coord_cartesian(ylim = c(0, 0.25)) 
+#coord_cartesian(ylim = c(0.82, 1.23))  + theme_void() + NoLegend()
+sig.multimodal.separation.g75
+
+# full.multimodal.separation.g75 <- cowplot::plot_grid(sig.multimodal.separation.g75,multimodal_separation.75+ NoLegend(), rel_heights = c(0.2,0.8),align = "v",ncol = 1)
+# 
+# full.multimodal.separation.g75
+```
+
+
+
+```{r  fig.height=4,fig.width=4}
+
+
+
+
+sig.celltype.l2_purity.g75  <- ggplot(bench.75.unsup,aes(y=celltype.l2_purity,x = method,fill = input)) + 
+  geom_boxplot()  + theme_bw() +
+  #facet_wrap("gamma",nrow = 1) + 
+  #ylim(c(0,1.425)) + 
+  geom_signif(comparisons = comparisons,
+              step_increase=0.2,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3)+
+  geom_signif(comparisons = comparison.inter.modality,
+              step_increase=0.2,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3) +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Purity")  +
+  scale_y_continuous(limits = c(0.15,1.75),breaks =c(0.4,0.7,1))
+
+sig.celltype.l2_purity.g75
+# Hides outliers
+#coord_cartesian(ylim = c(0, limits$ymax))   # Sets y-axis limits
+
+
+# full.celltype.l2_purity.g75 <-cowplot::plot_grid(sig.celltype.l2_purity.g75,celltype.l2_purity.g75+ NoLegend(), rel_heights = c(0.2,0.8),align = "v",ncol = 1)
+# full.celltype.l2_purity.g75
+```
+
+```{r  fig.height=4,fig.width=4}
+size.g75 <- ggplot(bench.75.unsup,aes(y=size,x = method,fill = input)) + 
+  geom_boxplot()  + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Size") + theme(axis.title.x = element_blank()) + NoLegend()
+size.g75
+```
+
+
+
+gamma 75 whole process
+
+```{r fig.height=5,fig.width=3}
+library(patchwork)
+cowplot::plot_grid(cite.run.time.plot.g75 + NoLegend(),cite.memory.plot.g20+ NoLegend(),ncol=1)
+
+cite.run.time.plot.g75 <- cite.run.time.plot.g75 + NoLegend() +
+  theme(axis.title.x = element_blank()) +
+  scale_x_discrete(guide = guide_axis(angle = 60)) # Remove x-axis text/ticks
+
+cite.memory.plot.g75 <- cite.memory.plot.g75 +
+  theme(axis.title.x = element_blank())  +
+  scale_x_discrete(guide = guide_axis(angle = 60)) 
+
+# Combine plots in a single column with same width
+# scalability.g75 <- cite.run.time.plot.g75 / cite.memory.plot.g75 + plot_layout(heights = c(1, 1))
+# scalability.g75
+```
+
+
+
+
+```{r fig.height=5,fig.width=3}
+sig.celltype.l2_purity.g75 <- sig.celltype.l2_purity.g75  + NoLegend() +
+  theme(axis.text.x = element_blank(),axis.title.x = element_blank()) 
+
+sig.multimodal.compactness.g75 <-  sig.multimodal.compactness.g75 + NoLegend() +
+  theme(axis.title.x = element_blank())  +
+  scale_x_discrete(guide = guide_axis(angle = 60)) 
+
+comp.pur.g75 <- sig.celltype.l2_purity.g75 / sig.multimodal.compactness.g75 + plot_layout(heights = c(1, 1))
+
+comp.pur.g75
+```
+
+```{r  fig.height=5,fig.width=3}
+leg.input <- get_legend(cite.run.time.plot.g75 + theme(legend.position = "right"))
+
+sig.multimodal.separation.g75 <- sig.multimodal.separation.g75 + NoLegend() +
+  theme(axis.text.x = element_blank(),axis.title.x = element_blank()) 
+
+# sep.g75 <-  sig.multimodal.separation.g75 + NoLegend() +
+#   theme(axis.title.x = element_blank())  +
+#   scale_x_discrete(guide = guide_axis(angle = 60)) 
+# sep.g75<- sep.g75 / leg.input + plot_layout(heights = c(1, 1))
+# sep.g75
+
+```
+```{r fig.height=6,fig.width=9}
+# plot.main.g75 <- cowplot::plot_grid(comp.pur.g75,sep.g75,scalability.g75,nrow = 1)
+# plot.main.g75
+```
+
+Sparsity reduction
+```{r  fig.height=5,fig.width=2.5}
+bm$resolution <- "Single-cells"
+bm.supercell.multi$resolution <- "Metacells"
+meta.sc.mc <- rbind(bm@meta.data[,c("nCount_RNA","nFeature_RNA","nCount_ADT","nFeature_ADT","resolution")],
+                    bm.supercell.multi@meta.data[,c("nCount_RNA","nFeature_RNA","nCount_ADT","nFeature_ADT","resolution")])
+
+meta.sc.mc$resolution <- factor(meta.sc.mc$resolution,levels = c("Metacells","Single-cells"))
+
+meta.sc.mc$resolution <- factor(meta.sc.mc$resolution,levels = c("Metacells","Single-cells"))
+
+nFeature_RNA <- ggplot(meta.sc.mc,aes(x=resolution,y=nFeature_RNA,fill = resolution)) + geom_violin(scale = "width") + theme_bw() + theme(axis.title.x = element_blank())  +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  scale_fill_manual(values = colorblind_pal()(8)[c(3,7)])
+
+
+nCount_RNA <- ggplot(meta.sc.mc,aes(x=resolution,y=nCount_RNA,fill = resolution)) + geom_violin(scale = "width") + theme_bw() +  theme(axis.title.x = element_blank())  +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + scale_fill_manual(values = colorblind_pal()(8)[c(3,7)])
+
+sparsity.reduction.g75 <- cowplot::plot_grid(nFeature_RNA+ NoLegend(),nCount_RNA+ NoLegend(),ncol = 1)
+sparsity.reduction.g75
+```
+
+
+```{r}
+nFeature_RNA <- nFeature_RNA  + NoLegend() +
+  theme(axis.text.x = element_blank(),axis.title.x = element_blank()) + ylab("Detected Genes")
+
+nCount_RNA <-  nCount_RNA + NoLegend() + scale_y_log10() + 
+  theme(axis.title.x = element_blank())  +
+  scale_x_discrete(guide = guide_axis(angle = 60))+ ylab("RNA Counts (UMI)")
+
+sparsity.reduction.g75 <- nFeature_RNA / nCount_RNA + plot_layout(heights = c(1, 1))
+
+sparsity.reduction.g75
+```
+
+```{r fig.height=5.25,fig.width=13.75}
+Fig2DEF <- cowplot::plot_grid(fig1.A+theme(plot.margin = unit(c(80,0,80,0),units = "pt")),
+                              wrap_plots(nFeature_RNA, 
+                                         sig.celltype.l2_purity.g75, 
+                                         sig.multimodal.separation.g75, 
+                                         guide_area(),
+                                         nCount_RNA,sig.multimodal.compactness.g75,
+                                         cite.cpu.time.plot.g75,
+                                         nrow = 2,ncol = 4,guides = "collect")& 
+                                theme(legend.spacing.y = unit(-0.35, "line")),
+                              nrow = 1,
+                              rel_widths = c(3,4.5))
+Fig2DEF
+```
+
+
+```{r}
+pdf("fig2DEF.pdf",height = 5.25,width = 13.75)
+Fig2DEF
+dev.off()
+```
+
+
+
+
+```{r fig.height=12,fig.width=5}
+figS2BCD <- cowplot::plot_grid(cowplot::plot_grid(compactness_pca.bmc.cite.g75+ NoLegend() + 
+                                                    theme(axis.title.x = element_blank()),
+                                                compactness_apca.bmc.cite.g75 + 
+                                                  NoLegend() + 
+                                                  theme(axis.title.x = element_blank()),
+                                                separation_pca.g75 + 
+                                                  NoLegend() + 
+                                                  theme(axis.title.x = element_blank()),
+                                                separation_apca.g75 + 
+                                                  NoLegend() + 
+                                                  theme(axis.title.x = element_blank()), 
+                                                
+                                                size.g75 + NoLegend() + theme(axis.title.x = element_blank()),
+                                                cite.memory.plot.g75 + 
+                                                  NoLegend() + 
+                                                  theme(axis.title.x = element_blank())+
+                                                  scale_x_discrete(guide = guide_axis(angle = 60)),
+                                                ncol = 2),
+                             get_legend(cite.memory.plot.g75),ncol = 1,rel_heights = c(14,3))
+
+figS2BCD
+
+```
+
+
+```{r fig.height=12,fig.width=5}
+# figS2B <- cowplot::plot_grid(cowplot::plot_grid(compactness_pca.bmc.cite.g75+ 
+#                                         NoLegend() + 
+#                                         theme(axis.title.x = element_blank()) +
+#                                         scale_x_discrete(guide = guide_axis(angle = 60)),
+#                                       
+#                                       compactness_lsi.bmc.cite. + NoLegend() + theme(axis.title.x = element_blank()) +
+#                                         scale_x_discrete(guide = guide_axis(angle = 60)),
+#                                       size.g20 + NoLegend() + theme(axis.title.x = element_blank()) +
+#                                         scale_x_discrete(guide = guide_axis(angle = 60)),
+#                                       separation_pca.g20 + NoLegend() + theme(axis.title.x = element_blank()) +
+#                                         scale_x_discrete(guide = guide_axis(angle = 60)),
+#                                       separation_lsi.g20 + NoLegend() + theme(axis.title.x = element_blank()) +
+#                                         scale_x_discrete(guide = guide_axis(angle = 60)), 
+#                                       multiome.cpu.time.plot.g20 + NoLegend() +
+#                                         scale_x_discrete(guide = guide_axis(angle = 60)),ncol = 2),get_legend(cite.memory.plot.g75),ncol = 1,rel_heights = c(14,3))
+# 
+# figS1B
+```
+```{r}
+pdf(file = "figS2BCD.pdf",height = 12,width=5)
+figS2BCD
+dev.off()
+```
+```{r}
+bench.20 <- metrics[metrics$gamma %in% c(20),]
+table(bench.20$size == 1,bench.20$method)
+```
+
+Set a compactness of 0 for singleton gives
+Warning: Removed 79 rows containing non-finite outside the scale range (`stat_signif()`) correspond to singletons.
+
+```{r fig.height=4,fig.width=4}
+
+
+bench.20$compactness_apca[bench.20$size == 1] <- 0
+bench.20$compactness_pca[bench.20$size == 1] <- 0
+
+
+hline <- median(bench.20[bench.20$gamma %in% c(20) & bench.20$method == "SuperCell Protein+RNA","compactness_pca"])
+compactness_pca.bmc.cite.g20 <- ggplot(bench.20[bench.20$gamma %in% c(20),],aes(y=compactness_pca,x = method,fill = input)) + 
+  geom_boxplot() + theme_bw() +
+  scale_y_log10(limits =c(0.000001, 120000))+
+  geom_hline(yintercept =hline,color = "darkblue",linetype = "longdash")  +
+  geom_signif(comparisons = comparisons,step_increase=0.125,map_signif_level=T,extend_line = -0.005,textsize = 3)+
+  geom_signif(comparisons = comparison.inter.modality,step_increase=0.125,map_signif_level=T,extend_line = -0.005,textsize = 3) +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Compactness RNA")
+
+
+compactness_pca.bmc.cite.g20 + NoLegend()
+```
+```{r fig.height=4,fig.width=4}
+hline <- median(bench.20[(bench.20$gamma %in% c(20) & bench.20$method == "SuperCell Protein+RNA") ,"compactness_apca"])
+
+compactness_apca.bmc.cite.g20 <- ggplot(bench.20[bench.20$gamma %in% c(20),],aes(y=compactness_apca,x = method,fill = input)) + 
+  geom_boxplot() + theme_bw() +scale_y_log10(limits =c(0.000001, 120000))+  
+  geom_hline(yintercept =hline,color = "darkblue",linetype = "longdash")  +
+  geom_signif(comparisons = comparisons,step_increase=0.15,map_signif_level=T,extend_line = -0.005,textsize = 3)+
+  geom_signif(comparisons = comparison.inter.modality,step_increase=0.15,map_signif_level=T,extend_line = -0.005,textsize = 3) +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Compactness Prot.") + theme(axis.title.x = element_blank())
+
+
+compactness_apca.bmc.cite.g20 + NoLegend()
+```
+
+
+
+```{r fig.height=4,fig.width=4}
+separation_pca.g20 <- ggplot(bench.20[bench.20$gamma %in% c(20),],aes(y=separation_pca,x = method,fill = input)) + 
+  geom_boxplot() + theme_bw() + scale_y_log10(limits =c(0.0005, 1200))+
+  #facet_wrap("gamma",nrow = 1) + 
+  #ylim(c(0,1.425)) + 
+  geom_signif(comparisons = comparisons,step_increase=0.125,map_signif_level=T,extend_line = -0.005,textsize = 3)+
+  geom_signif(comparisons = comparison.inter.modality,step_increase=0.125,map_signif_level=T,extend_line = -0.005,textsize = 3) +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Separation RNA") + theme(axis.title.x = element_blank())
+
+
+separation_pca.g20 + NoLegend()
+```
+
+
+
+```{r fig.height=4,fig.width=4}
+separation_apca.g20 <- ggplot(bench.20[bench.20$gamma %in% c(20),],aes(y=separation_apca,x = method,fill = input)) + 
+  geom_boxplot() + theme_bw() + scale_y_log10(limits =c(0.001, 1200))+
+  #facet_wrap("gamma",nrow = 1) + 
+  #ylim(c(0,1.425)) + 
+  geom_signif(comparisons = comparisons,step_increase=0.125,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3)+
+  geom_signif(comparisons = comparison.inter.modality,
+              step_increase=0.125,
+              map_signif_level=T,
+              extend_line = -0.005,textsize = 3) +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Separation Prot.") + theme(axis.title.x = element_blank()) 
+
+
+separation_apca.g20 + NoLegend()
+```
+
+
+```{r fig.height=4,fig.width=4}
+library(dplyr)
+
+bench.20.no.random <-  bench.20[bench.20$method != "Random None",]
+minMaxScaling <- function(x) {
+  y <- (x-min(x))/(max(x)-min(x))
+  return(y)
+}
+
+bench.20.no.random$compactness_pca_scaled <- minMaxScaling(bench.20.no.random$compactness_pca)
+bench.20.no.random$compactness_apca_scaled <- minMaxScaling(bench.20.no.random$compactness_apca)
+
+bench.20.no.random$multimodal_compactness <- (bench.20.no.random$compactness_pca_scaled + bench.20.no.random$compactness_apca_scaled) / 2
+
+
+sig.multimodal.compactness.g20  <- ggplot(bench.20.no.random,aes(y=multimodal_compactness,x = method,fill = input)) + 
+  geom_boxplot(outlier.shape = NA) + theme_bw() +
+  #facet_wrap("gamma",nrow = 1) + 
+  #ylim(c(0,1.425)) + 
+  geom_signif(comparisons = comparisons,
+              step_increase=0.025,
+              y_position = 0.12,
+              tip_length = 0.007,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3)+
+  geom_signif(comparisons = comparison.inter.modality,
+              step_increase=0.025,
+              y_position = 0.12,
+              map_signif_level=T,
+              tip_length = 0.007,
+              extend_line = -0.005,
+              textsize = 3) +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Multimodal Compactness")  +  # Hides outliers
+  coord_cartesian(ylim = c(0, 0.25))  + NoLegend()
+sig.multimodal.compactness.g20
+
+# multimodal_compactness.20 <- ggplot(bench.20[bench.20$method != "Random None",],aes(y=multimodal_compactness,x = method,fill = input)) + 
+#   geom_boxplot(outlier.shape = NA) +
+#   scale_x_discrete(guide = guide_axis(angle = 60)) + 
+#   theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Multimodal Compactness")  +  # Hides outliers
+#   coord_cartesian(ylim = c(limits$ymin,1.001)) + theme(axis.title.x = element_blank())
+# 
+# multimodal.compactness.g20 <- cowplot::plot_grid(sig,multimodal_compactness.20+ NoLegend(), rel_heights = c(0.2,0.8),align = "v",ncol = 1)
+# multimodal.compactness.g20
+
+```
+
+```{r fig.height=4,fig.width=4}
+
+bench.20.no.random$separation_pca_norm <- (bench.20.no.random$separation_pca)
+bench.20.no.random$separation_apca_norm <- (bench.20.no.random$separation_apca)
+minMaxScaling <- function(x) {
+  y <- (x-min(x))/(max(x)-min(x))
+  return(y)
+}
+
+bench.20.no.random$separation_pca_scaled <- minMaxScaling(bench.20.no.random$separation_pca_norm)
+bench.20.no.random$separation_apca_scaled <- minMaxScaling(bench.20.no.random$separation_apca_norm)
+
+bench.20.no.random$multimodal_separation <- (bench.20.no.random$separation_pca_scaled + bench.20.no.random$separation_apca_scaled) / 2
+
+
+sig.multimodal.separation.g20 <- ggplot(bench.20.no.random,aes(y=multimodal_separation,x = method,fill = input)) + 
+  geom_boxplot(outlier.shape = NA) + theme_bw() +
+  
+  geom_signif(comparisons = comparisons,
+              step_increase=0.0125,
+              tip_length = 0.003,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3,
+              y_position = 0.03) +
+  geom_signif(comparisons = comparison.inter.modality,
+              step_increase=0.0125,
+              tip_length = 0.003,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3,
+              y_position = 0.03) +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Multimodal Compactness")  +
+  coord_cartesian(ylim = c(0, 0.1))  + NoLegend()
+sig.multimodal.separation.g20
+
+# multimodal_separation.20 <- ggplot(bench.20[bench.20$method != "Random None",],aes(y=multimodal_separation,x = method,fill = input)) + 
+#   geom_boxplot(outlier.shape = NA) +
+#   scale_x_discrete(guide = guide_axis(angle = 60)) + 
+#   theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Multimodal Separation")  +  # Hides outliers
+#   coord_cartesian(ylim = c(0, limits$ymax)) + theme(axis.title.x = element_blank())  # Sets y-axis limits
+# 
+# 
+# multimodal.separation.g20 <- cowplot::plot_grid(sig,multimodal_separation.20+ NoLegend(), rel_heights = c(0.2,0.8),align = "v",ncol = 1)
+# 
+# multimodal.separation.g20
+
+```
+
+
+
+```{r  fig.height=4,fig.width=4}
+
+
+
+
+# limits <- bench.75[bench.75$method != "Random None",] %>%
+#   group_by(method) %>%
+#   summarize(
+#     ymin = min(celltype.l2_purity),
+#     ymax = 1
+#   ) %>%
+#   ungroup() %>%
+#   summarize(
+#     ymin = min(ymin),
+#     ymax = max(ymax)
+#   )
+# step_increase <- 0.075*0.25/(limits$ymax-limits$ymin)
+
+celltype.l2_purity.g20 <- ggplot(bench.20.no.random,aes(y=celltype.l2_purity,x = method,fill = input)) + 
+  geom_boxplot() + theme_bw() +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Purity") + theme(axis.title.x = element_blank())
+
+
+plot_data <- ggplot_build(celltype.l2_purity.g20)
+y_limits <- plot_data$layout$panel_params[[1]]$y.range
+
+# step_increase <-  (3*0.075*0.25)/(y_limits[2]-y_limits[1])
+step_increase <-  .23*(1.3-1.02)
+sig.celltype.l2_purity.g20  <- ggplot(bench.20[bench.20$method != "Random None",],aes(y=celltype.l2_purity,x = method,fill = input)) + 
+  geom_boxplot() + theme_bw() +
+  #facet_wrap("gamma",nrow = 1) + 
+  #ylim(c(0,1.425)) + 
+  geom_signif(comparisons = comparisons,
+              step_increase=0.13,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3)+
+  geom_signif(comparisons = comparison.inter.modality,
+              step_increase=0.13,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3) +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Purity")  +  # Hides outliers
+  NoLegend() + scale_y_continuous(limits = c(0.15,1.55),breaks = c(0.2,0.6,1))
+sig.celltype.l2_purity.g20
+
+# Hides outliers
+#coord_cartesian(ylim = c(0, limits$ymax))   # Sets y-axis limits
+
+# 
+# celltype.l2_purity.g20 <-cowplot::plot_grid(sig,celltype.l2_purity.g20+ NoLegend(), rel_heights = c(0.2,0.8),align = "v",ncol = 1)
+# celltype.l2_purity.g20
+```
+
+```{r  fig.height=4,fig.width=4}
+size.g20 <- ggplot(bench.20[bench.20$method != "Random None",],aes(y=size,x = method,fill = input)) + 
+  geom_boxplot() + theme_bw() + 
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Size") + theme(axis.title.x = element_blank()) + NoLegend()
+size.g20
+```
+
+## Fig
+
+```{r  fig.height=6.5,fig.width=14}
+figS2B <- cowplot::plot_grid(purity.bmc.cite.g20+ NoLegend() + theme(axis.title.x = element_blank()),
+                             sig.multimodal.compactness.g20+ NoLegend() + theme(axis.title.x = element_blank()),
+                             sig.multimodal.separation.g20+ NoLegend() + theme(axis.title.x = element_blank()),
+                             size.g20 + NoLegend() + theme(axis.title.x = element_blank()),
+                             compactness_pca.bmc.cite.g20+ NoLegend() + theme(axis.title.x = element_blank()),
+                             compactness_apca.bmc.cite.g20 + NoLegend() + theme(axis.title.x = element_blank()),
+                             separation_pca.g20 + NoLegend() + theme(axis.title.x = element_blank()),
+                             separation_apca.g20 + NoLegend() + theme(axis.title.x = element_blank()),
+                             cite.cpu.time.plot.g20+ theme(axis.title.x = element_blank()) + NoLegend(),
+                             cite.memory.plot.g20+ theme(axis.title.x = element_blank())+ NoLegend(),
+                             leg.input,
+                             byrow = F,nrow = 2)
+figS2B
+```
+
+
+```{r fig.height=6.5,fig.width=14}
+pdf(file = "figS2B.pdf",height = 6.5,width=14)
+figS2B
+dev.off()
+```
+
+
+```{r}
+bm.supercell.multi.g20 <- readRDS("../../output/bmCiteSeq//SuperCellMulti//g20/seurat.cite.mc.rds")
+bm.supercell.multi.g20 <- addCellType(bm.supercell.multi.g20)
+figSupCov <- DimPlotSC(seurat = bm,
+                       seurat.mc = bm.supercell.multi.g20,
+                       metacell.col = "celltype",
+                       sc.col = "celltype",
+                       mc.color = color.celltypes.bm,
+                       sc.color = color.celltypes.bm) + theme_classic()  +
+  guides(fill=guide_legend(ncol =2,title = "Cell types",
+                           override.aes = list(size=4)),
+         colour = "none",
+         size = guide_legend(title = "Size"))
+
+figSupCov
+```
+
+Sparsity reduction g20
+```{r  fig.height=5,fig.width=2.5}
+bm$resolution <- "Single-cells"
+bm.supercell.multi.g20$resolution <- "Metacells"
+meta.sc.mc <- rbind(bm@meta.data[,c("nCount_RNA","nFeature_RNA","resolution")],
+                    bm.supercell.multi.g20@meta.data[,c("nCount_RNA","nFeature_RNA","resolution")])
+
+meta.sc.mc$resolution <- factor(meta.sc.mc$resolution,levels = c("Metacells","Single-cells"))
+
+nFeature_RNA <- ggplot(meta.sc.mc,aes(x=resolution,y=nFeature_RNA,fill = resolution)) + geom_violin(scale = "width") + theme_bw() + 
+  theme(axis.title.x = element_blank())  +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + 
+  scale_fill_manual(values = colorblind_pal()(8)[c(3,7)])
+
+
+nCount_RNA <- ggplot(meta.sc.mc,aes(x=resolution,y=nCount_RNA,fill = resolution)) + geom_violin(scale = "width")  + theme_bw() + 
+  theme(axis.title.x = element_blank())  + scale_y_log10() +
+  scale_x_discrete(guide = guide_axis(angle = 60)) + scale_fill_manual(values = colorblind_pal()(8)[c(3,7)])
+
+
+sparsity.reduction.counts.g20 <- wrap_plots(nCount_RNA+ NoLegend(),nCount_RNA+ NoLegend(),ncol = 1)
+
+sparsity.reduction.counts.g20
+```
+
+
+```{r}
+nFeature_RNA <- nFeature_RNA  + NoLegend() +
+  theme(axis.text.x = element_blank(),axis.title.x = element_blank()) + ylab("Detected Genes")
+
+nCount_RNA <-  nCount_RNA + NoLegend() +
+  theme(axis.title.x = element_blank())  +
+  scale_x_discrete(guide = guide_axis(angle = 60))+ ylab("RNA Counts (UMI)")
+
+sparsity.reduction.g20 <- nFeature_RNA / nCount_RNA + plot_layout(heights = c(1, 1))
+sparsity.reduction.g20
+
+```
+```{r fig.height=5,fig.width=9}
+figS2C <- cowplot::plot_grid(figSupCov+theme(plot.margin = unit(c(50,25,50,25),units = "pt")),
+                             wrap_plots(nFeature_RNA, nCount_RNA,ncol = 1),rel_widths = c(3,1))
+
+figS2C
+```
+```{r}
+pdf(file = "figS2C.pdf",height = 5,width=9)
+figS2C
+dev.off()
+```
+
+
+
+
+
+
+## Anti correlation
+
+```{r fig.height=5,fig.width=7}
+acr.prot.sc <- FeatureScatter(bm[,bm$celltype.l1 %in% "T cell" ],"adt_CD8a","adt_CD4",group.by = "celltype", cols = color.celltypes.bm,plot.cor = F) + xlab("Prot. CD8A") + ylab("Prot. CD4")
+
+DefaultAssay(bm.supercell.multi) <- "ADT"
+bm.supercell.multi <- NormalizeData(bm.supercell.multi,normalization.method = "CLR",margin = 2)
+
+acr.prot.supercell.multi <- FeatureScatter.SuperCell(bm.supercell.multi[,bm.supercell.multi$celltype.l1 %in% "T cell" ],
+                                                     "adt_CD8a","adt_CD4",group.by = "celltype", cols = color.celltypes.bm) + 
+  xlab("Prot. CD8A") + ylab("Prot. CD4")  + ggtitle(label = "SuperCell",subtitle = "Protein + RNA")  + theme_classic()  
+
+
+DefaultAssay(bm.supercell.rna) <- "ADT"
+bm.supercell.rna <- NormalizeData(bm.supercell.rna,normalization.method = "CLR",margin = 2)
+
+acr.prot.supercell.rna <- FeatureScatter.SuperCell(bm.supercell.rna[,bm.supercell.rna$celltype.l1 %in% "T cell" ],
+                                                   "adt_CD8a","adt_CD4",group.by = "celltype", cols = color.celltypes.bm) + 
+  xlab("Prot. CD8A") + ylab("Prot. CD4") + ggtitle(label = "SuperCell",subtitle = "RNA")  + theme_classic()  + NoLegend() 
+
+
+DefaultAssay(bm.supercell.adt) <- "ADT"
+bm.supercell.adt <- NormalizeData(bm.supercell.adt,normalization.method = "CLR",margin = 2)
+
+acr.prot.supercell.prot <- FeatureScatter.SuperCell(bm.supercell.adt[,bm.supercell.adt$celltype.l1 %in% "T cell" ],
+                                                    "adt_CD8a","adt_CD4",group.by = "celltype", cols = color.celltypes.bm) + 
+  xlab("Prot. CD8A") + ylab("Prot. CD4") + ggtitle(label = "SuperCell",subtitle = "Protein")  + theme_classic()  + NoLegend() 
+
+
+DefaultAssay(bm.seacells.rna) <- "ADT"
+bm.seacells.rna <- NormalizeData(bm.seacells.rna,normalization.method = "CLR",margin = 2)
+
+acr.prot.seacells.rna <- FeatureScatter.SuperCell(bm.seacells.rna[,bm.seacells.rna$celltype.l1 %in% "T cell" ],
+                                                  "adt_CD8a","adt_CD4",group.by = "celltype", cols = color.celltypes.bm) + 
+  xlab("Prot. CD8A") + ylab("Prot. CD4") + ggtitle(label = "SEACells",subtitle = "RNA")  + theme_classic()  + NoLegend() 
+
+
+DefaultAssay(bm.seacells.adt) <- "ADT"
+bm.seacells.adt <- NormalizeData(bm.seacells.adt,normalization.method = "CLR",margin = 2)
+
+acr.prot.seacells.prot <- FeatureScatter.SuperCell(bm.seacells.adt[,bm.seacells.adt$celltype.l1 %in% "T cell" ],
+                                                   "adt_CD8a","adt_CD4",group.by = "celltype", cols = color.celltypes.bm) + 
+  xlab("Prot. CD8A") + ylab("Prot. CD4")  + ggtitle(label = "SEACells",subtitle = "Protein") + theme_classic()  + NoLegend() 
+
+
+
+DefaultAssay(bm.metacell.rna) <- "ADT"
+bm.metacell.rna <- NormalizeData(bm.metacell.rna,normalization.method = "CLR",margin = 2)
+
+acr.prot.metacell.rna <- FeatureScatter.SuperCell(bm.metacell.rna[,bm.metacell.rna$celltype.l1 %in% "T cell" ],
+                                                  "adt_CD8a","adt_CD4",group.by = "celltype", cols = color.celltypes.bm) + 
+  xlab("Prot. CD8A") + ylab("Prot. CD4")+ ggtitle(label = "MetaCell2",subtitle = "RNA") + theme_classic()  + NoLegend() 
+
+
+
+cowplot::plot_grid(acr.prot.supercell.multi + NoLegend(),acr.prot.supercell.prot,acr.prot.seacells.prot,
+                   acr.prot.supercell.rna,acr.prot.seacells.rna,acr.prot.metacell.rna)
+
+
+```
+
+```{r fig.height=5,fig.width=10}
+acr.prot.supercell.multi + 
+  guides(colour = "none",
+         fill = guide_legend(ncol =2,title = "Cell types",
+                             override.aes = list(size=4)))
+
+fig2G <- wrap_plots(acr.prot.sc + ggtitle("Single-cells") + theme_classic() + NoLegend(),
+                    acr.prot.supercell.multi + 
+                      guides( fill = guide_legend(ncol =2,title = "Cell types",
+                                                  override.aes = list(size=4)),  # One column for colors
+                              size = "none")+ theme(legend.key.size = unit(1, 'lines')),acr.prot.supercell.prot,acr.prot.seacells.prot,
+                    guide_area(),acr.prot.supercell.rna,acr.prot.seacells.rna,acr.prot.metacell.rna,guides = "collect",nrow = 2)
+fig2G
+```
+
+
+
+RNA progenitors
+
+```{r fig.height=5,fig.width=7}
+acr.prot.sc <- FeatureScatter(bm[,bm$celltype.l1 %in%  "Progenitor cells" ],"rna_FLT3","rna_GATA1",group.by = "celltype", cols = color.celltypes.bm,plot.cor = F) + xlab("RNA FLT3") + ylab("RNA GATA1") + theme_classic() + ggtitle("Single-cells")
+
+DefaultAssay(bm.supercell.multi) <- "RNA"
+bm.supercell.multi <- NormalizeData(bm.supercell.multi)
+
+acr.prot.supercell.multi <- FeatureScatter.SuperCell(bm.supercell.multi[,bm.supercell.multi$celltype.l1 %in%  "Progenitor cells" ],
+                                                     "rna_FLT3","rna_GATA1",group.by = "celltype", cols = color.celltypes.bm) + 
+  xlab("RNA FLT3") + ylab("RNA GATA1")  + ggtitle(label = "SuperCell",subtitle = "Protein + RNA")  + theme_classic()  
+
+
+DefaultAssay(bm.supercell.rna) <- "RNA"
+bm.supercell.rna <- NormalizeData(bm.supercell.rna)
+
+acr.prot.supercell.rna <- FeatureScatter.SuperCell(bm.supercell.rna[,bm.supercell.rna$celltype.l1 %in%  "Progenitor cells" ],
+                                                   "rna_FLT3","rna_GATA1",group.by = "celltype", cols = color.celltypes.bm) + 
+  xlab("RNA FLT3") + ylab("RNA GATA1") + ggtitle(label = "SuperCell",subtitle = "RNA")  + theme_classic()  + NoLegend() 
+
+
+DefaultAssay(bm.supercell.adt) <- "RNA"
+bm.supercell.adt <- NormalizeData(bm.supercell.adt)
+
+acr.prot.supercell.prot <- FeatureScatter.SuperCell(bm.supercell.adt[,bm.supercell.adt$celltype.l1 %in%  "Progenitor cells" ],
+                                                    "rna_FLT3","rna_GATA1",group.by = "celltype", cols = color.celltypes.bm) + 
+  xlab("RNA FLT3") + ylab("RNA GATA1") + ggtitle(label = "SuperCell",subtitle = "Protein")  + theme_classic()  + NoLegend() 
+
+
+DefaultAssay(bm.seacells.rna) <- "RNA"
+bm.seacells.rna <- NormalizeData(bm.seacells.rna)
+
+acr.prot.seacells.rna <- FeatureScatter.SuperCell(bm.seacells.rna[,bm.seacells.rna$celltype.l1 %in%  "Progenitor cells" ],
+                                                  "rna_FLT3","rna_GATA1",group.by = "celltype", cols = color.celltypes.bm) + 
+  xlab("RNA FLT3") + ylab("RNA GATA1") + ggtitle(label = "SEACells",subtitle = "RNA")  + theme_classic()  + NoLegend() 
+
+
+DefaultAssay(bm.seacells.adt) <- "RNA"
+bm.seacells.adt <- NormalizeData(bm.seacells.adt)
+
+acr.prot.seacells.prot <- FeatureScatter.SuperCell(bm.seacells.adt[,bm.seacells.adt$celltype.l1 %in%  "Progenitor cells" ],
+                                                   "rna_FLT3","rna_GATA1",group.by = "celltype", cols = color.celltypes.bm) + 
+  xlab("RNA FLT3") + ylab("RNA GATA1")  + ggtitle(label = "SEACells",subtitle = "Protein") + theme_classic()  + NoLegend() 
+
+
+
+DefaultAssay(bm.metacell.rna) <- "RNA"
+bm.metacell.rna <- NormalizeData(bm.metacell.rna)
+
+acr.prot.metacell.rna <- FeatureScatter.SuperCell(bm.metacell.rna[,bm.metacell.rna$celltype.l1 %in%  "Progenitor cells" ],
+                                                  "rna_FLT3","rna_GATA1",group.by = "celltype", cols = color.celltypes.bm) + 
+  xlab("RNA FLT3") + ylab("RNA GATA1")+ ggtitle(label = "MetaCell2",subtitle = "RNA") + theme_classic()  + NoLegend() 
+
+
+
+cowplot::plot_grid(acr.prot.supercell.multi + NoLegend(),acr.prot.supercell.prot,acr.prot.seacells.prot,
+                   acr.prot.supercell.rna,acr.prot.seacells.rna,acr.prot.metacell.rna)
+
+
+```
+
+```{r fig.height=5,fig.width=10}
+acr.prot.supercell.multi + 
+  guides(colour = "none",
+         fill = guide_legend(ncol =2,title = "Cell types",
+                             override.aes = list(size=4)))
+
+fig2H <- wrap_plots(acr.prot.sc + ggtitle("Single-cells") + theme_classic() + NoLegend(),
+                    acr.prot.supercell.multi + 
+                      guides( fill = guide_legend(ncol =2,title = "Cell types",
+                                                  override.aes = list(size=4)),  # One column for colors
+                              size = "none")+ theme(legend.key.size = unit(1, 'lines')),acr.prot.supercell.prot,acr.prot.seacells.prot,
+                    guide_area(),acr.prot.supercell.rna,acr.prot.seacells.rna,acr.prot.metacell.rna,guides = "collect",nrow = 2)
+fig2H
+```
+
+
+```{r fig.height=5,fig.width=17.5}
+fig2GH <- cowplot::plot_grid(fig2G,fig2H)
+fig2GH
+```
+
+```{r}
+pdf("fig2GH.pdf",height = 5,width = 17.5)
+fig2GH
+dev.off()
+```
+
+
+## Purity by major types
+```{r fig.height=6,fig.width=5}
+
+
+sig.celltype.l2_purity.g75.major.type  <- ggplot(bench.75.no.random,aes(y=celltype.l2_purity,x = method,fill = input)) + 
+  geom_boxplot() + theme_bw() + facet_wrap("~celltype.l1") + 
+  #facet_wrap("gamma",nrow = 1) + 
+  #ylim(c(0,1.425)) + 
+  geom_signif(comparisons = comparisons,
+              step_increase=0.15,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3)+
+  geom_signif(comparisons = comparison.inter.modality,
+              step_increase=0.15,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3) +
+  scale_x_discrete(guide = guide_axis(angle = 80)) + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Purity")  +
+  scale_y_continuous(limits = c(0.15,1.6),breaks =c(0.4,0.7,1)) + theme(axis.title.x = element_blank())
+
+sig.celltype.l2_purity.g75.major.type + NoLegend()
+```
+
+```{r}
+pdf("figS2E.pdf",height = 6,width = 5)
+sig.celltype.l2_purity.g75.major.type + NoLegend()
+dev.off()
+```
+
+
+```{r fig.height=3,fig.width=3}
+pdf("figS2E.pdf",height = 6,width = 5)
+sig.celltype.l2_purity.g75.major.type + NoLegend()
+wnn.weights<- VlnPlot(bm,'RNA.weight',group.by = "celltype.l1",sort = T,pt.size = 0) + NoLegend(
+) + ggtitle("RNA Weights")+ theme(axis.title.y = element_blank()) + coord_flip() 
+wnn.weights
+```
+
+```{r}
+pdf("figS2F.pdf",height = 7,width = 3)
+wnn.weights + theme(text = element_text(size = 20),
+                    title = element_text(size = 20))
+dev.off()
+```
+
+
+
+Metcalls2 outliers
+```{r fig.height= 3,fig.width=3}
+bm.metacell.rna.g20 <- readRDS("../../output/bmCiteSeq/MetaCellRNA/g20/seurat.cite.mc.rds")
+outliers.mc2 <- data.frame("outliers" = c(length(which(is.na(bm.metacell.rna.g20@misc$membership))),
+                                          length(which(is.na(bm.metacell.rna@misc$membership)))),
+                           "graining_level" = c("20","75"))
+outliers.mc2$perc.outliers <-label_percent()(outliers.mc2$outliers/ncol(bm))
+outliers.mc2
+outliers.mc2 <- ggplot(outliers.mc2,aes( x= graining_level, y = outliers)) + geom_bar(stat = "identity", position="dodge") + ylab("MetaCell2 outliers") + xlab("graining level") + geom_text(aes(label = perc.outliers),col = "red")
+outliers.mc2
+```
+
+
+
+```{r}
+bench.75.no.random.semi.sup <- bench.75.no.random[bench.75.no.random$tool == "ssSuperCell",]
+
+bench.75.no.random.semi.sup$pct_known <- factor(paste0(as.character(bench.75.no.random.semi.sup$pct_known),"%"), levels = rev(c("100%","75%","50%","25%","0%") ))
+
+```
+
+
+```{r fig.height=4,fig.width=4}
+
+comparisons.semi.sup <- list(
+  c("0%","25%"),
+  c("0%","50%"),
+  c("0%","75%"),
+  c("0%","100%")
+)
+
+
+purity.pbmc.multiome.g75.semi.sup <- ggplot(bench.75.no.random.semi.sup[bench.75.no.random.semi.sup$input == "Protein+RNA",],
+                                            aes(y=celltype.l2_purity,x = pct_known,fill = input)) + 
+  geom_boxplot()  + theme_bw()  + 
+  geom_signif(comparisons = comparisons.semi.sup,
+              step_increase=0.125,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3)+
+  scale_y_continuous(breaks = c(0.4,0.6,0.8,1),limits = c(0.3,1.35)) + 
+  
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + theme_bw() + xlab("Annotated cells") +ylab("Purity") + NoLegend()
+
+
+purity.pbmc.multiome.g75.semi.sup 
+```
+```{r fig.width=4, fig.height=4}
+
+size.pbmc.multiome.g75.semi.sup <- ggplot(bench.75.no.random.semi.sup[bench.75.no.random.semi.sup$input == "Protein+RNA",],
+                                          aes(y=size,x = pct_known,fill = input)) + 
+  geom_boxplot() + theme_bw()  + 
+  geom_signif(comparisons = comparisons.semi.sup,
+              step_increase=0.125,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3)+
+  ylim(c(0,525))+
+  
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + xlab("Annotated cells") + NoLegend()
+
+
+size.pbmc.multiome.g75.semi.sup
+```
+
+```{r fig.height=4,fig.width=4}
+
+multimodal_compactness.75.semi.sup <- ggplot(bench.75.no.random.semi.sup[bench.75.no.random.semi.sup$input == "Protein+RNA",],aes(y=multimodal_compactness,x = pct_known,fill = input)) + 
+  geom_boxplot(outlier.shape = NA)  + theme_bw() + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Multimodal Compactness")  +  # Hides outliers
+  coord_cartesian(ylim = c(0,0.065))   + NoLegend() + 
+  geom_signif(comparisons = comparisons.semi.sup,
+              y_position = 0.02,
+              step_increase=0.015,
+              map_signif_level=T,
+              extend_line = -0.005,
+              tip_length = 0.005,
+              textsize = 3) + xlab("Annotated cells")
+multimodal_compactness.75.semi.sup
+
+```
+```{r fig.height=4,fig.width=4}
+multimodal_separation.75.semi.sup <- ggplot(bench.75.no.random.semi.sup[bench.75.no.random.semi.sup$input == "Protein+RNA",],aes(y=multimodal_separation,x = pct_known,fill = input)) + 
+  geom_boxplot(outlier.shape = NA) +theme_bw() +
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Multimodal Separation")  +  # Hides outliers
+  coord_cartesian(ylim = c(0, 0.195))+ NoLegend() + 
+  geom_signif(comparisons = comparisons.semi.sup,
+              y_position = 0.085,
+              step_increase=0.035,
+              map_signif_level=T,
+              extend_line = -0.005,
+              tip_length = 0.01,
+              textsize = 3) + xlab("Annotated cells")
+multimodal_separation.75.semi.sup
+```
+```{r fig.height=2.75,fig.width = 7}
+wrap_plots(purity.pbmc.multiome.g75.semi.sup,multimodal_compactness.75.semi.sup,multimodal_separation.75.semi.sup,nrow = 1)
+
+pdf("fig2J_semi_sup.pdf",height = 2.75,width = 7)
+wrap_plots(purity.pbmc.multiome.g75.semi.sup,multimodal_compactness.75.semi.sup,multimodal_separation.75.semi.sup,nrow = 1)
+dev.off()
+```
+
+
+
+
+
+
+```{r fig.height=4,fig.width=18}
+plot.list <- list()
+for (p in c(100,75,50,25,0)) {
+  sobj <- readRDS(paste0("../../output/bmCiteSeq//SuperCellMulti/testSemiSup/g75/guiding_label_",p,"_pct_hiddenseurat.mc.rds"))
+  sobj <- addCellType(sobj)
+  plot.list[[paste0("pct_",p)]] <- DimPlotSC(seurat = bm,
+                                             seurat.mc = sobj,
+                                             metacell.col = "celltype",
+                                             sc.col = "celltype",
+                                             mc.color = color.celltypes.bm ,
+                                             sc.color = color.celltypes.bm) + theme_classic() + ggtitle(label = "SuperCell Protein+RNA",
+                                                                                                        subtitle = paste0(100-p, "% annotated cells")) + 
+    scale_size(limits = c(0,max(bench.75.no.random.semi.sup$size)),breaks = c(50,100,150,200))  +
+    guides(fill=guide_legend(ncol =2,title = "Cell types",
+                             override.aes = list(size=4)),
+           colour = "none",
+           size = guide_legend(title = "Size"))
+  
+  
+}
+
+
+wrap_plots(plot.list[[2]],plot.list[[3]],plot.list[[4]],plot.list[[5]],guide_area(),guides = "collect",nrow = 1) & 
+  theme(legend.spacing.y = unit(-0.35, "line"),legend.key.size = unit(1, "line"))
+
+pdf("figS3_semi_sup_bm_cite.pdf", height = 4,width = 18)
+wrap_plots(plot.list[[2]],plot.list[[3]],plot.list[[4]],plot.list[[5]],guide_area(),guides = "collect",nrow = 1) & 
+  theme(legend.spacing.y = unit(-0.35, "line"),legend.key.size = unit(1, "line"))
+
+dev.off()
+```
+
+
+## Same RNA only
+
+
+
+```{r fig.height=4,fig.width=4}
+
+comparisons.semi.sup <- list(
+  c("0%","25%"),
+  c("0%","50%"),
+  c("0%","75%"),
+  c("0%","100%")
+)
+
+
+purity.pbmc.multiome.g75.semi.sup.rna <- ggplot(bench.75.no.random.semi.sup[bench.75.no.random.semi.sup$input == "RNA",],
+                                                aes(y=celltype.l2_purity,x = pct_known,fill = input)) + 
+  geom_boxplot()  + theme_bw()  + 
+  geom_signif(comparisons = comparisons.semi.sup,
+              step_increase=0.125,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3)+
+  scale_y_continuous(breaks = c(0.4,0.6,0.8,1),limits = c(0.2,1.4)) + 
+  
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + theme_bw() + xlab("Annotated cells") +ylab("Purity") + NoLegend()
+
+
+purity.pbmc.multiome.g75.semi.sup.rna 
+```
+```{r fig.width=4, fig.height=4}
+
+size.pbmc.multiome.g75.semi.sup.rna <- ggplot(bench.75.no.random.semi.sup[bench.75.no.random.semi.sup$input == "RNA",],
+                                              aes(y=size,x = pct_known,fill = input)) + 
+  geom_boxplot() + theme_bw()  + 
+  geom_signif(comparisons = comparisons.semi.sup,
+              step_increase=0.125,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3)+
+  ylim(c(0,525))+
+  
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + xlab("Annotated cells") + NoLegend()
+
+
+size.pbmc.multiome.g75.semi.sup.rna
+```
+
+```{r fig.height=4,fig.width=4}
+
+multimodal_compactness.75.semi.sup.rna <- ggplot(bench.75.no.random.semi.sup[bench.75.no.random.semi.sup$input == "RNA",],aes(y=multimodal_compactness,x = pct_known,fill = input)) + 
+  geom_boxplot(outlier.shape = NA)  + theme_bw() + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Multimodal Compactness")  +  # Hides outliers
+  coord_cartesian(ylim = c(0,0.11))   + NoLegend() + 
+  geom_signif(comparisons = comparisons.semi.sup,
+              y_position = 0.06,
+              step_increase=0.025,
+              map_signif_level=T,
+              extend_line = -0.005,
+              tip_length = 0.005,
+              textsize = 3) + xlab("Annotated cells")
+multimodal_compactness.75.semi.sup.rna
+
+```
+```{r fig.height=4,fig.width=4}
+multimodal_separation.75.semi.sup.rna <- ggplot(bench.75.no.random.semi.sup[bench.75.no.random.semi.sup$input == "RNA",],aes(y=multimodal_separation,x = pct_known,fill = input)) + 
+  geom_boxplot(outlier.shape = NA) +theme_bw() +
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Multimodal Separation")  +  # Hides outliers
+  coord_cartesian(ylim = c(0, 0.2))+ NoLegend() + 
+  geom_signif(comparisons = comparisons.semi.sup,
+              y_position = 0.11,
+              step_increase=0.035,
+              map_signif_level=T,
+              extend_line = -0.005,
+              tip_length = 0.01,
+              textsize = 3) + xlab("Annotated cells")
+multimodal_separation.75.semi.sup.rna
+```
+
+
+```{r fig.height=2.75,fig.width = 7}
+wrap_plots(purity.pbmc.multiome.g75.semi.sup.rna,multimodal_compactness.75.semi.sup.rna,multimodal_separation.75.semi.sup.rna,nrow = 1)
+
+pdf("fig2J_semi_sup_rna_metrics.pdf",height = 2.75,width = 7)
+wrap_plots(purity.pbmc.multiome.g75.semi.sup.rna,multimodal_compactness.75.semi.sup.rna,multimodal_separation.75.semi.sup.rna,nrow = 1)
+dev.off()
+```
+
+
+
+```{r}
+
+DefaultAssay(bm.seacells.adt) <- "ADT"
+bm.seacells.adt <- NormalizeData(bm.seacells.adt,normalization.method = "CLR",margin = 2)
+
+acr.prot.seacells.prot <- FeatureScatter.SuperCell(bm.seacells.adt[,bm.seacells.adt$celltype.l1 %in% "T cell" ],
+                                                   "adt_CD8a","adt_CD4",group.by = "celltype", cols = color.celltypes.bm) + 
+  xlab("Prot. CD8A") + ylab("Prot. CD4")  + ggtitle(label = "SEACells",subtitle = "Protein") + theme_classic()  + NoLegend() 
+```
+
+
+```{r fig.height=4,fig.width=18}
+plot.list <- list()
+for (p in c(100,75,50,25,0)) {
+  sobj <- readRDS(paste0("../../output/bmCiteSeq//SuperCellRNA/testSemiSup/g75/guiding_label_",p,"_pct_hiddenseurat.mc.rds"))
+  sobj <- addCellType(sobj)
+  plot.list[[paste0("pct_",p)]] <- DimPlotSC(seurat = bm,
+                                             seurat.mc = sobj,
+                                             metacell.col = "celltype",
+                                             sc.col = "celltype",
+                                             mc.color = color.celltypes.bm ,
+                                             sc.color = color.celltypes.bm) + theme_classic() + ggtitle(label = "SuperCell RNA",
+                                                                                                        subtitle = paste0(100 - p, "% annotated cells")) + 
+    scale_size(limits = c(0,max(bench.75.no.random.semi.sup$size)),breaks = c(50,100,150,200))  +
+    guides(fill=guide_legend(ncol =2,title = "Cell types",
+                             override.aes = list(size=4)),
+           colour = "none",
+           size = guide_legend(title = "Size"))
+  
+  
+}
+
+
+wrap_plots(plot.list[[2]],plot.list[[3]],plot.list[[4]],plot.list[[5]],guide_area(),guides = "collect",nrow = 1) & 
+  theme(legend.spacing.y = unit(-0.35, "line"),legend.key.size = unit(1, "line"))
+
+pdf("figS3_semi_sup_bm_cite_rna_umaps.pdf", height = 4,width = 18)
+wrap_plots(plot.list[[2]],plot.list[[3]],plot.list[[4]],plot.list[[5]],guide_area(),guides = "collect",nrow = 1) & 
+  theme(legend.spacing.y = unit(-0.35, "line"),legend.key.size = unit(1, "line"))
+
+dev.off()
+```
+
+
+```{r fig.height=3,fig.width = 3.5}
+
+bm.supercell.rna.semi <- readRDS(paste0("../../output/bmCiteSeq//SuperCellRNA/testSemiSup/g75/guiding_label_",25,"_pct_hiddenseurat.mc.rds"))
+bm.supercell.rna.semi <- addCellType(bm.supercell.rna.semi)
+
+DefaultAssay(bm.supercell.rna.semi) <- "ADT"
+bm.supercell.rna.semi<- NormalizeData(bm.supercell.rna.semi,normalization.method = "CLR",margin = 2)
+
+acr.prot.supercell.rna.semi.sup <- FeatureScatter.SuperCell(bm.supercell.rna.semi[,bm.supercell.rna.semi$celltype.l1 %in% "T cell" ],
+                                                            "adt_CD8a","adt_CD4",group.by = "celltype", cols = color.celltypes.bm) + 
+  xlab("Prot. CD8A") + ylab("Prot. CD4") + ggtitle(label = "SuperCell RNA",subtitle = "75% annotated cells")  + theme_classic()  
+
+acr.prot.supercell.rna.semi.sup + NoLegend()
+
+pdf("figS3_semi_sup_bm_rna_acrprot.pdf",height = 3,width = 3.5)
+acr.prot.supercell.rna.semi.sup + NoLegend()
+dev.off()
+```
+
+
+```{r}
+
+```
+
+
+
+
+
+
+```{r}
+semi.sup <- read.csv("../../output/bmCiteSeq//SuperCellMulti/testSemiSup/g75/results_test_semisup.csv")
+semi.sup.purity <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = celltype.l2_purity)) + geom_boxplot()
+semi.sup.size <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = size)) + geom_boxplot()
+compactness.pca <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = compactness_pca)) + geom_boxplot()
+separation.pca <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = separation_pca)) + geom_boxplot()
+compactness.apca <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = compactness_apca)) + geom_boxplot()
+separation.apca <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = separation_apca)) + geom_boxplot()
+
+patchwork::wrap_plots(semi.sup.purity , semi.sup.size,
+                      compactness.pca , separation.pca,
+                      compactness.apca , separation.apca)
+
+```
+
+
+
+# Semi sup
+
+```{r}
+semi.sup <- read.csv("../../output/bmCiteSeq//SuperCellMulti/testSemiSup/g20/results_test_semisup.csv")
+semi.sup.purity <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = celltype.l2_purity)) + geom_boxplot()
+semi.sup.size <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = size)) + geom_boxplot()
+compactness.pca <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = compactness_pca)) + geom_boxplot()
+separation.pca <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = separation_pca)) + geom_boxplot()
+compactness.apca <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = compactness_apca)) + geom_boxplot()
+separation.apca <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = separation_apca)) + geom_boxplot()
+
+patchwork::wrap_plots(semi.sup.purity , semi.sup.size,
+                      compactness.pca , separation.pca,
+                      compactness.apca , separation.apca)
+
+```
+
+
+
+
+# Semi sup RNA 
+
+```{r}
+semi.sup <- read.csv("../../output/bmCiteSeq//SuperCellMulti/testSemiSup_RNA/g75/results_test_semisup.csv")
+semi.sup.purity <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = celltype.l2_purity)) + geom_boxplot()
+semi.sup.size <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = size)) + geom_boxplot()
+compactness.pca <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = compactness_pca)) + geom_boxplot()
+separation.pca <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = separation_pca)) + geom_boxplot()
+compactness.apca <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = compactness_apca)) + geom_boxplot()
+separation.apca <- ggplot(semi.sup,aes(x = as.factor(pct_known),y = separation_apca)) + geom_boxplot()
+
+patchwork::wrap_plots(semi.sup.purity , semi.sup.size,
+                      compactness.pca , separation.pca,
+                      compactness.apca , separation.apca)
+
+```
+
+

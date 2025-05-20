@@ -1,0 +1,755 @@
+---
+title: "pbmc_cite_atlas_integration"
+author: "Leonard Herault"
+date: '2023-02-02'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## package loading
+```{r}
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(future.apply)
+library(pbapply)
+library(igraph)
+library(ggplot2)
+library(SuperCellMultiomics)
+library(ggthemes)
+library(ggsignif)
+library(patchwork)
+
+library(Cairo)
+options(bitmapType = "cairo")
+dir.create("../pdf_files",showWarnings = F)
+#library(gprofiler2)
+```
+
+```{r}
+my35colors <- c('#E5D2DD', 
+                '#53A85F', '#F1BB72', '#F3B1A0', '#D6E7A3', '#57C3F3', '#476D87',
+                '#E95C59', '#E59CC4', '#AB3282', '#BD956A', '#8C549C',
+                '#9FA3A8', '#E0D4CA', '#CCE0F5','#58A4C3', "#b20000",'#E4C755', '#F7F398',
+                '#AA9A59', '#E63863', '#E39A35', '#C1E6F3', '#6778AE', '#91D0BE', '#B53E2B',
+                '#712820', '#DCC1DD', '#3A6963','#CCE0F5', '#CCC9E6', '#625D9E', '#68A180', '#5F3D69',
+                '#968175')
+
+color_smp <- c(
+  "#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00", "#FFFF33",
+  "#A65628", "#F781BF", "#999999", "#66C2A5", "#FC8D62",
+  "#8DD3C7", "#D9D9D9", "#B3B3CC", "#FFB3E6", "#C2C2F0",
+  "#F6A1B2", "#BF5B6A", "#A8D08D", "#D55E00", "#C49A6C",
+  "#8D5B5B", "#5C4B51", "#6A6D76", "#9A8C7A"
+)
+
+scales::show_col(my35colors)
+
+color_donor <- c("#1B9E77", "#D95F02", "#7570B3", "#E7298A", "#66A61E", "#E6AB02", "#A6761D", "#666666")
+names(color_donor) <- paste0("P",c(1:8))
+
+color_celltype <- colorblind_palette <- c(
+  "#E69F00", "#56B4E9", "#009E73", "#F0E442","#CCEBC5", "#D55E00", "#CC79A7",
+  "#999999", "#AD7FA8", "#F781BF", "#A6D854", "#FFD92F", "#66C2A5", "#FC8D62",
+  "#8DA0CB", "#E78AC3", "#A6CEE3", "#1F78B4", "#B2DF8A", "#33A02C", "#FB9A99",
+  "#E31A1C", "#FDBF6F", "#0072B2", "#CAB2D6", "#6A3D9A", "#B15928", "#BC80BD",
+  "#FF7F00", "#B3B3B3", "#117733"
+)
+data <- data.frame(
+  category = rep(paste("Category", 1:24), each = 1),
+  value = rep(1, 24)  # All values are equal
+)
+
+# Create the horizontal stacked bar plot
+smp.bar.leg <- ggplot(data, aes(x = 1, y = category, fill = category)) +
+  geom_bar(stat = "identity", width = 1, position = "stack") +
+  scale_fill_manual(values = color_smp) +
+  theme_minimal() +
+  theme(legend.position = "none", 
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()) +
+  labs(title = "Samples",
+       x = "Total Value") + coord_flip() + theme_void() + NoLegend()
+```
+
+
+
+```{r fig.height=7,fig.width=10}
+pbmc.combined.mc <- readRDS("../../../output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20//seuratCombinedWNN.rds")
+
+
+
+color_sample <- c(
+  "#1B9E77", "#D95F02", "#7570B3", "#E7298A", "#66A61E", "#E6AB02", "#A6761D", "#666666",
+  "#1F77B4", "#FF7F0E", "#2CA02C", "#D62728", "#9467BD", "#8C564B", "#7F7F7F", "#17BECF",
+  "#9C9E6A", "#BFBF00", "#8F77D8", "#F4A300", "#1C5E8C", "#BCE7A4", "#D1B4B1", "#3D5A80",
+  "#F9E0C5", "#91C9F7", "#3B7BBF", "#F2D4D7"
+)
+
+
+DimPlot(pbmc.combined.mc,reduction = "wnn.umap",group.by = "celltype.l1.5",label = T)
+
+pbmc.combined.mc$cell_type <- as.vector(pbmc.combined.mc$celltype.l2)
+# pbmc.combined.mc$cell_type[grepl(x = pbmc.combined.mc$celltype.l2,
+#                                  pattern = "Proliferating")] <- "T/NK Prolif."
+names(color_celltype) <- unique(pbmc.combined.mc$cell_type)
+color_celltype_final <- color_celltype
+color_celltype_final[["CD14 Mono"]] <- color_celltype[["CD8 Naive"]]
+color_celltype_final[["CD8 Naive"]] <- color_celltype[["CD14 Mono"]]
+# color_celltype_final[["CD4 TCM"]] <- color_celltype[["T/NK Prolif."]]
+# color_celltype_final[["T/NK Prolif."]] <- color_celltype[["CD4 TCM"]]
+color_celltype_final[["Platelet"]] <- color_celltype[["cDC1"]]
+color_celltype_final[["cDC1"]] <- color_celltype[["Platelet"]]
+
+
+# pbmc.combined.mc <- RunUMAP(pbmc.combined.mc, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_",seed.use = 123,return.model = T)
+
+
+umap.sup.mc <- DimPlot(pbmc.combined.mc,reduction = "wnn.umap",group.by = "cell_type",label = T,repel = T,cols =(color_celltype_final))
+umap.sup.mc
+
+DimPlot(pbmc.combined.mc,reduction = "wnn.umap",group.by = "cell_type",label = T,repel = T,cols =(color_celltype_final))  +
+  guides(color = guide_legend(ncol = 1,override.aes = list(size = 3 ))) + xlab("wnnUMAP_1")  + ylab("wnnUMAP_2") + theme(legend.position = "right")
+
+
+DimPlot(pbmc.combined.mc,reduction = "wnn.umap",group.by = "celltype.l2",label = T,repel = T)  +
+  guides(color = guide_legend(ncol = 1,override.aes = list(size = 3 ))) + xlab("wnnUMAP_1")  + ylab("wnnUMAP_2") + theme(legend.position = "right")
+
+```
+
+```{r fig.height=6.5,fig.width=8.25}
+anno.table <- unique(data.frame("guiding_label" = pbmc.combined.mc$celltype.l1.5,
+                                "fine_label" = pbmc.combined.mc$cell_type))
+anno.table$guiding_label <- factor(anno.table$guiding_label,
+                                   levels =c("B","CD4 T","CD8 T","dnT","gdT","MAIT","NK","ILC","Mono","DC","Eryth","Platelet","HSPC"))
+anno.table <- unique(anno.table)
+anno.table <- anno.table %>% arrange(factor(guiding_label),fine_label) 
+anno.table
+
+pbmc.combined.mc$cell_type <- factor(pbmc.combined.mc$cell_type,levels = anno.table$fine_label)
+
+DimPlot(pbmc.combined.mc,reduction = "wnn.umap",group.by = "cell_type",label = T,repel = T,cols =(color_celltype_final))  +
+  guides(color = guide_legend(ncol = 1,override.aes = list(size = 3 ))) + xlab("wnnUMAP_1")  + ylab("wnnUMAP_2") + theme(legend.position = "right") + ggtitle("PBMC CITE-seq atlas",subtitle = paste0(ncol(pbmc.combined.mc)," metacells (",round(sum(pbmc.combined.mc$size)/1000,digits = 0),"k single-cells)"))
+```
+
+
+```{r}
+pdf("../pdf_files/Fig4B.pdf",height=6.5,width=8.25)
+DimPlot(pbmc.combined.mc,reduction = "wnn.umap",group.by = "cell_type",label = T,repel = T,cols =(color_celltype_final))  +
+  guides(color = guide_legend(ncol = 1,override.aes = list(size = 3 ))) + xlab("wnnUMAP_1")  + ggtitle("PBMC CITE-seq atlas",subtitle = paste0(ncol(pbmc.combined.mc)," metacells (",round(sum(pbmc.combined.mc$size)/1000,digits = 0),"k single-cells)"))
+
+```
+
+
+
+
+```{r fig.height=4,fig.width=2}
+pbmc.combined.unsup.mc <- readRDS("../../../output/pbmcCiteSeqAtlas/100percent_semisupMetacells_SCT_supStacas_lognorm/g20//seuratCombinedWNN.rds") # correspond to unsup metacell with unsup STACAS (100% of unknown cells)
+pbmc.combined.mc$method <- "Sup. metacells"
+pbmc.combined.unsup.mc$method <- "Unsup. metacells"
+
+```
+
+
+```{r fig.height=6.5,fig.width=8.25}
+pbmc.combined.unsup.mc$cell_type <- factor(pbmc.combined.unsup.mc$celltype.l2,levels = anno.table$fine_label)
+
+
+unsup.mc.atlas <- DimPlot(pbmc.combined.unsup.mc,reduction = "wnn.umap",group.by = "cell_type",label = T,repel = T,cols =(color_celltype_final))  +
+  guides(color = guide_legend(ncol = 1,override.aes = list(size = 3 ))) + xlab("wnnUMAP_1")  + ylab("wnnUMAP_2")  + ggtitle("PBMC CITE-seq atlas",subtitle = paste0(ncol(pbmc.combined.unsup.mc)," metacells (",round(sum(pbmc.combined.unsup.mc$size)/1000,digits = 0),"k single-cells)"))
+unsup.mc.atlas
+pdf("../pdf_files/FigS5D.pdf",height=6.5,width=8.25)
+unsup.mc.atlas
+dev.off()
+```
+
+
+Computing unintegrated space (not saved in the workflow) for UMAP visualization
+```{r}
+
+getUnitegrated <- function(pbmc, normalization = "lognorm",rna.assay = "RNA") {
+  if (normalization != "SCT") {
+    
+    DefaultAssay(pbmc) <- "RNA"
+    if (class(pbmc[["RNA"]]) == "Assay5") {
+      pbmc[["RNA"]] <- JoinLayers(pbmc[["RNA"]])
+    } 
+    
+    VariableFeatures(pbmc) <- VariableFeatures(pbmc[[paste0('integrated',rna.assay)]])
+    pbmc <- ScaleData(pbmc) %>% 
+      RunPCA(reduction.name = "unintegrated_pca") %>% 
+      RunUMAP(reduction = "unintegrated_pca",dims = 1:40,
+              reduction.name = "unintegrated_rna.umap",min.dist = 0.2)
+  } else {
+    DefaultAssay(pbmc) <- "SCT"
+    VariableFeatures(pbmc) <- VariableFeatures(pbmc[[paste0('integrated',rna.assay)]])
+    pbmc <- RunPCA(pbmc, verbose = F, reduction.name = "unintegrated_pca")  %>% 
+      RunUMAP(reduction = "unintegrated_pca",dims = 1:40,
+              reduction.name = "unintegrated_rna.umap",min.dist = 0.2)
+  }
+  
+  DefaultAssay(pbmc) <- "ADT"
+  VariableFeatures(pbmc) <- VariableFeatures(pbmc[[paste0('integratedADT')]])
+  pbmc <- ScaleData(pbmc)
+  pbmc <- RunPCA(pbmc,reduction.name = "unintegrated_apca") %>% 
+    RunUMAP(reduction = "unintegrated_apca",dims = 1:50,
+            reduction.name = "unintegrated_adt.umap",min.dist = 0.2)
+  
+  pbmc <- FindMultiModalNeighbors(
+    pbmc, 
+    reduction.list = list("unintegrated_pca", "unintegrated_apca"), 
+    dims.list = list(1:40, 1:50), 
+    modality.weight.name = "RNA.weight",
+    return.intermediate = T
+  )
+  pbmc <- RunUMAP(pbmc, nn.name = "weighted.nn", reduction.name = "unintegrated_wnn.umap", reduction.key = "unintegratedWnnUMAP_",min.dist = 0.2)
+  
+  
+  return(pbmc)
+}
+```
+
+```{r}
+pbmc.combined.unsup.mc <- getUnitegrated(pbmc.combined.unsup.mc)
+pbmc.combined.mc <- getUnitegrated(pbmc.combined.mc)
+```
+
+
+```{r}
+
+anno.table$color_fine_label <- plyr::mapvalues(x = anno.table$fine_label,
+                                               from = names(color_celltype_final),
+                                               to = color_celltype_final)
+
+color_guiding_label <- anno.table[!duplicated(anno.table$guiding_label),"color_fine_label"]
+names(color_guiding_label) <- anno.table[!duplicated(anno.table$guiding_label),"guiding_label"]
+color_guiding_label["CD4 T"] <- color_celltype_final['CD4 Naive']
+color_guiding_label["CD8 T"] <- color_celltype_final['CD8 TCM']
+color_guiding_label["B"] <- color_celltype_final['B naive']
+color_guiding_label["DC"] <- color_celltype_final['cDC2']
+
+
+
+
+pbmc.combined.unsup.mc$celltype.l1.5 <- factor(pbmc.combined.unsup.mc$celltype.l1.5,
+                                               levels = c("B", "CD4 T", "CD8 T", "gdT","dnT", 
+                                                          "MAIT", "NK", "ILC", "Mono",
+                                                          "DC", "Eryth", "Platelet","HSPC" ))
+pbmc.combined.mc$celltype.l1.5 <- factor(pbmc.combined.mc$celltype.l1.5,
+                                         levels = c("B", "CD4 T", "CD8 T", "gdT","dnT", 
+                                                    "MAIT", "NK", "ILC", "Mono",
+                                                    "DC", "Eryth", "Platelet","HSPC" ))
+
+
+batch.wnn.unintegrated <- DimPlot(pbmc.combined.mc,group.by = c("orig.ident"),reduction = "unintegrated_wnn.umap",cols =color_smp,
+                                  shuffle = T) + xlab("wnnUMAP_1") + ylab("wnnUMAP_2") +
+  theme(plot.title = element_blank(),legend.position = "bottom",axis.text = element_blank(),axis.ticks = element_blank())  + NoLegend() 
+
+guiding.labels.unintegrated <- DimPlot(pbmc.combined.mc,group.by = c("celltype.l1.5"),reduction = "unintegrated_wnn.umap",cols = (color_guiding_label)) + ggtitle("Main annotation") + xlab("wnnUMAP_1") + ylab("wnnUMAP_2") + 
+  theme(plot.title = element_blank(),legend.position = "bottom",axis.text = element_blank(),axis.ticks = element_blank()) + NoLegend() 
+
+batch.wnn.integrated <- DimPlot(pbmc.combined.mc,group.by = "orig.ident",reduction = "wnn.umap",
+                                shuffle = T,cols = color_smp)  + xlab("wnnUMAP_1") + ylab("wnnUMAP_2") +
+  theme(plot.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()) 
+
+
+
+
+donor.wnn.unintegrated <- DimPlot(pbmc.combined.mc,group.by = c("donor"),reduction = "unintegrated_wnn.umap",cols =color_donor,
+                                  shuffle = T)+ ggtitle("Donor") + xlab("wnnUMAP_1") + ylab("wnnUMAP_2") +
+  theme(axis.text = element_blank(),axis.ticks = element_blank()) + theme(legend.position = "bottom") +
+  guides(color = guide_legend(nrow = 1,override.aes = list(size = 3 )))
+
+
+
+donor.wnn.integrated <- DimPlot(pbmc.combined.mc,group.by = "donor",reduction = "wnn.umap",
+                                shuffle = T,cols = color_donor)   + ggtitle("Donor") + xlab("wnnUMAP_1") + ylab("wnnUMAP_2") +
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()) + NoLegend()
+
+
+
+
+guiding.labels.wnn.integrated <- DimPlot(pbmc.combined.mc,group.by = "celltype.l1.5",reduction = "wnn.umap",cols = (color_guiding_label)) + 
+  theme(legend.position = "right",axis.title = element_blank(),axis.text = element_blank(),axis.ticks = element_blank()) + xlab("wnnUMAP_1") + ylab("wnnUMAP_2") + 
+  theme(plot.title = element_blank(),legend.text=element_text(size=12,margin = margin(r = 0.1, unit = 'lines')),
+        legend.byrow = T,legend.key.spacing.x = unit(0.2, 'lines'))
+
+
+fig_smps <-
+  wrap_plots(batch.wnn.unintegrated + ggtitle("Uncorrected samples"),
+             batch.wnn.integrated + ggtitle("Corrected samples"),
+             axis_titles = "collect",
+             nrow = 1)
+
+fig_smps <- plot_grid(fig_smps & theme(axis.title = element_text(size = 16)),
+                      smp.bar.leg,ncol = 1,rel_heights  = c(9,1)) & theme(axis.title = element_text(size = 16))
+fig_smps 
+
+fig4C_donors <-
+  wrap_plots(donor.wnn.unintegrated + ggtitle("Uncorrected donors"),
+             donor.wnn.integrated + ggtitle("Corrected donors"),
+             axis_titles = "collect", 
+             nrow = 1)
+
+figS5A <-
+  wrap_plots(guiding.labels.unintegrated + 
+               theme(axis.title = element_blank(),axis.text = element_blank(),axis.ticks = element_blank()) + NoLegend(),
+             guiding.labels.wnn.integrated + 
+               theme(axis.title = element_blank(),axis.text = element_blank(),axis.ticks = element_blank()),
+             batch.wnn.unintegrated  + theme(axis.title = element_text(size = 16)) ,
+             batch.wnn.integrated + 
+               theme(axis.title = element_blank(),axis.text = element_blank(),axis.ticks = element_blank()),
+             nrow = 2)
+figS5A
+
+
+# figS5A <- plot_grid(
+#   wrap_plots(batch.wnn.unintegrated + theme(plot.title = element_blank(),
+#                                             axis.title =element_blank()),plot_spacer(),
+#              batch.wnn.integrated + theme(plot.title = element_blank(),
+#                                           axis.title =element_blank()),
+#              guiding.labels.unintegrated + theme(plot.title = element_blank()),plot_spacer(),
+#              guiding.labels.wnn.integrated + NoLegend() + theme(plot.title = element_blank()), 
+#              nrow = 2,widths = c(6,1,6)),
+#   ggpubr::get_legend(guiding.labels.wnn.integrated),ncol = 1,rel_heights = c(9,1))
+```
+
+
+
+
+
+
+
+```{r fig.height=3.5,fig.width=6}
+fig4C_donors
+
+pdf("../pdf_files/fig4C_donors.pdf",height = 3.5,width = 6)
+fig4C_donors
+dev.off()
+```
+
+```{r fig.height=6,fig.width=8}
+figS5A 
+
+pdf("../pdf_files/fig5SA.pdf",height = 6,width = 8)
+figS5A
+dev.off()
+```
+
+# same for unsupervised metacells
+
+```{r}
+batch.wnn.unintegrated <- DimPlot(pbmc.combined.unsup.mc,group.by = c("orig.ident"),reduction = "unintegrated_wnn.umap",shuffle = T,cols = color_smp)+ ggtitle("Sample") + xlab("wnnUMAP_1") + ylab("wnnUMAP_2") +
+  theme(legend.position = "bottom",axis.title = element_blank(),axis.text = element_blank(),axis.ticks = element_blank())  + NoLegend() 
+
+guiding.labels.unintegrated <- DimPlot(pbmc.combined.unsup.mc,group.by = c("celltype.l1.5"),reduction = "unintegrated_wnn.umap",cols = (color_guiding_label)) + ggtitle("Main annotation") + xlab("wnnUMAP_1") + ylab("wnnUMAP_2") + 
+  theme(legend.position = "bottom",axis.text = element_blank(),axis.ticks = element_blank()) + NoLegend() 
+
+batch.wnn.integrated <- DimPlot(pbmc.combined.unsup.mc,group.by = "orig.ident",shuffle = T,reduction = "wnn.umap",cols = color_smp)  + 
+  theme(legend.position = "bottom",axis.title = element_blank(),axis.text = element_blank(),axis.ticks = element_blank()) + ggtitle("Sample") + xlab("wnnUMAP_1") + ylab("wnnUMAP_2") + NoLegend() 
+
+
+guiding.labels.wnn.integrated <- DimPlot(pbmc.combined.unsup.mc,group.by = "celltype.l1.5",reduction = "wnn.umap",cols = (color_guiding_label)) + 
+  theme(legend.position = "bottom",axis.title = element_blank(),axis.text = element_blank(),axis.ticks = element_blank()) +
+  ggtitle("Main annotation") + xlab("wnnUMAP_1") + ylab("wnnUMAP_2") + 
+  guides(color = guide_legend(nrow = 2,override.aes = list(size = 4))) + 
+  theme(legend.text=element_text(size=12,margin = margin(r = 0.1, unit = 'lines')),
+        legend.byrow = T,legend.key.spacing.x = unit(0.2, 'lines'))
+
+
+# figSNA <- plot_grid(
+#   wrap_plots(batch.wnn.unintegrated + theme(plot.title = element_blank()),plot_spacer(),
+#              batch.wnn.integrated + theme(plot.title = element_blank()),
+#              guiding.labels.unintegrated + theme(plot.title = element_blank()),plot_spacer(),
+#              guiding.labels.wnn.integrated + NoLegend() + theme(plot.title = element_blank()), 
+#              nrow = 2,widths = c(6,1,6)),
+#   ggpubr::get_legend(guiding.labels.wnn.integrated),ncol = 1,rel_heights = c(9,1))
+
+
+figS5C <-
+  wrap_plots(guiding.labels.unintegrated + 
+               theme(plot.title = element_blank(),axis.title = element_blank(),axis.text = element_blank(),axis.ticks = element_blank()) + NoLegend(),
+             guiding.labels.wnn.integrated + 
+               theme(plot.title = element_blank(),axis.title = element_blank(),axis.text = element_blank(),axis.ticks = element_blank()) + NoLegend(),
+             batch.wnn.unintegrated  + theme(plot.title = element_blank(),axis.title = element_text(size = 16))  + NoLegend() ,
+             batch.wnn.integrated + 
+               theme(plot.title = element_blank(),axis.title = element_blank(),axis.text = element_blank(),axis.ticks = element_blank())  + NoLegend(),
+             nrow = 2)
+figS5C
+
+```
+
+```{r fig.height=6,fig.width=6.5}
+
+figS5C
+
+
+pdf("../pdf_files/figS5C.pdf",height = 6,width = 6.5)
+figS5C
+dev.off()
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r fig.height=5.5,fig.width=2}
+library(cowplot)
+library(patchwork)
+# col.workflow <- RColorBrewer::brewer.pal(n = 8, name = "Dark2")[1:3]
+# names(col.workflow) <- c("Sup metacells", "Unsup metacells", "Single-cells")
+
+# col.workflow <-  c("#009E73","#56B4E9" )
+col.workflow <- colorblind_pal()(8)[c(6,7)]
+names(col.workflow) <- c("Sup. metacells","Unsup. metacells")
+
+metaAll <- pbmc.combined.mc@meta.data[,c("method","size","celltype.l1.5_purity","celltype.l2_purity")]
+metaAll <- rbind(metaAll,pbmc.combined.unsup.mc@meta.data[,c("method","size","celltype.l1.5_purity","celltype.l2_purity")] )
+
+l1.5_purity <- ggplot(metaAll,aes(x=method,y = celltype.l1.5_purity, fill = method)) + geom_boxplot() + 
+  # scale_fill_manual(values = colorblind_pal()(5)[-1][c(2,1)]) + 
+  scale_fill_manual(values =col.workflow) + 
+  theme_bw() + 
+  NoLegend() + scale_x_discrete(guide = guide_axis(angle = 45)) + 
+  scale_y_continuous(breaks = c(0.4,0.6,0.8,1),limits = c(0.2,1.15)) +
+  geom_signif(comparisons = list(c("Sup. metacells","Unsup. metacells")), map_signif_level = T) + ylab("Main annotation purity") + theme(axis.title.x = element_blank(),
+                                                                                                                                         axis.text.x = element_blank())
+
+l2_purity <- ggplot(metaAll,aes(x=method,y = celltype.l2_purity, fill = method)) +
+  geom_boxplot() + theme_bw() +
+  # scale_fill_manual(values = colorblind_pal()(5)[-1][c(2,1)]) + 
+  scale_fill_manual(values = col.workflow)+
+  NoLegend() + 
+  scale_x_discrete(guide = guide_axis(angle = 45)) + 
+  scale_y_continuous(breaks = c(0.4,0.6,0.8,1),limits = c(0.2,1.15)) +
+  geom_signif(comparisons = list(c("Sup. metacells","Unsup. metacells")), map_signif_level = T)  + 
+  ylab("Fine annotation purity") + 
+  theme(axis.title.x = element_blank())
+
+
+
+
+wrap_plots(l1.5_purity,l2_purity,ncol = 1)
+```
+
+```{r}
+size <- ggplot(metaAll,aes(x=method,y = size, fill = method)) + geom_boxplot() + scale_fill_manual(values = col.workflow) + scale_x_discrete(guide = guide_axis(angle = 45)) + theme_bw() 
+size
+```
+```{r}
+pdf("Fig4D.pdf",height=4,width=1.75)
+wrap_plots(l1.5_purity,l2_purity,ncol = 1)
+dev.off()
+```
+
+```{r fig.height=2.5,fig.width=4}
+unsup.metacells.unsup.stacas <- readRDS("../../output/pbmcCiteSeqAtlas//100percent_semisupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds")
+unsup.metacells.unsup.stacas$Workflow <- "Unsup."
+unsup.metacells.unsup.stacas$Batch <- "Corrected"
+
+
+
+
+# sup.metacells.unsup.stacas <- readRDS("../../output/pbmcCiteSeqAtlas//supMetacells_SCT_unsupStacas_lognorm/g20/bench_res.rds" )
+# sup.metacells.unsup.stacas$metacells <- "Sup."
+# sup.metacells.unsup.stacas$integration <- "Unsup."
+
+sup.metacells.sup.stacas <- readRDS("../../output/pbmcCiteSeqAtlas//supMetacells_SCT_supStacas_lognorm/g20/bench_res.rds" )
+
+# we keep only once unintegrated results
+# sup.metacells.sup.stacas <- sup.metacells.sup.stacas[!grepl(x = sup.metacells.sup.stacas$method,
+#                                                             pattern = "unintegrated"),] 
+
+sup.metacells.sup.stacas$Workflow <- "Sup."
+sup.metacells.sup.stacas$Batch <- "Corrected"
+
+bench.integration.final <- rbind(unsup.metacells.unsup.stacas,
+                                 sup.metacells.sup.stacas)
+
+bench.integration.final$Batch[grepl(x = bench.integration.final$method, 
+                                    pattern = "unintegrated")] <- "Uncorrected"
+bench.integration.final$modality <- factor(bench.integration.final$modality,
+                                           levels = c("RNA" ,"Protein" ))
+
+bench.integration.final$label_name <- "Main annotation" 
+bench.integration.final$label_name[bench.integration.final$label == "celltype.l2"] <- "Fine annotation" 
+bench.integration.final$label_name <- factor(bench.integration.final$label_name,
+                                             levels = c("Main annotation" ,"Fine annotation" ))
+
+main.bench <- ggplot(bench.integration.final,aes(x= CiLISI,y=celltype_ASW,shape = Batch,color = Workflow)) + geom_point(size = 2.5,) + theme_bw()+ scale_color_manual(values = colorblind_pal()(8)[c(6,7)]) + facet_grid(c("modality","label_name"),scales = "free",axis.labels = "margins") + 
+  ylab("Cell type ASW (bio-conservation)") +
+  xlab("CiLISI (batch mixing)")
+```
+
+```{r fig.height=3,fig.width=5}
+main.bench
+
+pdf("Fig4D_main.pdf",height=3,width=5)
+main.bench
+dev.off()
+```
+```{r}
+unsup.metacells.sup.stacas <- readRDS("../../output/pbmcCiteSeqAtlas/unsupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds")
+unsup.metacells.sup.stacas$Workflow <- "Unsup.Sup."
+unsup.metacells.sup.stacas$Batch <- "Corrected"
+
+
+sup.metacells.unsup.stacas <- readRDS("../../output/pbmcCiteSeqAtlas//supMetacells_SCT_unsupStacas_lognorm/g20/bench_res.rds" )
+sup.metacells.unsup.stacas$metacells <- "Sup."
+sup.metacells.unsup.stacas$integration <- "Unsup."
+
+sup.metacells.unsup.stacas <- readRDS("../../output/pbmcCiteSeqAtlas/supMetacells_SCT_unsupStacas_lognorm//g20/bench_res.rds" )
+
+# we keep only once unintegrated results
+# sup.metacells.sup.stacas <- sup.metacells.sup.stacas[!grepl(x = sup.metacells.sup.stacas$method,
+#                                                             pattern = "unintegrated"),] 
+sup.metacells.unsup.stacas$Workflow <- "Sup.Unsup."
+sup.metacells.unsup.stacas$Batch <- "Corrected"
+
+bench.integration.all <- rbind(unsup.metacells.unsup.stacas,
+                               sup.metacells.sup.stacas,
+                               sup.metacells.unsup.stacas,
+                               unsup.metacells.sup.stacas)
+
+bench.integration.all$Batch[grepl(x = bench.integration.all$method, 
+                                  pattern = "unintegrated")] <- "Uncorrected"
+bench.integration.all$modality <- factor(bench.integration.all$modality,
+                                         levels = c("RNA" ,"Protein" ))
+
+bench.integration.all$label_name <- "Main annotation" 
+bench.integration.all$label_name[bench.integration.all$label == "celltype.l2"] <- "Fine annotation" 
+bench.integration.all$label_name <- factor(bench.integration.all$label_name,
+                                           levels = c("Main annotation" ,"Fine annotation" ))
+
+all.bench <- ggplot(bench.integration.all,aes(x= CiLISI,y=celltype_ASW,shape = Batch,color = Workflow)) + geom_point(size = 2.5,) + theme_bw()+ scale_color_manual(values = colorblind_pal()(8)[c(6,7,4,5)]) + facet_grid(c("modality","label_name"),scales = "free",axis.labels = "margins") + 
+  ylab("Cell type ASW (bio-conservation)") +
+  xlab("CiLISI (batch mixing)")
+
+all.bench
+```
+
+
+```{r fig.height=2.5,fig.width=3.75}
+
+pbmc.combined.sc <- readRDS("../../output/pbmcCiteSeqAtlas//singlecells_SCT_seuratRPCA_SCT/seuratCombinedWNN.rds")
+
+bench.scalability.sc <- read.table("../../benchmark/pbmcCiteSeqAtlas_single_cells/bench.txt",header = T)
+bench.scalability.sc$workflow <- "Single-cells"
+bench.scalability.sc$object_size <-  as.numeric(object.size(pbmc.combined.sc))/(1024^3) #GB
+bench.scalability.sc$n_cells <- as.numeric(ncol(pbmc.combined.sc))
+
+
+bench.scalability.sup.mc <- read.table("../../benchmark/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/bench.txt",header = T)
+bench.scalability.sup.mc$object_size <-  as.numeric(object.size(pbmc.combined.mc))/(1024^3) #GB
+bench.scalability.sup.mc$n_cells <- as.numeric(ncol(pbmc.combined.mc))
+
+bench.scalability.sup.mc$workflow <- "Sup. metacells"
+
+
+
+bench.scalability.unsup.mc <- read.table("../../benchmark/pbmcCiteSeqAtlas/100percent_semisupMetacells_SCT_supStacas_lognorm/g20/bench.txt",header = T)
+bench.scalability.unsup.mc$object_size <-  as.numeric(object.size(pbmc.combined.unsup.mc))/(1024^3) #GB
+bench.scalability.unsup.mc$n_cells <- as.numeric(ncol(pbmc.combined.unsup.mc))
+
+bench.scalability.unsup.mc$workflow <- "Unsup. metacells"
+
+
+
+bench.scalability <- rbind(bench.scalability.sc,
+                           bench.scalability.sup.mc,
+                           bench.scalability.unsup.mc)
+
+bench.scalability$workflow <- factor(bench.scalability$workflow, levels = c("Single-cells","Sup. metacells","Unsup. metacells"))
+
+col.mc.workflow <-  c( "#F0E442", col.workflow)
+names(col.mc.workflow) <-  c("Single-cells","Sup. metacells","Unsup. metacells")
+
+cpu.time <- ggplot(bench.scalability,aes(x= workflow,y=cpu_time/60,fill = workflow)) + geom_bar(stat = "identity",color= "black")  +  theme_bw()+ 
+  ylab("CPU time (min)") + theme(axis.title.x = element_blank())  + scale_x_discrete(guide = guide_axis(angle = 45)) + 
+  scale_fill_manual(values = col.mc.workflow)
+
+run.time <- ggplot(bench.scalability,aes(x= workflow,y=s/60,fill = workflow)) + geom_bar(stat = "identity",color= "black") + theme_bw() +
+  ylab("Running time (min)") + theme(axis.title.x = element_blank())  + scale_x_discrete(guide = guide_axis(angle = 45)) + 
+  scale_fill_manual(values = col.mc.workflow)
+
+
+
+memory <- ggplot(bench.scalability,aes(x= workflow,y=max_rss/1024,fill = workflow)) + 
+  geom_bar(stat = "identity",color= "black") + 
+  theme_bw()+ 
+  ylab("Memory (Gb)") + theme(axis.title.x = element_blank())   + scale_x_discrete(guide = guide_axis(angle = 45)) + 
+  scale_fill_manual(values = col.mc.workflow)
+
+object_size <- ggplot(bench.scalability,aes(x= workflow,y=object_size,fill = workflow)) + geom_bar(stat = "identity",color= "black") + 
+  theme_bw()+ 
+  ylab("Seurat object size (Gb)") + theme(axis.title.x = element_blank())  + scale_x_discrete(guide = guide_axis(angle = 45)) + 
+  scale_fill_manual(values = col.mc.workflow)
+
+n_cells <- ggplot(bench.scalability,aes(x= workflow,y=n_cells,fill = workflow)) + 
+  geom_bar(stat = "identity",color= "black") + 
+  theme_bw()+ 
+  ylab("N. cells") + theme(axis.title.x = element_blank())  + scale_x_discrete(guide = guide_axis(angle = 45)) + 
+  scale_fill_manual(values = col.mc.workflow)
+
+main.scalability <- wrap_plots(cpu.time + NoLegend()  , 
+                               memory + theme(legend.position = "bottom",legend.title = element_blank()) + NoLegend(),
+                               object_size  + NoLegend(),
+                               ncol = 3,byrow = F)
+
+main.scalability
+
+pdf("Fig4F.pdf",height = 2.5,width = 3.75)
+main.scalability
+dev.off()
+```
+
+
+```{r}
+semi.sup.tests <- c("100percent_semisupMetacells_SCT_supStacas_lognorm", 
+                    "20percent_semisupMetacells_SCT_supStacas_lognorm", 
+                    "50percent_semisupMetacells_SCT_supStacas_lognorm", 
+                    "5percent_semisupMetacells_SCT_supStacas_lognorm")
+
+unsup.metacells.unsup.stacas$pct.known = 0
+sup.metacells.sup.stacas$pct.known = 100
+
+
+semi.sup.80  <- readRDS("../../output/pbmcCiteSeqAtlas/20percent_semisupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds" )
+semi.sup.80$pct.known = 80
+semi.sup.80$Batch = "Corrected"
+
+semi.sup.95  <- readRDS("../../output/pbmcCiteSeqAtlas/5percent_semisupMetacells_SCT_supStacas_lognorm//g20/bench_res.rds" )
+semi.sup.95$pct.known = 95
+semi.sup.95$Batch = "Corrected"
+
+
+semi.sup.50  <- readRDS("../../output/pbmcCiteSeqAtlas//50percent_semisupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds" )
+semi.sup.50$pct.known = 50
+semi.sup.50$Batch = "Corrected"
+
+bench.integration.semi.sup <- rbind(unsup.metacells.unsup.stacas[,colnames(semi.sup.50)],
+                                    semi.sup.50,
+                                    semi.sup.80,
+                                    semi.sup.95,
+                                    sup.metacells.sup.stacas[,colnames(semi.sup.50)])
+
+
+bench.integration.semi.sup$Batch[grepl(x = bench.integration.semi.sup$method, 
+                                       pattern = "unintegrated")] <- "Uncorrected"
+bench.integration.semi.sup$modality <- factor(bench.integration.semi.sup$modality,
+                                              levels = c("RNA" ,"Protein" ))
+
+
+bench.integration.semi.sup$label_name <- "Main annotation" 
+bench.integration.semi.sup$label_name[bench.integration.semi.sup$label == "celltype.l2"] <- "Fine annotation" 
+bench.integration.semi.sup$label_name <- factor(bench.integration.semi.sup$label_name,
+                                                levels = c("Main annotation" ,"Fine annotation" ))
+
+semi.sup.bench.CiLISI <- ggplot(bench.integration.semi.sup,
+                                aes(x= as.factor(pct.known),
+                                    y=CiLISI,
+                                    group = Batch,
+                                    shape = Batch,
+                                    color = Batch)) + 
+  geom_point(size = 2.5)+ 
+  geom_line()  + theme_bw()+ scale_color_manual(values = colorblind_pal()(8)[c(6,3)]) + facet_grid(c("modality","label_name"),scales = "free",axis.labels = "margins") + 
+  xlab("% Annotated cells (main annotation)") +
+  ylab("CiLISI (batch mixing)") +
+  scale_x_discrete(limits=rev)
+
+semi.sup.bench.ASW <- ggplot(bench.integration.semi.sup,
+                             aes(x= as.factor(pct.known),
+                                 y=celltype_ASW,
+                                 group = Batch,
+                                 shape = Batch,
+                                 color = Batch)) + geom_point(size = 2.5) + geom_line() + theme_bw()+ scale_color_manual(values = colorblind_pal()(8)[c(6,3)]) + facet_grid(c("modality","label_name"),scales = "free",axis.labels = "margins") + 
+  ylab("Cell type ASW (bio-conservation)") +
+  xlab("% Annotated cells (main annotation)")+
+  scale_x_discrete(limits=rev)
+
+
+semi.sup.bench.ASW
+semi.sup.bench.CiLISI
+# we keep only once unintegrated results
+# sup.metacells.sup.stacas <- sup.metacells.sup.stacas[!grepl(x = sup.metacells.sup.stacas$method,
+#                                                             pattern = "unintegrated"),] 
+```
+```{r fig.height=4,fig.width=9}
+wrap_plots(semi.sup.bench.ASW+ NoLegend(),semi.sup.bench.CiLISI + theme(legend.position = "bottom"),nrow=1)
+
+pdf("FigS6E_bench_semi_s_p_cite.pdf",height=4,width=9)
+wrap_plots(semi.sup.bench.ASW+ NoLegend(),semi.sup.bench.CiLISI + theme(legend.position = "bottom"),nrow=1)
+dev.off()
+```
+
+```{r}
+
+pbmc.combined.mc$pct.known = 100
+pbmc.combined.unsup.mc$pct.known = 0
+
+
+semi.sup.80.mc  <- readRDS("../../output/pbmcCiteSeqAtlas/20percent_semisupMetacells_SCT_supStacas_lognorm/g20/seuratCombinedWNN.rds" )
+semi.sup.80.mc$pct.known = 80
+
+semi.sup.95.mc  <- readRDS("../../output/pbmcCiteSeqAtlas/5percent_semisupMetacells_SCT_supStacas_lognorm/g20/seuratCombinedWNN.rds" )
+semi.sup.95.mc$pct.known = 95
+
+
+semi.sup.50.mc  <- readRDS("../../output/pbmcCiteSeqAtlas//50percent_semisupMetacells_SCT_supStacas_lognorm/g20/seuratCombinedWNN.rds" )
+semi.sup.50.mc$pct.known = 50
+
+meta.data.all <- rbind(pbmc.combined.unsup.mc@meta.data[,c("pct.known","size","celltype.l1.5_purity","celltype.l2_purity")],
+                       semi.sup.50.mc@meta.data[,c("pct.known","size","celltype.l1.5_purity","celltype.l2_purity")],
+                       semi.sup.80.mc@meta.data[,c("pct.known","size","celltype.l1.5_purity","celltype.l2_purity")],
+                       semi.sup.95.mc@meta.data[,c("pct.known","size","celltype.l1.5_purity","celltype.l2_purity")],
+                       pbmc.combined.mc@meta.data[,c("pct.known","size","celltype.l1.5_purity","celltype.l2_purity")])
+
+
+pl2 <- ggplot(meta.data.all,
+              aes(x= as.factor(pct.known),y=celltype.l2_purity
+              )) + geom_boxplot(fill = colorblind_pal()(8)[6],alpha = 0.5) +xlab("% Annotated cells (fine annotation)") + ylab("Fine annotation purity")  +
+  scale_x_discrete(limits=rev)
+pl1.5 <- ggplot(meta.data.all,aes(x= as.factor(pct.known),y=celltype.l1.5_purity)) + 
+  geom_boxplot(fill  = colorblind_pal()(8)[6],alpha = 0.5) +xlab("% Annotated cells (main annotation)") + ylab("Fine annotation purity")  +
+  scale_x_discrete(limits=rev)
+
+pSize <- ggplot(meta.data.all,aes(x= as.factor(pct.known),y=size)) + geom_boxplot(fill = colorblind_pal()(8)[6],alpha = 0.5) +xlab("% Annotated cells (main annotation)") + ylab("Metacell size") +
+  scale_x_discrete(limits=rev)  
+
+
+purity.pct.plot <- wrap_plots(pl1.5, pl2,pSize,guide_area(),guides = "collect", ncol = 1) & theme_bw()
+
+
+
+```
+
+```{r fig.height=7,fig.width=3.5}
+
+purity.pct.plot
+
+pdf("FigS6D.pdf",height=7,width=3.5)
+purity.pct.plot
+dev.off()
+```
+
+
+

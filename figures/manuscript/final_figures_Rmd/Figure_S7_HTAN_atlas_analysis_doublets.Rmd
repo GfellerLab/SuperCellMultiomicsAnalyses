@@ -1,0 +1,1180 @@
+---
+title: "Fig_S7_doublet_analysis"
+output: html_document
+date: "2025-05-05"
+---
+
+```{r fig.height=14,fig.width=7, include=FALSE}
+library(Seurat)
+library(harmony)
+library(Signac)
+library(SuperCellMultiomics)
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+
+
+RenameLabels <- function(sobj) {
+  sobj$scATOMIC_labels <- sobj$label_integration
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "CD4")] <-"CD4" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "CD8")] <-"CD8" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "killer")] <-"NK" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "Fibro")] <-"Fibroblasts" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "Endo")] <-"Endothelial" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "Dendri")] <-"DC" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "Plasma")] <-"Plasma" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "B")] <-"B" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "Macro")] <-"Mono/Macro" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "Mast")] <-"Mast" 
+  
+  sobj$scATOMIC_labels[is.na(sobj$scATOMIC_labels)] <- "Unknown"
+  sobj$scATOMIC_labels <- factor(sobj$scATOMIC_labels, levels = c("Fibroblasts","Endothelial","Mono/Macro","DC",
+                                                                  "B","Plasma","CD4","CD8","NK","Mast","Unknown"))
+  
+  
+  
+  sobj$HTAN <- as.vector(sobj$cell_type)
+  sobj$HTAN[sobj$HTAN == "Macrophages"] <- "Macro"
+  sobj$HTAN[sobj$HTAN == "B-cells"] <- "B"
+  sobj$HTAN[sobj$HTAN == "T-cells"] <- "T"
+  
+  sobj$HTAN <- factor(sobj$HTAN,  levels = c("Fibroblasts","vSMCs","Pericytes","Endothelial","Macro","DC",
+                                             "B","Plasma","T","NK","Mast"))
+  
+  sobj$cohort <- factor(sobj$cohort,  levels = c("HNSCC","BRCA","SKCM","PDAC","CRC","OV",
+                                                 "CESC","UCEC"))
+  return(sobj)
+}
+
+
+scAtomic.colors <-  c('#E69F00',"darkgrey",'#E4C755','#0072B2','#D55E00',"#984EA3",'#C1E6F3', "#2CA02C",'#CC79A7','black',  '#712820')
+names(scAtomic.colors) <- c("Endothelial","Fibroblasts","DC","Mono/Macro","Plasma","B","CD4","CD8","NK",'Mast','Unknown')
+
+htan.colors <-  c('#E69F00',"darkgrey",'#E4C755','#0072B2','#D55E00',"#984EA3", '#57C3F3','black', "#2CA02C", '#712820')
+names(htan.colors) <- c("Endothelial","Fibroblasts","DC","Macro","Plasma","B","T",'Mast',"Pericytes","vSMCs")
+
+major_cell_type_color <- final_palette <-  c('#E69F00',"darkgrey",'#009E73','#E4C755','#0072B2','#D55E00',"#984EA3",'#56B4E9','#CC79A7','#000000')
+names(major_cell_type_color) <- c("Endothelial","Fibroblast","Mural","DC","Mono/Macro","Plasma","B","T","NK","Mast")
+
+my.colors <- c('#E5D2DD', '#53A85F', '#F1BB72', '#F3B1A0', '#D6E7A3', '#57C3F3', '#476D87',
+               '#E95C59', '#E59CC4', '#AB3282', '#BD956A', '#8C549C', '#9FA3A8', '#E0D4CA',
+               '#CCE0F5', '#58A4C3', '#b20000', '#E4C755', '#F7F398', '#AA9A59', '#E63863',
+               '#E39A35', '#C1E6F3', '#6778AE', '#91D0BE', '#B53E2B', '#712820', '#DCC1DD',
+               '#3A6963', '#D1A33D', '#CCC9E6', '#625D9E', '#68A180', '#5F3D69', '#968175',
+               '#D35FB7', '#0072B2', '#00BFC4', '#FF6F00', '#7B3294', '#00A676')
+
+
+
+# names(color.clusters) <- levels(atlas.mc$clusters)
+# clusters.to.subtypes <- unique(atlas.mc@meta.data[,c("clusters","fine_cell_type")])
+# 
+# color.fine_cell_type  <-  my37colors[c(1:34)] 
+# names(color.fine_cell_type) <- plyr::mapvalues(x= names(color.clusters) ,
+#                                                from = as.vector(clusters.to.subtypes$clusters),
+#                                                to = as.vector(clusters.to.subtypes$fine_cell_type))
+
+# "#E5D2DD" "#AB3282" "#9FA3A8" "#b20000" "#625D9E" "#5F3D69" "#968175"
+```
+
+
+
+
+
+```{r}
+library(Cairo)
+options(bitmapType = "cairo")
+```
+
+
+## Cluster annotation
+```{r fig.height=6,fig.width=8}
+
+atlas.mc <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/g10_final/full_atlas_metacells_activities.rds")
+atlas.mc <- RenameLabels(atlas.mc)
+# atlas.mc[["RNA"]] <- JoinLayers(atlas.mc[["RNA"]] )
+
+DefaultAssay(atlas.mc) <- "RNA"
+
+DimPlot(atlas.mc,reduction = "wnn.umap",group.by = "scATOMIC_labels",label = T,repel = T,cols = scAtomic.colors) + ggtitle("scATOMIC")
+
+```
+
+
+```{r fig.height=11,fig.width=18}
+# annotations <- read.csv("atlas.mc.annotations.csv",row.names = 1)
+annotations <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/g10_final/atlas.mc.annotations.rds")
+
+atlas.mc <- AddMetaData(atlas.mc,metadata = annotations[,c('major_cell_type',"fine_cell_type","clusters")])
+
+# atlas.mc$clusters <- factor(atlas.mc$clusters,
+#                             levels  =c("0","1","2_0","2_1","2_2","3","4","5",
+#                                        "6","7_0","7_1","7_2","8","9","10",
+#                                        "11_0","11_1","12_0","12_1","13","14_0","14_1",
+#                                        "15","16",
+#                                        "17","18","19","20",
+#                                        "21_0","21_1","22","23","24",
+#                                        "25","26","27"))
+# 
+# atlas.mc$fine_cell_type <- factor(atlas.mc$fine_cell_type,
+#                                   levels = c("Endothelial_PKD1L1","Endothelial_DKK2","Lymph_endo",
+#                                              "Fibroblast_COL11A1","Fibroblast_C7","Fibroblast_VIT","Mural",
+#                                              "Macro_GPNMB","Macro_SPP1","Macro_SELENOP",
+#                                              "Macro_CXCL10","Macro_C3",
+#                                              "Mono_VCAN","Mono/Macro_prolif",
+#                                              "MonoDC","cDC1","cDC2","DC_RORC","DC3","pDC",
+#                                              "Plasma",
+#                                              "B","B_prolif",
+#                                              "CD4_naive_like_1","CD4_naive_like_2","CD4_Tfh","CD4_Treg","CD8_naive_like",
+#                                              "CD8_EM","CD8_Exh","T_prolif",
+#                                              "ILC3_like","NK",
+#                                              "Mast",
+#                                              "Plasma/Macro_doublet","Fibro/Endo_doublet"))
+
+atlas.mc$major_cell_type <- factor(atlas.mc$major_cell_type,
+                                   levels = c("Endothelial","Fibroblast","Mural","DC","Mono/Macro","Plasma","B","T","NK","Mast","Doublet"))
+# atlas.mc$clusters[atlas.mc$clusters=="6" & atlas.mc$fine_cell_type == "CD8_EM"] <- "6_0"
+# atlas.mc$clusters[atlas.mc$clusters=="6" & atlas.mc$fine_cell_type == "CD8_naive_like"] <- "6_1"
+# # Some renaming
+# table(atlas.mc$fine_cell_type,atlas.mc$clusters)[,c("14","6")]
+# atlas.mc$clusters[atlas.mc$clusters=="6" & atlas.mc$fine_cell_type == "CD8_EM"] <- "6_0"
+# atlas.mc$clusters[atlas.mc$clusters=="6" & atlas.mc$fine_cell_type == "T_naive_like_2"] <- "6_1"
+# 
+# atlas.mc$clusters[atlas.mc$clusters=="14" & atlas.mc$fine_cell_type == "MonoDC"] <- "14_0"
+# atlas.mc$clusters[atlas.mc$clusters=="14" & atlas.mc$fine_cell_type == "cDC2"] <- "14_1"
+# 
+# 
+# atlas.mc$fine_cell_type[atlas.mc$fine_cell_type=="Myelo_plasma"] <- "Plasmablasts"
+# atlas.mc$fine_cell_type[atlas.mc$fine_cell_type=="Macro_unknown"] <- "Macro_C3"
+# 
+# atlas.mc$fine_cell_type[atlas.mc$fine_cell_type=="T_naive_like_1"] <- "CD4_naive_like"
+# atlas.mc$fine_cell_type[atlas.mc$fine_cell_type=="T_naive_like_2"] <- "CD8_naive_like"
+
+
+
+
+```
+
+
+
+```{r }
+
+
+color.clusters <- my.colors
+names(color.clusters) <- levels(atlas.mc$clusters)
+
+
+swp.color <- color.clusters["5"]  
+color.clusters["5"] <- color.clusters["13"] 
+color.clusters["13"] <- swp.color
+
+swp.color <- color.clusters["8_2"]
+color.clusters["8_2"] <- color.clusters["4_0"]
+color.clusters["4_0"] <- swp.color
+
+swp.color <- color.clusters["2"]
+color.clusters["2"] <- color.clusters["6_1_1"]
+color.clusters["6_1_1"] <- swp.color
+
+
+swp.color <- color.clusters["0"]
+color.clusters["0"] <- color.clusters["11"]
+color.clusters["11"] <- swp.color
+
+swp.color <- color.clusters["11"]
+color.clusters["11"] <- color.clusters["6_1_1"]
+color.clusters["6_1_1"] <- swp.color
+
+swp.color <- color.clusters["12"]
+color.clusters["12"] <- color.clusters["6_1_1"]
+color.clusters["6_1_1"] <- swp.color
+
+
+swp.color <- color.clusters["8_1"]
+color.clusters["8_1"] <- color.clusters["14_1"]
+color.clusters["14_1"] <- swp.color
+
+swp.color <- color.clusters["7_2"]
+color.clusters["7_2"] <- color.clusters["7_0_0"]
+color.clusters["7_0_0"] <- swp.color
+
+swp.color <- color.clusters["20"]
+color.clusters["20"] <- color.clusters["23"]
+color.clusters["23"] <- swp.color
+
+swp.color <- color.clusters["19"]
+color.clusters["19"] <- color.clusters["23"]
+color.clusters["23"] <- swp.color
+
+swp.color <- color.clusters["19"]
+color.clusters["19"] <- color.clusters["22"]
+color.clusters["22"] <- swp.color
+
+swp.color <- color.clusters["12"]
+color.clusters["12"] <- color.clusters["16_2"]
+color.clusters["16_2"] <- swp.color
+
+
+swp.color <- color.clusters["3_3"]
+color.clusters["3_3"] <- color.clusters["8_1"]
+color.clusters["8_1"] <- swp.color
+
+# color.clusters["8"] <- '#D55E00'
+# color.clusters["3"] <- "darkgrey"
+# color.clusters["11_1"] <- '#E4C755'
+# color.clusters["7_0"] <- '#E69F00'
+# color.clusters["23"] <- 'black'
+# color.clusters["19"] <-  "#2CA02C"
+# color.clusters["12_0"] <-  "#984EA3"
+# color.clusters["17"] <-  '#CC79A7'
+# color.clusters["6"] <-  '#C1E6F3'
+# color.clusters["0"] <-  '#0072B2'
+# swp.color <- color.clusters["12_1"]
+# color.clusters["12_1"] <-  color.clusters["10"]
+# color.clusters["10"] <- swp.color 
+# 
+# swp.color <- color.clusters["22"]
+# color.clusters["22"] <-  color.clusters["14_1"]
+# color.clusters["14_1"] <- swp.color 
+# 
+# swp.color <- color.clusters["2_1"]
+# color.clusters["2_1"] <-  color.clusters["27"]
+# color.clusters["27"] <- swp.color 
+# 
+# swp.color <- color.clusters["21_1"]
+# color.clusters["21_1"] <-  color.clusters["7_2"]
+# color.clusters["7_2"] <- swp.color 
+# 
+# 
+# swp.color <- color.clusters["4"]
+# color.clusters["4"] <-  color.clusters["7_2"]
+# color.clusters["7_2"] <- swp.color 
+# 
+# swp.color <- color.clusters["22"]
+# color.clusters["22"] <-  color.clusters["5"]
+# color.clusters["5"] <- swp.color 
+# 
+# color.clusters["2_1"] <- '#91D0BE'
+# color.clusters["26"] <- '#57C3F3'
+# color.clusters["25"] <- "#712820"
+# color.clusters["7_1"] <- '#D35FB7'
+# color.clusters["12_1"] <- "#BD956A"
+# color.clusters["5"] <-"#E59CC4"
+# color.clusters["15"] <-"#53A85F"
+# color.clusters["1"] <- "#E0D4CA" 
+# color.clusters["9"] <- "#625D9E"
+
+
+clusters.to.subtypes <- unique(atlas.mc@meta.data[,c("clusters","fine_cell_type")])
+
+color.fine_cell_type  <-  color.clusters
+names(color.fine_cell_type) <- plyr::mapvalues(x= names(color.clusters) ,
+                                               from = as.vector(clusters.to.subtypes$clusters),
+                                               to = as.vector(clusters.to.subtypes$fine_cell_type))
+
+# color.fine_cell_type <- plyr::mapvalues(from =, to 
+
+
+atlas.mc$scATOMIC_labels <- factor(atlas.mc$scATOMIC_labels, levels = c("Fibroblasts","Endothelial","Mono/Macro","DC",
+                                                                        "B","Plasma","CD4","CD8","NK","Mast","Unknown"))
+atlas.mc$HTAN <- factor(atlas.mc$HTAN,  levels = c("Fibroblasts","vSMCs","Pericytes","Endothelial","Macro","DC",
+                                                   "B","Plasma","T","NK","Mast"))
+
+p.clusters <- DimPlot(atlas.mc,reduction = "wnn.umap",group.by = "clusters",label = T,repel = T,cols = color.clusters)
+
+p.fine_cell_type <- DimPlot(atlas.mc,reduction = "wnn.umap",group.by = "fine_cell_type",label = T,repel = T,cols = color.fine_cell_type)
+
+p.HTAN <- DimPlot(atlas.mc,reduction = "wnn.umap",group.by = "HTAN",label = T,repel = T,cols = htan.colors) + ggtitle("HTAN")
+
+p.scATOMIC <- DimPlot(atlas.mc,reduction = "wnn.umap",group.by = "scATOMIC_labels",label = T,repel = T,cols = scAtomic.colors) + ggtitle("scATOMIC")
+
+p.size <- FeaturePlot(atlas.mc,reduction = "wnn.umap",features = "size") + 
+  scale_color_distiller(palette = "OrRd",direction = 1,
+                        trans = "log10"
+  ) + labs(color = "Size")
+
+p.fine_cell_type <- DimPlot(atlas.mc,reduction = "wnn.umap",group.by = "fine_cell_type",label = T,repel = T,cols = color.fine_cell_type)
+
+p.clusters
+
+
+```
+
+```{r}
+p.fine_cell_type + NoLegend()
+```
+
+
+```{r fig.height=5,fig.width=10}
+sc.anno <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells/annotation.all.rds") #single_cell annotations saved at the beginning of metacell benchmark integration
+
+# sc.anno <- readRDS("../../../HTAN_atlas/workflow_level4_results/core_atlas/single_cells/annotation.all.rds")
+sc.anno$HTAN <- as.vector(sc.anno$cell_type)
+sc.anno$HTAN[sc.anno$HTAN == "Macrophages"] <- "Macro"
+sc.anno$HTAN[sc.anno$HTAN == "B-cells"] <- "B"
+sc.anno$HTAN[sc.anno$HTAN == "T-cells"] <- "T"
+
+
+sc.anno$scATOMIC_labels <- sc.anno$label_scATOMIC
+sc.anno$scATOMIC_labels[grepl(sc.anno$scATOMIC_labels,pattern =  "CD4")] <-"CD4" 
+sc.anno$scATOMIC_labels[grepl(sc.anno$scATOMIC_labels,pattern =  "CD8")] <-"CD8" 
+sc.anno$scATOMIC_labels[grepl(sc.anno$scATOMIC_labels,pattern =  "killer")] <-"NK" 
+sc.anno$scATOMIC_labels[grepl(sc.anno$scATOMIC_labels,pattern =  "Fibro")] <-"Fibroblasts" 
+sc.anno$scATOMIC_labels[grepl(sc.anno$scATOMIC_labels,pattern =  "Endo")] <-"Endothelial" 
+sc.anno$scATOMIC_labels[grepl(sc.anno$scATOMIC_labels,pattern =  "Dendri")] <-"DC" 
+sc.anno$scATOMIC_labels[grepl(sc.anno$scATOMIC_labels,pattern =  "Plasma")] <-"Plasma" 
+sc.anno$scATOMIC_labels[grepl(sc.anno$scATOMIC_labels,pattern =  "B")] <-"B" 
+sc.anno$scATOMIC_labels[grepl(sc.anno$scATOMIC_labels,pattern =  "Macro")] <-"Mono/Macro" 
+sc.anno$scATOMIC_labels[grepl(sc.anno$scATOMIC_labels,pattern =  "Mast")] <-"Mast" 
+
+sc.anno$scATOMIC_labels[grepl(sc.anno$scATOMIC_labels,pattern =  "unknown")] <- "Unknown"
+
+names(atlas.mc@misc$membership) <- stringr::str_split_fixed(names(atlas.mc@misc$membership) ,pattern = "\\.",n=2)[,2]
+sc.anno$metacell <- atlas.mc@misc$membership[rownames(sc.anno)]
+
+sc.anno$fine_cell_type <- plyr::mapvalues(x=sc.anno$metacell,
+                                          from =Cells(atlas.mc),
+                                          to = as.vector(atlas.mc@meta.data$fine_cell_type))
+sc.anno$metacell_cluster <- plyr::mapvalues(x=sc.anno$metacell,
+                                            from =Cells(atlas.mc),
+                                            to = as.vector(atlas.mc@meta.data$clusters))
+
+sc.anno$major_cell_type <- plyr::mapvalues(x=sc.anno$metacell,
+                                           from =Cells(atlas.mc),
+                                           to = as.vector(atlas.mc@meta.data$major_cell_type))
+
+head(sc.anno$fine_cell_type)
+
+
+# mycolors <- c('#E5D2DD', '#53A85F', '#F1BB72', '#57C3F3', '#F3B1A0', '#D6E7A3', '#476D87',
+#               '#E95C59', '#E59CC4', '#AB3282', '#BD956A', '#8C549C',
+#               '#9FA3A8', '#5Z8A4C3', "#b20000",'#E4C755', '#F7F398',
+#               '#AA9A59', '#E63863', '#E39A35', '#C1E6F3', '#6778AE', '#91D0BE', '#B53E2B',
+#               '#712820', '#DCC1DD', '#CCE0F5', '#CCC9E6', '#625D9E', '#68A180',
+#               '#968175')
+# 
+# myColors.scATO <- c('#E5D2DD', '#53A85F', '#F1BB72', '#57C3F3', '#F3B1A0', '#D6E7A3', '#476D87',
+#                     '#E95C59', '#E59CC4',"grey")
+# 
+# myColors.majorType <- c('#E5D2DD', '#53A85F','#CCE0F5', '#F1BB72', '#57C3F3', '#F3B1A0', '#D6E7A3', '#476D87','#E95C59', '#E59CC4'   ,
+#                         '#68A180', '#8C549C')
+# names(myColors.majorType) <- c("B","Fibroblast","Mural","CD4","CD8","DC","Endothelial","Mono/Macro","ILC","Plasma","Mast","T_prolif")
+
+library(dplyr)
+```
+
+Plot metadata atlas
+
+
+
+
+```{r}
+library(stringr)
+head(atlas.mc@meta.data)
+biospecimen <- read.table("/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/HTAN_atlas/workflow_level4_data/data/table_data_biospecimen.tsv",sep = '\t',header = T)
+participants <- read.table("/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/HTAN_atlas/workflow_level4_data/data/table_data_participants.tsv",sep = '\t',header = T)
+metadata <- read.table("/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/HTAN_atlas/workflow_level4_data/data/HTAN_metadata.tsv",sep = '\t',header = T)
+rna.files <- read.csv("/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/HTAN_atlas/workflow_level4_data/data/table_rna_files.tsv",sep = '\t',header = T)
+rna.files <- rna.files[rna.files$File.Format == "RData",]
+rna.files
+rna.files$Piece_ID <- str_split_fixed(rna.files$Filename,pattern = "/",n=2)[,2]
+rna.files$Piece_ID <- str_split_fixed(rna.files$Piece_ID,pattern = "\\.",n=2)[,1]
+rownames(rna.files) <- rna.files$Piece_ID 
+rna.files <- rna.files[unique(atlas.mc$Piece_ID),]
+length(unique(rna.files$Biospecimen))
+biospecimen <- biospecimen[biospecimen$HTAN.Biospecimen.ID %in% unique(rna.files$Biospecimen),]
+atlas.mc$HTAN_biospecimen  <- plyr::mapvalues(x = atlas.mc$Piece_ID,from = rna.files$Piece_ID,to = rna.files$Biospecimen)
+atlas.mc$Tumor_tissue_type  <- plyr::mapvalues(x = atlas.mc$HTAN_biospecimen,
+                                               from = biospecimen$HTAN.Biospecimen.ID,to = biospecimen$Tumor.Tissue.Type)
+
+atlas.mc$Preservation_method  <- plyr::mapvalues(x = atlas.mc$HTAN_biospecimen,
+                                                 from = biospecimen$HTAN.Biospecimen.ID,to = biospecimen$Preservation.Method)
+
+atlas.mc$Acquisition_method  <- plyr::mapvalues(x = atlas.mc$HTAN_biospecimen,
+                                                from = biospecimen$HTAN.Biospecimen.ID,to = biospecimen$Acquisition.Method.Type)
+
+atlas.mc$Timepoint  <- plyr::mapvalues(x = atlas.mc$HTAN_biospecimen,
+                                       from = biospecimen$HTAN.Biospecimen.ID,to = biospecimen$Timepoint.Label)
+
+atlas.mc$Storage_method  <- plyr::mapvalues(x = atlas.mc$HTAN_biospecimen,
+                                            from = biospecimen$HTAN.Biospecimen.ID,to = biospecimen$Storage.Method)
+
+atlas.mc$Histologic_morphology_code  <- plyr::mapvalues(x = atlas.mc$HTAN_biospecimen,
+                                                        from = biospecimen$HTAN.Biospecimen.ID,to = biospecimen$Histologic.Morphology.Code)
+
+
+
+
+atlas.mc$Participant_ID  <- plyr::mapvalues(x = atlas.mc$HTAN_biospecimen,
+                                            from = biospecimen$HTAN.Biospecimen.ID,to = biospecimen$HTAN.Parent.ID)
+
+atlas.mc$Ethnicity  <- plyr::mapvalues(x = atlas.mc$Participant_ID,
+                                       from = participants$HTAN.Participant.ID,to = participants$Ethnicity)
+
+atlas.mc$Treatment_type  <- plyr::mapvalues(x = atlas.mc$Participant_ID,
+                                            from = participants$HTAN.Participant.ID,to = participants$Treatment.Type)
+
+atlas.mc$Age_at_diagnosis <- plyr::mapvalues(x = atlas.mc$Participant_ID,
+                                             from = participants$HTAN.Participant.ID,to = participants$Age.at.Diagnosis..years.)
+
+atlas.mc$Gender <- plyr::mapvalues(x = atlas.mc$Participant_ID,
+                                   from = participants$HTAN.Participant.ID,to = participants$Gender)
+
+atlas.mc$Race <- as.vector(plyr::mapvalues(x = atlas.mc$Participant_ID,
+                                           from = participants$HTAN.Participant.ID,to = participants$Race))
+
+atlas.mc$Treatment_outcome <- plyr::mapvalues(x = atlas.mc$Participant_ID,
+                                              from = participants$HTAN.Participant.ID,to = participants$Treatment.Outcome)
+
+
+table(atlas.mc$Race )
+
+table(atlas.mc$Gender )
+table(atlas.mc$Tumor_tissue_type )
+
+table(atlas.mc$Treatment_outcome )
+
+
+table(atlas.mc$Tumor_tissue_type )
+
+unique(biospecimen$HTAN.Parent.ID)
+
+dup.donors <- biospecimen[duplicated(biospecimen$HTAN.Parent.ID),"HTAN.Parent.ID"]
+biospecimen[biospecimen$HTAN.Parent.ID%in% dup.donors,]
+
+head(participants$HTAN.Participant.ID)
+biospecimen
+participants
+biospecimen
+```
+
+```{r}
+atlas.mc$Sex <-  tolower(atlas.mc$Gender)
+unique(atlas.mc$Sex)
+
+biospecimen$Sex <-  plyr::mapvalues(x=biospecimen$HTAN.Biospecimen.ID,
+                                    from = atlas.mc$HTAN_biospecimen,to = atlas.mc$Sex,warn_missing = F)
+
+biospecimen$Piece_ID <-  plyr::mapvalues(x=biospecimen$HTAN.Biospecimen.ID,
+                                         from = atlas.mc$HTAN_biospecimen,to = atlas.mc$Piece_ID,warn_missing = F)
+
+biospecimen$cohort <- plyr::mapvalues(x=biospecimen$HTAN.Biospecimen.ID,
+                                      from = atlas.mc$HTAN_biospecimen,to = atlas.mc$cohort,warn_missing = F)
+
+biospecimen$cohort <- plyr::mapvalues(x=biospecimen$HTAN.Biospecimen.ID,
+                                      from = atlas.mc$HTAN_biospecimen,to = as.vector(atlas.mc$cohort),warn_missing = F)
+
+grouped.meta.data <- biospecimen %>% 
+  group_by(cohort,Tumor.Tissue.Type) %>% 
+  summarise(count = n()) %>% 
+  mutate(perc = count/sum(count))
+
+
+# grouped.meta.data$fine_cell_type <- factor(grouped.meta.data$fine_cell_type, levels = levels(atlas.mc$fine_cell_type))
+atlas.type.bp <- ggplot(grouped.meta.data,aes(x=cohort,y=perc,fill = Tumor.Tissue.Type)) + 
+  geom_bar(stat = "identity",position = "fill")  +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_discrete(guide = guide_axis(angle = 0),limits=rev)+ coord_flip()  + theme(legend.position = "bottom",
+                                                                                    axis.title.y = element_blank(),
+                                                                                    axis.text.y = element_blank(),
+                                                                                    legend.title = element_blank())  + ylab("Sample tissue type (%)")
+
+
+# grouped.meta.data <- biospecimen %>% 
+#   group_by(cohort,Sex) %>% 
+#   summarise(count = n()) %>% 
+#   mutate(perc = count/sum(count))
+
+
+# grouped.meta.data$fine_cell_type <- factor(grouped.meta.data$fine_cell_type, levels = levels(atlas.mc$fine_cell_type))
+# atlas.sex.bp <- ggplot(grouped.meta.data,aes(x=cohort,y=perc,fill = Sex)) + 
+#   geom_bar(stat = "identity",position = "fill")  +
+#   scale_y_continuous(labels = scales::percent) +
+#   scale_x_discrete(guide = guide_axis(angle = 0),limits=rev)+ coord_flip() + theme(legend.position = "bottom",
+#                                                                                    axis.title.y = element_blank(),
+#                                                                                    axis.text.y = element_blank(),
+#                                                                                    legend.title = element_blank()) + ylab("Tissue type (%)")
+
+# atlas.sex.bp
+
+
+grouped.meta.data <- biospecimen %>% 
+  group_by(cohort,Tumor.Tissue.Type) %>% 
+  summarise(count = n()) 
+grouped.meta.data$cohort <- factor(grouped.meta.data$cohort,levels = c("HNSCC","BRCA","SKCM","PDAC","CRC","OV","CESC","UCEC"))
+grouped.meta.data$Tumor.Tissue.Type <- factor(grouped.meta.data$Tumor.Tissue.Type,levels = (c("Normal","Primary","Metastatic")))
+
+n.smp.bp <- ggplot(grouped.meta.data,aes(x=cohort,y=count)) + 
+  geom_bar(stat = "identity")  +
+  scale_x_discrete(guide = guide_axis(angle = 0),limits=rev)+ coord_flip()  + ylab("N. samples") + theme_classic() +theme(axis.title.y = element_blank(),legend.position = "right",legend.title = element_blank()) 
+# +scale_fill_manual(values = hcl.colors(6,palette = "lightgrays")[c(1,4,6)])
+
+
+
+
+
+```
+
+```{r fig.height=2,fig.width=2}
+n.smp.bp
+
+# pdf("../pdf_files/Fig4F.pdf",height = 2,width  = 2)
+# n.smp.bp
+# dev.off()
+```
+
+
+```{r}
+grouped.meta.data <- sc.anno %>% 
+  group_by(metacell_cluster, scATOMIC_labels) %>% 
+  summarise(count = n()) %>% 
+  mutate(perc = count/sum(count))
+
+
+levels.barplot.cluster <-  unique(atlas.mc@meta.data[,c("clusters","fine_cell_type")])
+rownames(levels.barplot.cluster) <- levels.barplot.cluster$fine_cell_type
+levels.barplot.cluster <- levels.barplot.cluster[levels(atlas.mc$fine_cell_type),]
+
+grouped.meta.data$metacell_cluster <- factor(grouped.meta.data$metacell_cluster, levels = levels.barplot.cluster$clusters)
+aggregated.scATOMIC <-ggplot(grouped.meta.data,aes(x=metacell_cluster,y=perc,fill = scATOMIC_labels)) + 
+  geom_bar(stat = "identity",position = "fill") + scale_fill_manual(values = scAtomic.colors) +
+  scale_y_continuous(labels = scales::percent,name = "Single-cell annotation") +
+  scale_x_discrete(guide = guide_axis(angle = 0),name = "Metacell clusters")
+aggregated.scATOMIC
+```
+```{r}
+grouped.meta.data <- sc.anno %>% 
+  group_by(metacell_cluster, HTAN) %>% 
+  summarise(count = n()) %>% 
+  mutate(perc = count/sum(count))
+
+
+grouped.meta.data$metacell_cluster <- factor(grouped.meta.data$metacell_cluster, levels = levels.barplot.cluster$clusters)
+aggregated.HTAN <- ggplot(grouped.meta.data,aes(x=metacell_cluster,y=perc,fill = HTAN)) + 
+  geom_bar(stat = "identity",position = "fill") + scale_fill_manual(values = htan.colors) +
+  scale_y_continuous(labels = scales::percent,name = "Single-cell annotation") +
+  scale_x_discrete(guide = guide_axis(angle = 0),name = "Metacell clusters")
+
+
+aggregated.HTAN
+```
+```{r}
+p.tissueType <- DimPlot(atlas.mc,reduction = "wnn.umap",group.by = "Tumor_tissue_type",
+                        cols = RColorBrewer::brewer.pal(n = 3, name = "Dark2")) + ggtitle("Tumor tissue type")
+p.tissueType
+```
+
+
+
+
+```{r fig.height=6,fig.width=6.5}
+atlas.mc$major_cell_type <- as.vector(atlas.mc$major_cell_type)
+
+atlas.mc$major_cell_type[grepl(x= atlas.mc$fine_cell_type, pattern  = "doublet")] <- as.vector(atlas.mc$fine_cell_type[grepl(x= atlas.mc$fine_cell_type, pattern = "doublet")])
+unique(atlas.mc$major_cell_type)
+atlas.mc$major_cell_type <- factor(atlas.mc$major_cell_type,levels = c("Endothelial",
+                                                                       "Fibroblast",
+                                                                       "Mural",
+                                                                       "DC",
+                                                                       "Mono/Macro",
+                                                                       "Plasma",
+                                                                       "B",
+                                                                       "T",
+                                                                       "NK",
+                                                                       "Mast",
+                                                                       "Fibro/Endo_doublet",
+                                                                       "Fibro/Plasma_doublet",
+                                                                       "Fibro/T_doublet",
+                                                                       "T/Macro_doublet",
+                                                                       "Plasma/Macro_doublet"))
+
+cat(ggthemes::colorblind_pal()(8),sep = "','")
+# major_cell_type_color <- final_palette <- c('#E69F00',"darkgrey",'#009E73','#E4C755','#0072B2','#D55E00',"#984EA3",'#56B4E9','#CC79A7','#000000' )
+# major_cell_type_color <- final_palette <- c('#E69F00',"darkgrey",'#009E73','#E4C755','#0072B2','#D55E00',"#984EA3",'#56B4E9','#CC79A7','#000000')
+major_cell_type_color_doublet <- c(major_cell_type_color,color.fine_cell_type)
+names(major_cell_type_color_doublet)[1:10] <- levels(atlas.mc$major_cell_type)[1:10] 
+
+
+#   "#F4A582", # Peach
+#   "#4DAF4A", # Green
+#   "#E78AC3", # Rose
+#   "#A6D854", # Lime
+#   "#FF7F00", # Orange
+#     "#377EB8", # Blue
+#       "#A65628", # Brown
+# 
+#   "#66C2A5", # Aqua
+#   "#E41A1C", # Red
+#   
+#   "#984EA3" # Purple
+# )
+major.type.with.doublets <- DimPlot(atlas.mc,group.by = "major_cell_type",reduction = "wnn.umap",cols = major_cell_type_color_doublet) + ggtitle("Major types") + theme(legend.position = "bottom")
+major.type.with.doublets 
+
+
+# major.type.no.doublets <- DimPlot(atlas.mc[,!grepl(x = atlas.mc$major_cell_type,pattern = "doublet")],group.by = "major_cell_type",reduction = "wnn.umap",cols = major_cell_type_color_doublet)
+# major.type.no.doublets
+```
+
+
+```{r fig.height = 6,fig.width = 6.25}
+major.type.with.doublets
+
+# pdf("../pdf_files/figSN3G.pdf",height = 6,width = 6.25)
+# major.type.with.doublets
+# dev.off()
+```
+
+
+
+
+```{r fig.height=9,fig.width=7}
+figS7AC <- patchwork::wrap_plots(p.clusters + ggtitle("Metacell clusters"),
+                                 major.type.with.doublets + theme(legend.position = "right"),
+                                 ncol = 1)
+
+figS7AC
+```
+```{r fig.height=6.75,fig.width=10}
+wrap_plots(aggregated.scATOMIC + theme(axis.text.x = element_blank(),
+                                       axis.title.x = element_blank(),
+                                       axis.text.y = element_text(size = 13),
+                                       axis.title.y = element_text(size = 15)),
+           aggregated.HTAN + theme(axis.text.x = element_text(size = 13),
+                                   axis.title.x = element_text(size = 16),
+                                   axis.text.y = element_text(size = 13),
+                                   axis.title.y = element_text(size = 16))+
+             scale_x_discrete(guide = guide_axis(angle = 60),name = 'Metacell clusters'),nrow = 2)
+```
+Doublet analysis begins
+```{r}
+scatter.data <- FeatureScatter.SuperCell(atlas.mc[,atlas.mc$major_cell_type %in% c("Plasma","Mono/Macro","Plasma/Macro_doublet")],feature1 = "MZB1",feature2 = "MSR1",group.by = "major_cell_type")$data
+
+scatter.data$doublet <- F
+scatter.data$doublet[scatter.data$colors == "Plasma/Macro_doublet"] <- T
+
+
+scatter.genes.plasma.macro.mc <-  ggplot(scatter.data,aes(x=MZB1,y=MSR1,color = colors, size = size, alpha = doublet)) +  geom_point() + theme_classic() + scale_color_manual(values = major_cell_type_color_doublet)
+scatter.genes.plasma.macro.mc
+
+```
+```{r}
+scatter.data <- FeatureScatter.SuperCell(atlas.mc[,atlas.mc$major_cell_type %in% c("Fibroblast","Endothelial","Fibro/Endo_doublet")],feature1 = "VWF",feature2 = "PDGFRA",group.by = "major_cell_type")$data
+
+scatter.data$doublet <- F
+scatter.data$doublet[scatter.data$colors == "Fibro/Endo_doublet"] <- T
+
+
+scatter.genes.Endo.fibro.mc <-  ggplot(scatter.data,aes(x=VWF,y=PDGFRA,color = colors, size = size, alpha = doublet)) +  geom_point() + theme_classic() + scale_color_manual(values = major_cell_type_color_doublet)
+scatter.genes.Endo.fibro.mc
+```
+
+
+```{r}
+scatter.data <- FeatureScatter.SuperCell(atlas.mc[,atlas.mc$major_cell_type %in% c("Fibroblast","T","Fibro/T_doublet")],feature1 = "PDGFRA",feature2 = "CD3E",group.by = "major_cell_type")$data
+
+scatter.data$doublet <- F
+scatter.data$doublet[scatter.data$colors == "Fibro/T_doublet"] <- T
+
+
+scatter.genes.fibro.t.mc <-  ggplot(scatter.data,aes(x=PDGFRA,y=CD3E,color = colors, size = size, alpha = doublet)) +  geom_point() + theme_classic() + scale_color_manual(values = major_cell_type_color_doublet)
+scatter.genes.fibro.t.mc 
+```
+
+```{r}
+scatter.data <- FeatureScatter.SuperCell(atlas.mc[,atlas.mc$major_cell_type %in% c("Fibroblast","Plasma","Fibro/Plasma_doublet")],feature1 = "PDGFRA",feature2 = "MZB1",group.by = "major_cell_type")$data
+
+scatter.data$doublet <- F
+scatter.data$doublet[scatter.data$colors == "Fibro/Plasma_doublet"] <- T
+
+
+scatter.genes.fibro.plasma.mc <-  ggplot(scatter.data,aes(x=PDGFRA,y=MZB1,color = colors, size = size, alpha = doublet)) +  geom_point() + theme_classic() + scale_color_manual(values = major_cell_type_color_doublet)
+scatter.genes.fibro.plasma.mc 
+```
+
+```{r}
+scatter.data <- FeatureScatter.SuperCell(atlas.mc[,atlas.mc$major_cell_type %in% c("T","Mono/Macro","T/Macro_doublet")],feature1 = "SKAP1",feature2 = "MSR1",group.by = "major_cell_type")$data
+
+scatter.data$doublet <- F
+scatter.data$doublet[scatter.data$colors == "T/Macro_doublet"] <- T
+
+
+scatter.genes.t.macro.mc <-  ggplot(scatter.data,aes(x=SKAP1,y=MSR1,color = colors, size = size, alpha = doublet)) +  geom_point() + theme_classic() + scale_color_manual(values = major_cell_type_color_doublet)
+scatter.genes.t.macro.mc 
+```
+
+
+```{r}
+
+Idents(atlas.mc) <- "major_cell_type"
+# Endo.fibro.markers <- FindMarkers.SuperCell(atlas.mc,ident.1 = "Endothelial",ident.2 = c("Fibroblast"),test.use = "survey_weighted_t",min.pct = 0.5,logfc.threshold = 1)
+# Endo.fibro.markers <- Endo.fibro.markers[Endo.fibro.markers$p_val_adj< 0.05,]
+# Endo.fibro.markers.order <- Endo.fibro.markers[order(abs(Endo.fibro.markers$avg_log2FC),decreasing = T),]
+# 
+# Endo.fibro.markers.order$cluster <- "Endo"
+# Endo.fibro.markers.order$cluster[sign(Endo.fibro.markers.order$avg_log2FC) < 0] <- "Fibro"
+# Endo.fibro.markers.order$gene <- rownames(Endo.fibro.markers.order)
+# Endo.fibro.markers.order[c("VWF","PRRX1"),]
+# Endo.fibro.markers.top <- Endo.fibro.markers.order %>%
+#   group_by(cluster) %>%
+#   slice_head(n = 50) %>%
+#   ungroup()
+# rownames(Endo.fibro.markers.top) <- Endo.fibro.markers.top$gene
+# 
+# Endo.fibro.markers.top
+# Endo.fibro.markers.top[c("VWF","PRRX1"),]
+
+edger.markers <- read.csv("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final/output/whole_atlas/metacells_sup/g10_final/marker_analysis/all/RNA_diff_res.csv",sep = ";",dec = ",")
+Endo.markers <- edger.markers[(edger.markers$cluster == "Endothelial" & edger.markers$logCPM > 4) &
+                                (edger.markers$logFC > 0 & edger.markers$FDR < 0.05),][1:50,]
+
+Fibro.markers<- edger.markers[(edger.markers$cluster == "Fibroblast" & edger.markers$logCPM > 4) &
+                                (edger.markers$logFC > 0 & edger.markers$FDR < 0.05),][1:50,]
+
+
+atlas.mc <- AddModuleScore(atlas.mc,features = list("Endo" = Endo.markers$gene,
+                                                    "Fibro" = Fibro.markers$gene)
+                           ,name = c("Endo","Fibro"))
+
+
+data <- FeatureScatter.SuperCell(atlas.mc[,atlas.mc$major_cell_type %in% c("Fibroblast","Endothelial","Fibro/Endo_doublet")],feature1 = "Fibro2",feature2 = "Endo1",cols = major_cell_type_color_doublet)$data
+data$doublet <- F
+data$doublet[grepl(x = data$colors, pattern = "doublet" )] <- T
+
+scatter.sig.Endo.fibro.mc <-  ggplot(data,aes(x=Fibro2,y=Endo1,color = colors, alpha = doublet,size = size)) +  geom_point() + theme_classic() + 
+  scale_color_manual(values = major_cell_type_color_doublet) + 
+  xlab("Top Fibro marker signature") +
+  ylab("Top Endo marker signature")
+scatter.sig.Endo.fibro.mc
+
+
+```
+
+
+```{r}
+
+# Idents(atlas.mc) <- "major_cell_type"
+# Plasma.Macro.markers <- FindMarkers.SuperCell(atlas.mc,ident.1 = "Plasma",ident.2 = c("Mono/Macro"),test.use = "survey_weighted_t",min.pct = 0.5,logfc.threshold = 0.5)
+# Plasma.Macro.markers <- Plasma.Macro.markers[Plasma.Macro.markers$p_val_adj< 0.05,]
+# Plasma.Macro.markers.order <- Plasma.Macro.markers[order(abs(Plasma.Macro.markers$avg_log2FC),decreasing = T),]
+# 
+# Plasma.Macro.markers.order$cluster <- "Plasma"
+# Plasma.Macro.markers.order$cluster[sign(Plasma.Macro.markers.order$avg_log2FC) < 0] <- "Macro"
+# Plasma.Macro.markers.order$gene <- rownames(Plasma.Macro.markers.order)
+# 
+# Plasma.Macro.markers.top <- Plasma.Macro.markers.order %>%
+#   group_by(cluster) %>%
+#   slice_head(n = 15) %>%
+#   ungroup()
+# 
+# Plasma.Macro.markers.top
+# plasma.markers <- Plasma.Macro.markers.top[Plasma.Macro.markers.top$cluster == "Macro","gene"]  
+# macro.markers <- Plasma.Macro.markers.top[Plasma.Macro.markers.top$cluster == "Plasma","gene"]
+
+macro.markers <- edger.markers[(edger.markers$cluster == "Mono/Macro" & edger.markers$logCPM > 4) &
+                                 (edger.markers$logFC > 0 & edger.markers$FDR < 0.05),][1:50,]
+
+plasma.markers<- edger.markers[(edger.markers$cluster == "Plasma" & edger.markers$logCPM > 4) &
+                                 (edger.markers$logFC > 0 & edger.markers$FDR < 0.05),][1:50,]
+
+
+atlas.mc <- AddModuleScore(atlas.mc,features = list("Macro" = macro.markers$gene,
+                                                    "Plasma" = plasma.markers$gene)
+                           ,name = c("Macro","Plasma"))
+
+
+data <- FeatureScatter.SuperCell(atlas.mc[,atlas.mc$major_cell_type %in% c("Plasma","Mono/Macro","Plasma/Macro_doublet")],feature1 = "Plasma2",feature2 = "Macro1",cols = major_cell_type_color_doublet)$data
+data$doublet <- F
+data$doublet[grepl(x = data$colors, pattern = "doublet" )] <- T
+
+scatter.sig.plasma.macro.mc <- ggplot(data,aes(x=Plasma2,y=Macro1,color = colors, alpha = doublet,size = size)) +  geom_point() + theme_classic() + 
+  scale_color_manual(values = major_cell_type_color_doublet) + 
+  ylab("Top Macro marker signature") +
+  xlab("Top Plasma marker signature")
+
+scatter.sig.plasma.macro.mc
+
+```
+
+
+```{r}
+
+
+macro.markers <- edger.markers[(edger.markers$cluster == "Mono/Macro" & edger.markers$logCPM > 4) &
+                                 (edger.markers$logFC > 0 & edger.markers$FDR < 0.05),][1:50,]
+
+t.markers<- edger.markers[(edger.markers$cluster == "T" & edger.markers$logCPM > 4) &
+                            (edger.markers$logFC > 0 & edger.markers$FDR < 0.05),][1:50,]
+
+
+atlas.mc <- AddModuleScore(atlas.mc,features = list("Macro" = macro.markers$gene,
+                                                    "T" = t.markers$gene)
+                           ,name = c("Macro","T"))
+
+
+data <- FeatureScatter.SuperCell(atlas.mc[,atlas.mc$major_cell_type %in% c("T","Mono/Macro","T/Macro_doublet")],feature1 = "T2",feature2 = "Macro1",cols = major_cell_type_color_doublet)$data
+data$doublet <- F
+data$doublet[grepl(x = data$colors, pattern = "doublet" )] <- T
+
+scatter.sig.t.macro.mc <- ggplot(data,aes(x=T2,y=Macro1,color = colors, alpha = doublet,size = size)) +  geom_point() + theme_classic() + 
+  scale_color_manual(values = major_cell_type_color_doublet) + 
+  xlab("Top T marker signature") +
+  ylab("Top Macro marker signature")
+
+scatter.sig.t.macro.mc
+
+```
+```{r}
+
+
+fibro.markers <- edger.markers[(edger.markers$cluster == "Fibroblast" & edger.markers$logCPM > 4) &
+                                 (edger.markers$logFC > 0 & edger.markers$FDR < 0.05),][1:50,]
+
+t.markers<- edger.markers[(edger.markers$cluster == "T" & edger.markers$logCPM > 4) &
+                            (edger.markers$logFC > 0 & edger.markers$FDR < 0.05),][1:50,]
+
+
+atlas.mc <- AddModuleScore(atlas.mc,features = list("Fibro" = fibro.markers$gene,
+                                                    "T" = t.markers$gene)
+                           ,name = c("Fibro","T"))
+
+
+data <- FeatureScatter.SuperCell(atlas.mc[,atlas.mc$major_cell_type %in% c("Fibroblast","T","Fibro/T_doublet")],feature1 = "T2",feature2 = "Fibro1",cols = major_cell_type_color_doublet)$data
+data$doublet <- F
+data$doublet[grepl(x = data$colors, pattern = "doublet" )] <- T
+
+scatter.sig.fibro.t.mc <- ggplot(data,aes(x=Fibro1,y=T2,color = colors, alpha = doublet,size = size)) +  geom_point() + theme_classic() + 
+  scale_color_manual(values = major_cell_type_color_doublet) + 
+  ylab("Top T marker signature") +
+  xlab("Top Fibro marker signature")
+
+scatter.sig.fibro.t.mc
+
+```
+```{r}
+
+
+fibro.markers <- edger.markers[(edger.markers$cluster == "Fibroblast" & edger.markers$logCPM > 4) &
+                                 (edger.markers$logFC > 0 & edger.markers$FDR < 0.05),][1:50,]
+
+plasma.markers<- edger.markers[(edger.markers$cluster == "Plasma" & edger.markers$logCPM > 4) &
+                                 (edger.markers$logFC > 0 & edger.markers$FDR < 0.05),][1:50,]
+
+
+atlas.mc <- AddModuleScore(atlas.mc,features = list("Fibro" = fibro.markers$gene,
+                                                    "Plasma" = plasma.markers$gene)
+                           ,name = c("Fibro","Plasma"))
+
+
+data <- FeatureScatter.SuperCell(atlas.mc[,atlas.mc$major_cell_type %in% c("Fibroblast","Plasma","Fibro/Plasma_doublet")],feature1 = "Plasma2",feature2 = "Fibro1",cols = major_cell_type_color_doublet)$data
+data$doublet <- F
+data$doublet[grepl(x = data$colors, pattern = "doublet" )] <- T
+
+scatter.sig.fibro.plasma.mc <- ggplot(data,aes(x=Fibro1,y=Plasma2,color = colors, alpha = doublet,size = size)) +  geom_point() + theme_classic() + 
+  scale_color_manual(values = major_cell_type_color_doublet) + 
+  xlab("Top Fibro marker signature") +
+  ylab("Top Plasma marker signature")
+
+scatter.sig.fibro.plasma.mc
+
+```
+
+
+# same single cell level
+
+```{r}
+gc()
+sc.object <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/single_cells/final/full_atlas_single_cells.rds")
+sc.object <- RenameCells(sc.object,new.names = stringr::str_split_fixed(colnames(sc.object),"_",2)[,2])
+sc.object$metacell <- atlas.mc@misc$membership[colnames(sc.object)]
+
+sc.object$fine_cell_type <- plyr::mapvalues(x=sc.object$metacell,
+                                            from =Cells(atlas.mc),
+                                            to = as.vector(atlas.mc@meta.data$fine_cell_type))
+
+sc.object$major_cell_type <- plyr::mapvalues(x=sc.object$metacell,
+                                             from =Cells(atlas.mc),
+                                             to = as.vector(atlas.mc@meta.data$major_cell_type))
+DefaultAssay(sc.object) <- "RNA"
+Idents(sc.object) <- "major_cell_type"
+```
+
+```{r}
+scatter.data <- FeatureScatter(sc.object[,sc.object$major_cell_type %in% c("Plasma","Mono/Macro","Plasma/Macro_doublet")],feature1 = "MZB1",feature2 = "MSR1",group.by = "major_cell_type")$data
+
+scatter.data$doublet <- F
+scatter.data$doublet[scatter.data$colors == "Plasma/Macro_doublet"] <- T
+
+
+scatter.genes.plasma.macro.sc <- ggplot(scatter.data  ,aes(x=MZB1,y=MSR1,color = colors, alpha = doublet)) +  geom_point(size = 1) + theme_classic() + scale_color_manual(values = major_cell_type_color_doublet)
+
+scatter.genes.plasma.macro.sc
+
+```
+```{r}
+scatter.data <- FeatureScatter(sc.object[,sc.object$major_cell_type %in% c("Endothelial","Fibroblast","Fibro/Endo_doublet")],feature1 = "VWF",feature2 = "PDGFRA",group.by = "major_cell_type")$data
+
+scatter.data$doublet <- F
+scatter.data$doublet[scatter.data$colors == "Fibro/Endo_doublet"] <- T
+
+
+scatter.genes.Endo.fibro.sc <- ggplot(scatter.data  ,aes(x=VWF,y=PDGFRA,color = colors, alpha = doublet)) +  geom_point(size = 1) + theme_classic() + scale_color_manual(values = major_cell_type_color_doublet)
+scatter.genes.Endo.fibro.sc
+```
+
+```{r}
+scatter.data <- FeatureScatter(sc.object[,sc.object$major_cell_type %in% c("Fibroblast","T","Fibro/T_doublet")],feature1 = "PDGFRA",feature2 = "CD3E",group.by = "major_cell_type")$data
+
+scatter.data$doublet <- F
+scatter.data$doublet[scatter.data$colors == "Fibro/T_doublet"] <- T
+
+
+scatter.genes.fibro.t.sc <-  ggplot(scatter.data,aes(x=PDGFRA,y=CD3E,color = colors, alpha = doublet)) +  geom_point(size = 1) + theme_classic() + scale_color_manual(values = major_cell_type_color_doublet)
+scatter.genes.fibro.t.sc 
+```
+
+```{r}
+scatter.data <- FeatureScatter(sc.object[,sc.object$major_cell_type %in% c("Fibroblast","Plasma","Fibro/Plasma_doublet")],feature1 = "PDGFRA",feature2 = "MZB1",group.by = "major_cell_type")$data
+
+scatter.data$doublet <- F
+scatter.data$doublet[scatter.data$colors == "Fibro/Plasma_doublet"] <- T
+
+
+scatter.genes.fibro.plasma.sc <-  ggplot(scatter.data,aes(x=PDGFRA,y=MZB1,color = colors, alpha = doublet)) +  geom_point(size = 1) + theme_classic() + scale_color_manual(values = major_cell_type_color_doublet)
+scatter.genes.fibro.plasma.sc 
+```
+
+```{r}
+scatter.data <- FeatureScatter(sc.object[,sc.object$major_cell_type %in% c("T","Mono/Macro","T/Macro_doublet")],feature1 = "SKAP1",feature2 = "MSR1",group.by = "major_cell_type")$data
+
+scatter.data$doublet <- F
+scatter.data$doublet[scatter.data$colors == "T/Macro_doublet"] <- T
+
+
+scatter.genes.fibro.plasma.sc <-  ggplot(scatter.data,aes(x=SKAP1,y=MSR1,color = colors, alpha = doublet)) +  geom_point(size = 1) + theme_classic() + scale_color_manual(values = major_cell_type_color_doublet)
+scatter.genes.fibro.plasma.sc 
+```
+
+
+
+
+
+```{r}
+
+# Idents(atlas.mc) <- "major_cell_type"
+# T.Endo.markers <- FindMarkers.SuperCell(atlas.mc,ident.1 = "T",ident.2 = c("Mono/Macro","DC"),test.use = "survey_weighted_t",min.pct = 0.5,logfc.threshold = 0.5)
+# T.Endo.markers <- T.Endo.markers[T.Endo.markers$p_val_adj< 0.05,]
+# 
+# T.Endo.markers$cluster <- "T"
+# T.Endo.markers$cluster[sign(T.Endo.markers$avg_log2FC) < 0] <- "Endo"
+# T.Endo.markers$gene <- rownames(T.Endo.markers)
+# 
+# T.Endo.markers.top <- T.Endo.markers %>%
+#   group_by(cluster) %>%
+#   slice_head(n = 15) %>%
+#   ungroup()
+
+
+
+
+sc.object <- AddModuleScore(sc.object,features = list("Endo" = Endo.markers$gene,
+                                                      "Fibro" = Fibro.markers$gene)
+                            ,name = c("Endo","Fibro"))
+
+
+data <- FeatureScatter(sc.object[,sc.object$major_cell_type %in% c("Fibroblast","Endothelial","Fibro/Endo_doublet")],feature1 = "Fibro2",feature2 = "Endo1",cols = major_cell_type_color_doublet)$data
+data$doublet <- F
+data$doublet[grepl(x = data$colors, pattern = "doublet" )] <- T
+
+scatter.sig.Endo.fibro.sc <- ggplot(data,aes(x=Fibro2,y=Endo1,color = colors, alpha = doublet)) +  geom_point(size = 1) + theme_classic() + 
+  scale_color_manual(values = major_cell_type_color_doublet) + 
+  xlab("Top Fibroblast marker signature") +
+  ylab("Top Endo marker signature")
+
+scatter.sig.Endo.fibro.sc
+
+```
+
+
+```{r}
+
+
+
+
+
+
+sc.object <- AddModuleScore(sc.object,features = list("Macro" = macro.markers$gene,
+                                                      "Plasma" = plasma.markers$gene)
+                            ,name = c("Macro","Plasma"))
+
+
+data <- FeatureScatter(sc.object[,sc.object$major_cell_type %in% c("Plasma","Mono/Macro","Plasma/Macro_doublet")],feature1 = "Plasma2",feature2 = "Macro1",cols = major_cell_type_color_doublet)$data
+data$doublet <- F
+data$doublet[grepl(x = data$colors, pattern = "doublet" )] <- T
+
+scatter.sig.plasma.macro.sc <- ggplot(data,aes(x=Plasma2,y=Macro1,color = colors, alpha = doublet)) +  geom_point(size = 1) + theme_classic() + 
+  scale_color_manual(values = major_cell_type_color_doublet) + 
+  ylab("Top Macro marker signature") +
+  xlab("Top Plasma marker signature")
+
+scatter.sig.plasma.macro.sc 
+
+```
+
+
+
+
+```{r}
+
+
+
+
+
+
+sc.object <- AddModuleScore(sc.object,features = list("Fibro" = fibro.markers$gene,
+                                                      "T" = t.markers$gene)
+                            ,name = c("Fibro","T"))
+
+
+data <- FeatureScatter(sc.object[,sc.object$major_cell_type %in% c("Fibroblast","T","Fibro/T_doublet")],feature1 = "Fibro1",feature2 = "T2",cols = major_cell_type_color_doublet)$data
+data$doublet <- F
+data$doublet[grepl(x = data$colors, pattern = "doublet" )] <- T
+
+scatter.sig.fibro.t.sc <- ggplot(data,aes(x=Fibro1,y=T2,color = colors, alpha = doublet)) +  geom_point(size = 1) + theme_classic() + 
+  scale_color_manual(values = major_cell_type_color_doublet) + 
+  xlab("Top Fibro marker signature") +
+  ylab("Top T marker signature")
+
+scatter.sig.fibro.t.sc 
+
+```
+
+```{r}
+gc()
+
+
+sc.object <- AddModuleScore(sc.object,features = list("Fibro" = fibro.markers$gene,
+                                                      "Plasma" = plasma.markers$gene)
+                            ,name = c("Fibro","Plasma"))
+
+
+data <- FeatureScatter(sc.object[,sc.object$major_cell_type %in% c("Fibroblast","Plasma","Fibro/Plasma_doublet")],feature1 = "Fibro1",feature2 = "Plasma2",cols = major_cell_type_color_doublet)$data
+data$doublet <- F
+data$doublet[grepl(x = data$colors, pattern = "doublet" )] <- T
+
+scatter.sig.fibro.plasma.sc <- ggplot(data,aes(x=Fibro1,y=Plasma2,color = colors, alpha = doublet)) +  geom_point(size = 1) + theme_classic() + 
+  scale_color_manual(values = major_cell_type_color_doublet) + 
+  xlab("Top Fibro marker signature") +
+  ylab("Top Plasma marker signature")
+
+scatter.sig.fibro.plasma.sc 
+```
+
+```{r}
+gc()
+
+
+sc.object <- AddModuleScore(sc.object,features = list("T" = t.markers$gene,
+                                                      "Macro" = macro.markers$gene)
+                            ,name = c("T","Macro"))
+
+
+data <- FeatureScatter(sc.object[,sc.object$major_cell_type %in% c("T","Mono/Macro","T/Macro_doublet")],feature1 = "T1",feature2 = "Macro2",cols = major_cell_type_color_doublet)$data
+data$doublet <- F
+data$doublet[grepl(x = data$colors, pattern = "doublet" )] <- T
+
+scatter.sig.t.macro.sc <- ggplot(data,aes(x=T1,y=Macro2,color = colors, alpha = doublet)) +  geom_point(size = 1) + theme_classic() + 
+  scale_color_manual(values = major_cell_type_color_doublet) + 
+  xlab("Top T marker signature") +
+  ylab("Top Macro marker signature") + 
+    scale_size(limits = c(min(atlas.mc$size),max(atlas.mc$size)))
+
+scatter.sig.t.macro.sc 
+```
+
+
+
+```{r}
+size.data <- VlnPlot(atlas.mc,c("size"))$data
+purity.htan.data  <- VlnPlot(atlas.mc,c("cell_type_purity"))$data
+purity.scATOMIC.data  <- VlnPlot(atlas.mc,c("label_scATOMIC_purity"))$data
+
+size.major.type <- ggplot(size.data,aes(x= ident,y=size,fill = ident)) + geom_boxplot() + 
+  NoLegend() + scale_x_discrete(guide = guide_axis(angle = 0),limits=rev)+ coord_flip() +
+  scale_fill_manual(values = major_cell_type_color_doublet)   + theme(axis.title.y = element_blank()) + ylab("Metacell size")
+
+
+htan.major.type.purity <- ggplot(purity.htan.data,aes(x= ident,y=cell_type_purity,fill = ident)) + geom_boxplot() + theme_bw() + 
+  NoLegend() + scale_x_discrete(guide = guide_axis(angle = 0),limits=rev)+ coord_flip() +
+  scale_fill_manual(values = major_cell_type_color_doublet) + theme(axis.title.y = element_blank()) + ylab("HTAN label purity")
+
+
+scATO.major.type.purity  <- ggplot(purity.scATOMIC.data,aes(x= ident,y=label_scATOMIC_purity,fill = ident)) + geom_boxplot() + theme_bw() + 
+  NoLegend() + scale_x_discrete(guide = guide_axis(angle = 0),limits=rev)+ coord_flip() +
+  scale_fill_manual(values = major_cell_type_color_doublet) + theme(axis.title.y = element_blank()) + ylab("scATOMIC label purity")
+
+
+```
+
+
+```{r fig.height=13,fig.width=8}
+
+  
+  
+doublets.plots <- patchwork::wrap_plots(
+    scatter.genes.plasma.macro.mc + guides(color = "none") +ggtitle("Metacells") +theme(legend.position = "bottom") + 
+    scale_size(limits = c(min(atlas.mc$size),max(atlas.mc$size))),
+
+  scatter.sig.plasma.macro.mc + guides(color = "none") + ggtitle("Metacells")  + 
+    theme(legend.position = "bottom")+ 
+    scale_size(limits = c(min(atlas.mc$size),max(atlas.mc$size))),
+  scatter.sig.plasma.macro.sc + guides(color = "none") + ggtitle("Single-cells")  + 
+    theme(legend.position = "bottom")+ 
+    scale_size(limits = c(min(atlas.mc$size),max(atlas.mc$size))) + NoLegend(),
+  scatter.genes.Endo.fibro.mc + guides(color = "none") + ggtitle("Metacells") + 
+    theme(legend.position = "bottom")+ 
+    scale_size(limits = c(min(atlas.mc$size),max(atlas.mc$size))),
+  scatter.sig.Endo.fibro.mc + guides(color = "none") + ggtitle("Metacells") + 
+    theme(legend.position = "bottom")+ 
+    scale_size(limits = c(min(atlas.mc$size),max(atlas.mc$size))),
+  scatter.sig.Endo.fibro.sc+ guides(color = "none") + ggtitle("Single-cells") + 
+    theme(legend.position = "bottom")+ 
+    scale_size(limits = c(min(atlas.mc$size),max(atlas.mc$size)))+ NoLegend(),
+  scatter.genes.fibro.t.mc + guides(color = "none") + ggtitle("Metacells")  + 
+    theme(legend.position = "bottom")+ 
+    scale_size(limits = c(min(atlas.mc$size),max(atlas.mc$size))),
+  scatter.sig.fibro.t.mc + guides(color = "none") + ggtitle("Metacells")  + 
+    theme(legend.position = "bottom")+ 
+    scale_size(limits = c(min(atlas.mc$size),max(atlas.mc$size))),
+  scatter.sig.fibro.t.sc+ guides(color = "none") + ggtitle("Single-cells")  + 
+    theme(legend.position = "bottom")+ 
+    scale_size(limits = c(min(atlas.mc$size),max(atlas.mc$size))) + NoLegend(),
+  scatter.genes.fibro.plasma.mc + guides(color = "none") + ggtitle("Metacells")  + 
+    theme(legend.position = "bottom")+ 
+    scale_size(limits = c(min(atlas.mc$size),max(atlas.mc$size))),
+  scatter.sig.fibro.plasma.mc + guides(color = "none") + ggtitle("Metacells")  + 
+    theme(legend.position = "bottom")+ 
+    scale_size(limits = c(min(atlas.mc$size),max(atlas.mc$size))),
+  scatter.sig.fibro.plasma.sc+ guides(color = "none") + ggtitle("Single-cells")  + 
+    theme(legend.position = "bottom")+ 
+    scale_size(limits = c(min(atlas.mc$size),max(atlas.mc$size))) + NoLegend(),
+  scatter.genes.t.macro.mc + guides(color = "none") + ggtitle("Metacells")  + 
+    theme(legend.position = "bottom")+ 
+    scale_size(limits = c(min(atlas.mc$size),max(atlas.mc$size))),
+  scatter.sig.t.macro.mc + guides(color = "none") + ggtitle("Metacells")  + 
+    theme(legend.position = "bottom")+ 
+    scale_size(limits = c(min(atlas.mc$size),max(atlas.mc$size))),
+  scatter.sig.t.macro.sc+ guides(color = "none") + ggtitle("Single-cells")  + 
+    theme(legend.position = "bottom")+ 
+    scale_size(limits = c(min(atlas.mc$size),max(atlas.mc$size))) + NoLegend(),
+  patchwork::guide_area() ,
+  guides = "collect",nrow = 6,heights = c(rep(1,5),0.5))
+
+doublets.plots
+
+pdf("../pdf_files/figS7D.pdf",height=13,width=8)
+doublets.plots
+dev.off()
+
+```
+
+Doublets analysis completed

@@ -1,0 +1,1036 @@
+---
+title: "Core Atlas plots"
+output: html_document
+date: "2024-09-26"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# remotes::install_github("carmonalab/SignatuR")
+# remotes::install_github("carmonalab/HiTME")
+# 
+# library("HiTME")
+```
+
+## Loading packages for scNRA seq analysis with Seurat and SuperCell
+```{r}
+library(SuperCellMultiomics)
+library(Seurat)
+library(SeuratData)
+library(ggplot2)
+library(parallel)
+library(TFBSTools)
+library(Signac)
+library(EnsDb.Hsapiens.v86)
+library(dplyr)
+library(parallel)
+library(future)
+library(STACAS)
+library(dplyr)
+library(scIntegrationMetrics) 
+library(Cairo)
+library(patchwork)
+options(bitmapType = "cairo")
+library(cowplot)
+library(ggpubr)
+library(ggthemes)
+
+RenameLabels <- function(sobj) {
+  sobj$scATOMIC_labels <- sobj$label_integration
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "CD4")] <-"CD4" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "CD8")] <-"CD8" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "killer")] <-"NK" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "Fibro")] <-"Fibroblasts" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "Endo")] <-"Endothelial" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "Dendri")] <-"DC" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "Plasma")] <-"Plasma" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "B")] <-"B" 
+  sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "Macro")] <-"Mono/Macro" 
+    sobj$scATOMIC_labels[grepl(sobj$scATOMIC_labels,pattern =  "Mast cell")] <-"Mast" 
+
+  sobj$scATOMIC_labels[is.na(sobj$scATOMIC_labels)] <- "Unknown"
+  sobj$scATOMIC_labels <- factor(sobj$scATOMIC_labels, levels = c("Fibroblasts","Endothelial","Mono/Macro","DC",
+                                                                      "B","Plasma","CD4","CD8","NK","Mast","Unknown"))
+  
+  
+  
+  sobj$HTAN <- as.vector(sobj$cell_type)
+  sobj$HTAN[sobj$HTAN == "Macrophages"] <- "Macro"
+  sobj$HTAN[sobj$HTAN == "B-cells"] <- "B"
+  sobj$HTAN[sobj$HTAN == "T-cells"] <- "T"
+  
+  sobj$HTAN <- factor(sobj$HTAN,  levels = c("Fibroblasts","vSMCs","Pericytes","Endothelial","Macro","DC",
+                                             "B","Plasma","T","NK","Mast"))
+  
+  sobj$cohort <- factor(sobj$cohort,  levels = c("HNSCC","BRCA","SKCM","PDAC","CRC","OV",
+                                             "CESC","UCEC"))
+  return(sobj)
+}
+
+scAtomic.colors <-  c('#E69F00',"darkgrey",'#E4C755','#0072B2','#D55E00',"#984EA3",'#C1E6F3', "#2CA02C",'#CC79A7','black',  '#712820')
+names(scAtomic.colors) <- c("Endothelial","Fibroblasts","DC","Mono/Macro","Plasma","B","CD4","CD8","NK",'Mast','Unknown')
+
+htan.colors <-  c('#E69F00',"darkgrey",'#E4C755','#0072B2','#D55E00',"#984EA3", '#57C3F3','black', "#2CA02C", '#712820')
+
+names(htan.colors) <- c("Endothelial","Fibroblasts","DC","Macro","Plasma","B","T",'Mast',"Pericytes","vSMCs")
+```
+
+
+New docker image
+```{r}
+# res.unsup <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/run_kanchors_5/output/whole_atlas/metacells/bench_res.rds")
+res.unsup <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells/bench_res.rds")
+
+
+res.unsup$Workflow <- "Unsup."
+res.unsup <- res.unsup[res.unsup$method %in% c("pca","unsupSTACAS","cusanovich.SignacRLSI", "cusanovich.lsi"),]
+
+res.sup <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/bench_res.rds")
+
+res.sup$Workflow <- "Semi-sup."
+res.sup <- res.sup[res.sup$method %in% c("pca","ssSTACAS","cusanovich.supSignacRLSI", "cusanovich.lsi"),]
+res.mc <- rbind(res.unsup,res.sup)
+res.mc$Batch <- "Corrected"
+res.mc$Batch[res.mc$method %in% c("pca","cusanovich.lsi")] <- "Uncorrected"
+
+res.mc$label_name <- "scATOMIC"
+res.mc$label_name[res.mc$label == "cell_type"] <- "HTAN"
+
+
+main.bench <- ggplot(res.mc,aes(x= CiLISI,y=celltype_ASW,shape = Batch,color = Workflow)) + geom_point(size = 2.5,) + theme_bw()+ scale_color_manual(values = colorblind_pal()(8)[c(6,7)]) + facet_grid(c("modality","label_name"),scales = "free",axis.labels = "margins") + 
+  ylab("Cell type ASW (cell type separation)") +
+  xlab("CiLISI (batch mixing)") + xlim(0.05,0.205)
+
+main.bench
+
+# main.bench.rna <- ggplot(res.mc[res.mc$modality == "RNA",],aes(x= CiLISI,y=celltype_ASW,shape = Batch,color = Workflow)) + geom_point(size = 2.5,) + theme_bw()+ scale_color_manual(values = colorblind_pal()(8)[c(6,7)]) + facet_grid(c("modality","label_name"),axis.labels = "margins") + 
+#   ylab("Cell type ASW") + xlim(0.05,0.21) +
+#   xlab("CiLISI (batch mixing)")
+# 
+# main.bench.atac <- ggplot(res.mc[res.mc$modality == "ATAC",],aes(x= CiLISI,y=celltype_ASW,shape = Batch,color = Workflow)) + geom_point(size = 2.5,) + theme_bw()+ scale_color_manual(values = colorblind_pal()(8)[c(6,7)]) + facet_grid(c("modality","label_name"),axis.labels = "margins") + 
+#   ylab("Cell type ASW") +
+#   xlab("CiLISI (batch mixing)")
+
+
+
+```
+```{r fig.height=3,fig.width=5}
+main.bench
+
+pdf("../pdf_files/Fig4K_main.pdf",height=3,width=5)
+main.bench
+dev.off()
+```
+
+
+
+```{r}
+# htan.sup <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/run_kanchors_5/output/whole_atlas/metacells_sup/whole_atlas_all_integrations_metacells.rds")
+htan.sup <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/whole_atlas_all_integrations_metacells.rds")
+htan.sup <- RenameLabels(htan.sup)
+# depth.cor.cusanovich<- DepthCor(htan.sup,n = 50,reduction = "cusanovich.lsi",assay = "ATAC")
+# 
+# dims.lsi.cusanovich <- which(abs(depth.cor.cusanovich$data$nCount_ATAC)< 0.5)
+# 
+# 
+# htan.sup <- FindMultiModalNeighbors(
+#   htan.sup, prune.SNN = 0,reduction.list = list("ssSTACAS", "cusanovich.supSignacRLSI"),  #pca equivalent to ssSTACAS
+#   dims.list = list(1:50, dims.lsi.cusanovich),modality.weight.name = "RNA.weight"
+# )
+# 
+# htan.sup <- RunUMAP(htan.sup, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_",min.dist = 0.2)
+
+
+
+# htan.unsup <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/run_kanchors_5/output/whole_atlas/metacells/whole_atlas_all_integrations_metacells.rds")
+htan.unsup <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells/whole_atlas_all_integrations_metacells.rds")
+htan.unsup <- RenameLabels(htan.unsup)
+# 
+# depth.cor.cusanovich<- DepthCor(htan.unsup,n = 50,reduction = "cusanovich.lsi",assay = "ATAC")
+# 
+# dims.lsi.cusanovich <- which(abs(depth.cor.cusanovich$data$nCount_ATAC)< 0.5)
+# 
+# 
+# htan.unsup <- FindMultiModalNeighbors(
+#   htan.unsup, prune.SNN = 0,reduction.list = list("ssSTACAS", "cusanovich.supSignacRLSI"),  #pca equivalent to ssSTACAS
+#   dims.list = list(1:50, dims.lsi.cusanovich),modality.weight.name = "RNA.weight"
+# )
+# 
+# htan.unsup <- RunUMAP(htan.unsup, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_",min.dist = 0.2)
+
+DimPlot(htan.sup,reduction = "wnn.umap",group.by = "HTAN",cols = htan.colors)
+
+DimPlot(htan.unsup,reduction = "wnn.umap",group.by = "HTAN",cols = htan.colors)
+```
+```{r}
+DimPlot(htan.sup,reduction = "wnn.umap",group.by = "HTAN",cols = htan.colors)
+
+DimPlot(htan.unsup,reduction = "wnn.umap",group.by = "HTAN",cols = htan.colors)
+```
+
+
+
+```{r}
+# gc() 
+# htan.sup.bench <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/run_kanchors_5/output/whole_atlas/metacells_sup/whole_atlas_all_integrations_metacells.rds")
+# htan.sup.bench <- RenameLabels(htan.sup.bench)
+# 
+# htan.sup <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/run_kanchors_5/output/whole_atlas/metacells_sup/g10_final/full_atlas_metacells.rds")
+# htan.sup <- RenameLabels(htan.sup)
+# 
+# 
+# DimPlot(htan.sup.bench,reduction = "cusanovich.supSignacRLSI.umap",group.by = "HTAN",cols = htan.colors)
+# DimPlot(htan.sup,reduction = "cusanovich.supSignacRLSI.umap",group.by = "HTAN",cols = htan.colors)
+# 
+# 
+# 
+# DimPlot(htan.sup.bench$,reduction = "cusanovich.supSignacRLSI.umap",group.by = "HTAN",cols = htan.colors)
+# DimPlot(htan.sup,reduction = "cusanovich.supSignacRLSI.umap",group.by = "HTAN",cols = htan.colors)
+# 
+# 
+# DimPlot(htan.sup.bench,reduction = "ssSTACAS.umap",group.by = "HTAN",cols = htan.colors)
+# DimPlot(htan.sup,reduction = "ssSTACAS.umap",group.by = "HTAN",cols = htan.colors)
+# 
+# 
+# DimPlot(htan.sup.bench,reduction = "wnn.umap",group.by = "HTAN",cols = htan.colors)
+# DimPlot(htan.sup,reduction = "wnn.umap",group.by = "HTAN",cols = htan.colors)
+```
+```{r}
+# htan.sup.bench[["cusanovich.supSignacRLSI"]]@cell.embeddings[c(1:5),c(1:5)]
+# htan.sup[["cusanovich.supSignacRLSI"]]@cell.embeddings[c(1:5),c(1:5)]
+
+```
+
+
+```{r}
+# htan.sup.bench[["cusanovich.lsi"]]@cell.embeddings[c(1:5),c(1:5)]
+# htan.sup[["cusanovich.lsi"]]@cell.embeddings[c(1:5),c(1:5)]
+```
+
+
+```{r}
+# htan.unsup <- FindMultiModalNeighbors(
+#   htan.unsup, prune.SNN = 0,reduction.list = list("pca", "cusanovich.lsi"),  #pca equivalent to ssSTACAS
+#   dims.list = list(1:50, dims.lsi.cusanovich),modality.weight.name = "RNA.weight",weighted.nn.name = "uncorrected.weighted.nn"
+# )
+# 
+# htan.unsup <- RunUMAP(htan.unsup, nn.name = "uncorrected.weighted.nn", reduction.name = "uncorrected.wnn.umap", reduction.key = "wnnUMAP_",min.dist = 0.2)
+# # 
+# # 
+# htan.sup <- FindMultiModalNeighbors(
+#   htan.sup, prune.SNN = 0,reduction.list = list("pca", "cusanovich.lsi"),  #pca equivalent to ssSTACAS
+#   dims.list = list(1:50, dims.lsi.cusanovich),modality.weight.name = "RNA.weight",weighted.nn.name = "uncorrected.weighted.nn"
+# )
+# 
+# htan.sup <- RunUMAP(htan.sup, nn.name = "uncorrected.weighted.nn", reduction.name = "uncorrected.wnn.umap", reduction.key = "wnnUMAP_",min.dist = 0.2)
+```
+
+
+
+```{r}
+# htan.sup$scATOMIC_labels <- factor()
+
+cohort.colors <- RColorBrewer::brewer.pal(n = 8, name = "Dark2")
+# 
+sample.colors <- c("#1F77B4", "#FF7F0E", "#2CA02C", "#D62728", 
+                   "#9467BD", "#8C564B", "#E377C2", "#F7B800", 
+                   "#17BECF", "#BCBD22", "#7F7F7F", "#00B5E2", 
+                   "#9C9E1F", "#C44E00", "#5B6D8E", "#FF9F00")
+
+
+mycolors <- c('#E5D2DD', '#53A85F', '#F1BB72', '#57C3F3', '#F3B1A0', '#D6E7A3', '#476D87',
+              '#E95C59', '#E59CC4', '#AB3282', '#BD956A', '#8C549C',
+              '#9FA3A8', '#58A4C3', "#b20000",'#E4C755', '#F7F398',
+              '#AA9A59', '#E63863', '#E39A35', '#C1E6F3', '#6778AE', '#91D0BE', '#B53E2B',
+              '#712820', '#DCC1DD', '#CCE0F5', '#CCC9E6', '#625D9E', '#68A180', '#3A6963',
+              '#968175')
+
+
+scAtomic.colors <-  c('#E69F00',"darkgrey",'#E4C755','#0072B2','#D55E00',"#984EA3",'#C1E6F3', "#2CA02C",'#CC79A7','black',  '#712820')
+names(scAtomic.colors) <- c("Endothelial","Fibroblasts","DC","Mono/Macro","Plasma","B","CD4","CD8","NK",'Mast','Unknown')
+
+htan.colors <-  c('#E69F00',"darkgrey",'#E4C755','#0072B2','#D55E00',"#984EA3", '#57C3F3','black', "#2CA02C", '#712820')
+
+names(htan.colors) <- c("Endothelial","Fibroblasts","DC","Macro","Plasma","B","T",'Mast',"Pericytes","vSMCs")
+
+
+
+integrated.wnn.guiding.labels <- DimPlot(htan.sup,
+                                         reduction = "wnn.umap",
+                                         group.by = "scATOMIC_labels",shuffle = T,
+                                         cols = scAtomic.colors) + theme(axis.text = element_blank(),
+                                                                         axis.title = element_blank(),
+                                                                         plot.title = element_blank(),
+                                                                         axis.ticks = element_blank()) 
+
+integrated.wnn.sample <- DimPlot(htan.sup,reduction = "wnn.umap",group.by = "cohort",cols = cohort.colors,shuffle = T)  + 
+  theme(axis.text = element_blank(),
+        plot.title = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank())
+
+
+
+
+
+unintegrated.wnn.guiding.labels <- DimPlot(htan.sup,reduction = "uncorrected.wnn.umap",group.by = "scATOMIC_labels",cols = scAtomic.colors)  + 
+  theme(axis.text = element_blank(),
+        plot.title = element_blank(),
+        axis.ticks = element_blank())+ 
+  xlab("wnnUMAP_1") +  ylab("wnnUMAP_2") 
+
+
+unintegrated.wnn.sample <- DimPlot(htan.sup,reduction = "uncorrected.wnn.umap",group.by = "cohort",cols =  cohort.colors)  + 
+  theme(axis.text = element_blank(),
+        plot.title = element_blank(),
+        axis.title = element_blank(),
+        
+        axis.ticks = element_blank())
+
+fig4H <- wrap_plots(unintegrated.wnn.sample + NoLegend(),
+                    integrated.wnn.sample,
+                    unintegrated.wnn.guiding.labels+ NoLegend(),
+                    integrated.wnn.guiding.labels,
+                    
+                    ncol = 2,byrow = T)
+
+
+fig4H
+
+```
+```{r fig.height=4.5,fig.width=6.5}
+fig4H
+pdf("../pdf_files/Fig4H.pdf",height=4.5,width=6.5)
+fig4H
+dev.off()
+```
+```{r}
+htan.sup.analyzed <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/g10_final/full_atlas_metacells_activities.rds")
+htan.sup.analyzed <- RenameLabels(htan.sup.analyzed)
+# depth.cor.cusanovich<- DepthCor(htan.sup,n = 50,reduction = "cusanovich.lsi",assay = "ATAC")
+# 
+# dims.lsi.cusanovich <- which(abs(depth.cor.cusanovich$data$nCount_ATAC)< 0.5)
+# 
+# 
+# htan.sup <- FindMultiModalNeighbors(
+#   htan.sup, prune.SNN = 0,reduction.list = list("ssSTACAS", "cusanovich.supSignacRLSI"),  #pca equivalent to ssSTACAS
+#   dims.list = list(1:50, dims.lsi.cusanovich),modality.weight.name = "RNA.weight"
+# )
+# 
+# htan.sup <- RunUMAP(htan.sup, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_",min.dist = 0.2)
+
+
+DimPlot(htan.sup.analyzed,reduction = "wnn.umap",group.by = "HTAN",cols = htan.colors)
+DimPlot(htan.sup,reduction = "wnn.umap",group.by = "HTAN",cols = htan.colors)
+
+remove(htan.sup.analyzed)
+gc()
+
+
+```
+
+
+```{r}
+htan.sup$mc_mode <- "Semi-sup. metacells"
+htan.unsup$mc_mode <- "Unsup. metacells"
+
+col.workflow <-  colorblind_pal()(8)[c(6,7)]
+names(col.workflow) <- c("Semi-sup. metacells","Unsup. metacells")
+
+meta.mc.all <- rbind(htan.sup@meta.data[,c("cell_type","cell_type_purity","scATOMIC_labels",
+                                                  "label_scATOMIC","label_scATOMIC_purity",
+                                                  "size","mc_mode")],
+                     htan.unsup@meta.data[,c("cell_type","cell_type_purity","scATOMIC_labels",
+                                                    "label_scATOMIC","label_scATOMIC_purity",
+                                                    "size","mc_mode")])
+meta.mc.all$mc_mode_short <- "Unsup."
+meta.mc.all$mc_mode_short[meta.mc.all$mc_mode == "Semi-sup. metacells"] <- "Semi-sup."
+
+
+purity.scAto.tnk <- ggplot(meta.mc.all[meta.mc.all$label_scATOMIC %in% c("CD4+ T cell","CD8+ T cell","NK"),],
+                       aes(x=mc_mode,y=label_scATOMIC_purity,fill = mc_mode)) +
+  geom_boxplot(outliers = T) + ylab("scATOMIC label purity") + NoLegend() + 
+  ggsignif::geom_signif(comparisons = list(c("Semi-sup. metacells","Unsup. metacells")),map_signif_level = T) +ylim(c(0.3,1.1)) + theme(axis.title.x = element_blank()) + 
+  scale_fill_manual(values = col.workflow)  +
+  NoLegend() + scale_x_discrete(guide = guide_axis(angle = 45)) + theme(axis.title.x = element_blank(),axis.text.x = element_blank())
+
+
+purity.scAto.tnk
+
+
+purity.scAto <- ggplot(meta.mc.all,
+                       aes(x=mc_mode_short,y=label_scATOMIC_purity,fill = mc_mode_short)) +
+  geom_boxplot(outliers = T) + theme_bw() + 
+  ylab("scATOMIC label purity") + NoLegend() + 
+  # ggsignif::geom_signif(comparisons = list(c("Semi-sup. metacells","Unsup. metacells")),map_signif_level = T) +ylim(c(0.2,1.1)) + 
+  theme(axis.title.x = element_blank()) + 
+  scale_fill_manual(values = as.vector(col.workflow))+ scale_x_discrete(guide = guide_axis(angle = 70)) + theme(axis.title.x = element_blank())
+
+purity.scAto
+
+meta.mc.all %>% group_by(mc_mode_short) %>% summarise(Mean = mean(label_scATOMIC_purity))
+
+purity.htan <- ggplot(meta.mc.all,
+                      aes(x=mc_mode_short,y=cell_type_purity,fill = mc_mode)) +geom_boxplot() + ylab("HTAN label purity")  + theme_bw() + NoLegend() +
+# + ggsignif::geom_signif(comparisons = list(c("Semi-sup. metacells","Unsup. metacells")),map_signif_level = T) + +ylim(c(0.3,1.1)) +ylim(c(0.3,1.1)) + theme(axis.title.x = element_blank())+ 
+  scale_fill_manual(values = col.workflow) +
+ scale_x_discrete(guide = guide_axis(angle = 70)) + theme(axis.title.x = element_blank()) 
+
+purity.htan
+
+```
+```{r, fig.height=2.25, fig.width=1.5}
+meta.mc.all$mc_mode_short <- "Unsup."
+meta.mc.all$mc_mode_short[meta.mc.all$mc_mode == "Semi-sup. metacells"] <- "Semi-sup."
+purity.scAto.TNK <- ggplot(meta.mc.all[meta.mc.all$label_scATOMIC %in% c("CD4+ T cell","CD8+ T cell","NK"),],
+                       aes(x=mc_mode_short,y=label_scATOMIC_purity,fill = mc_mode)) + theme_bw() +
+  geom_boxplot(outliers = T) + ylab("scATOMIC label purity") + NoLegend() + ggtitle("T/NK purity") + 
+  ggsignif::geom_signif(comparisons = list(c("Semi-sup.","Unsup.")),map_signif_level = T) +ylim(c(0.3,1.1)) +
+  theme(axis.title.x = element_blank()) +
+  scale_fill_manual(values = col.workflow)  +
+  NoLegend() + scale_x_discrete(guide = guide_axis(angle = 45)) 
+purity.scAto.TNK
+
+pdf("../pdf_files/Fig4I.pdf",height=2.25,width=1.5)
+purity.scAto.TNK
+dev.off()
+```
+
+```{r fig.height=3,fig.width=4}
+wrap_plots(purity.scAto,purity.htan,ncol = 2) 
+
+pdf("../pdf_files/FigS6B.pdf",height=3,width=4)
+wrap_plots(purity.scAto,purity.htan,ncol = 2)
+dev.off()
+```
+```{r}
+purity.per.celltype <- ggplot(meta.mc.all[meta.mc.all$scATOMIC_labels != "unknown",],aes(x = mc_mode_short,y = label_scATOMIC_purity, fill = mc_mode_short)) + geom_boxplot() + theme_bw()+ facet_wrap("~scATOMIC_labels",nrow = 2) + scale_fill_manual(values = as.vector(col.workflow)) +
+ scale_x_discrete(guide = guide_axis(angle = 70)) + theme(axis.title.x = element_blank(),legend.title = element_blank()) + NoLegend() +ylab("scATOMIC label purity")
+
+```
+```{r fig.height=4,fig.width=5.5}
+purity.per.celltype
+
+pdf("../pdf_files/figS6C.pdf",height=4,width=5)
+purity.per.celltype
+dev.off()
+```
+
+```{r fig.height=2.5,fig.width=6}
+htan.sup[["RNA"]] <- JoinLayers(htan.sup[["RNA"]] )
+htan.unsup[["RNA"]] <- JoinLayers(htan.unsup[["RNA"]] )
+
+vln.sup <- VlnPlot.SuperCell(htan.sup[,htan.sup$scATOMIC_labels %in% c("CD4","CD8","NK")],features = c("CD4","CD8A","CD8B","NCAM1"),
+                             group.by = c("scATOMIC_labels"),stack = T,cols = scAtomic.colors,fill.by = "ident",flip = T) + 
+  theme(axis.title.x = element_blank())  + ggtitle("Semi sup. metacells") 
+vln.unsup <- VlnPlot.SuperCell(htan.unsup[,htan.unsup$scATOMIC_labels %in% c("CD4","CD8","NK")],
+                               features = c("CD4","CD8A","CD8B","NCAM1"),group.by = c("scATOMIC_labels"),stack = T,cols = scAtomic.colors,fill.by = "ident",flip = T) + 
+  theme(axis.title.x = element_blank()) + ggtitle("Unsup. metacells")
+
+wrap_plots(vln.sup+ NoLegend(), vln.unsup + NoLegend(),ncol = 2,axes = "collect")
+
+pdf("../pdf_files/fig4I.pdf",height=2.5,width=6)
+wrap_plots(vln.sup+ NoLegend(), vln.unsup + NoLegend(),ncol = 2)
+
+dev.off()
+
+```
+
+```{r fig.height=2.5,fig.width=3.75}
+
+combined.sc <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/single_cells/final_k34/full_atlas_single_cells.rds")
+
+bench.scalability.sc <- read.table("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/single_cells/final_k34/benchmark.txt",header = T)
+bench.scalability.sc$workflow <- "Single-cells"
+bench.scalability.sc$object_size <-  as.numeric(object.size(combined.sc))/(1024^3) #GB
+bench.scalability.sc$n_cells <- as.numeric(ncol(combined.sc))
+
+remove(combined.sc)
+gc()
+
+
+bench.scalability.sup.mc <- read.table("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/g10_final/benchmark.txt",header = T)
+bench.scalability.sup.mc$object_size <-  as.numeric(object.size(htan.sup))/(1024^3) #GB
+bench.scalability.sup.mc$n_cells <- as.numeric(ncol(htan.sup))
+
+bench.scalability.sup.mc$workflow <- "Sup. metacells"
+
+
+combined.unsup.mc <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/g10_final/full_atlas_metacells.rds")
+
+# 
+bench.scalability.unsup.mc <- read.table("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/g10_final/benchmark.txt",header = T)
+bench.scalability.unsup.mc$object_size <-  as.numeric(object.size(combined.unsup.mc))/(1024^3) #GB
+bench.scalability.unsup.mc$n_cells <- as.numeric(ncol(combined.unsup.mc))
+
+bench.scalability.unsup.mc$workflow <- "Unsup. metacells"
+remove(combined.unsup.mc)
+gc()
+
+
+
+
+bench.scalability <- rbind(bench.scalability.sc,
+                           bench.scalability.sup.mc,
+                           bench.scalability.unsup.mc)
+
+# bench.scalability <- rbind(bench.scalability.sc,
+#                            bench.scalability.sup.mc
+#                            )
+
+
+bench.scalability$workflow <- factor(bench.scalability$workflow, levels = c("Single-cells","Sup. metacells","Unsup. metacells"))
+
+col.mc.workflow <-  c( "#F0E442", col.workflow)
+names(col.mc.workflow) <-  c("Single-cells","Sup. metacells","Unsup. metacells")
+
+cpu.time <- ggplot(bench.scalability,aes(x= workflow,y=cpu_time/60,fill = workflow)) + geom_bar(stat = "identity",color= "black")  +  theme_bw()+ 
+  ylab("CPU time (min)") + theme(axis.title.x = element_blank())  + scale_x_discrete(guide = guide_axis(angle = 45)) + 
+  scale_fill_manual(values = col.mc.workflow)
+
+run.time <- ggplot(bench.scalability,aes(x= workflow,y=s/60,fill = workflow)) + geom_bar(stat = "identity",color= "black") + theme_bw() +
+  ylab("Running time (min)") + theme(axis.title.x = element_blank())  + scale_x_discrete(guide = guide_axis(angle = 45)) + 
+  scale_fill_manual(values = col.mc.workflow)
+
+
+
+memory <- ggplot(bench.scalability,aes(x= workflow,y=max_rss/1024,fill = workflow)) + 
+  geom_bar(stat = "identity",color= "black") + 
+  theme_bw()+ 
+  ylab("Memory (Gb)") + theme(axis.title.x = element_blank())   + scale_x_discrete(guide = guide_axis(angle = 45)) + 
+  scale_fill_manual(values = col.mc.workflow)
+
+object_size <- ggplot(bench.scalability,aes(x= workflow,y=object_size,fill = workflow)) + geom_bar(stat = "identity",color= "black") + 
+  theme_bw()+ 
+  ylab("Seurat object size (Gb)") + theme(axis.title.x = element_blank())  + scale_x_discrete(guide = guide_axis(angle = 45)) + 
+  scale_fill_manual(values = col.mc.workflow)
+
+n_cells <- ggplot(bench.scalability,aes(x= workflow,y=n_cells,fill = workflow)) + 
+  geom_bar(stat = "identity",color= "black") + 
+  theme_bw()+ 
+  ylab("N. cells") + theme(axis.title.x = element_blank())  + scale_x_discrete(guide = guide_axis(angle = 45)) + 
+  scale_fill_manual(values = col.mc.workflow)
+
+main.scalability <- wrap_plots(cpu.time + NoLegend()  , 
+                               memory + theme(legend.position = "bottom",legend.title = element_blank()) + NoLegend(),
+                               object_size  + NoLegend(),
+                               ncol = 3,byrow = F)
+
+main.scalability
+
+pdf("../pdf_files/FigS6F.pdf",height = 2.5,width = 3.75)
+main.scalability
+dev.off()
+```
+
+
+```{r}
+# library(Seurat)
+# combined.mc.benchmarked <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final/output/whole_atlas/metacells_sup/g10_final_6c/full_atlas_metacells.rds")
+# 
+# object.size(combined.mc.benchmarked)
+# combined.mc.benchmarked[["RNA"]] <- JoinLayers(combined.mc.benchmarked[["RNA"]])
+# object.size(combined.mc.benchmarked)
+# 
+# 
+# DimPlot(combined.mc.benchmarked,reduction = "wnn.umap")
+```
+
+
+
+```{r fig.height=10,fig.width=20}
+FeaturePlot(htan.sup,c("CLEC4C",'KIT',"HDC","CD1A","LAMP3","PRF1"),reduction = 'wnn.umap',ncol  = 3)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+other meta
+```{r}
+# integrated.wnn.cohort <- DimPlot(htan.sup,reduction = "wnn.umap",group.by = "cohort",cols =cohort.colors,shuffle = T)  + 
+#   theme(axis.text = element_blank(),
+#         plot.title = element_blank(),
+#         axis.title = element_blank(),
+#         axis.ticks = element_blank()) 
+
+
+integrated.wnn.htan <- DimPlot(htan.sup,reduction = "wnn.umap",group.by = "HTAN",cols =htan.colors,shuffle = T)  + 
+  theme(axis.text = element_blank(),
+        plot.title = element_blank(),
+        axis.title = element_blank(),
+        
+        axis.ticks = element_blank())
+
+# unintegrated.wnn.cohort <- DimPlot(htan.sup,reduction = "wnn.uncorrected.umap",group.by = "cohort",cols = cohort.colors)  + 
+#   theme(axis.text = element_blank(),
+#         axis.title = element_blank(),
+#         plot.title = element_blank(),
+#         axis.ticks = element_blank())
+
+
+unintegrated.wnn.htan <- DimPlot(htan.sup,reduction = "uncorrected.wnn.umap",group.by = "HTAN",cols =  (htan.colors)) + 
+  theme(axis.text = element_blank(),
+        plot.title = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank()) 
+
+
+
+
+unintegrated.wnn.size <- FeaturePlot(htan.sup,reduction = "uncorrected.wnn.umap",features = "size") + 
+  theme(axis.text = element_blank(),
+        plot.title = element_blank(),
+        
+        axis.ticks = element_blank())  + 
+  xlab("wnnUMAP_1") +  ylab("wnnUMAP_2")   + 
+  scale_color_distiller(palette = "OrRd",direction = 1,
+                        # trans = "log10"
+  ) + labs(color = "Size")
+
+
+
+integrated.wnn.size <- FeaturePlot(htan.sup,reduction = "wnn.umap",features = "size") + 
+  theme(axis.text = element_blank(),
+        plot.title = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank())  + 
+  scale_color_distiller(palette = "OrRd",direction = 1,
+                        # trans = "log10"
+  ) + labs(color = "Size")
+
+
+
+
+figS6D <- wrap_plots(
+  
+  unintegrated.wnn.htan+ NoLegend(),
+  integrated.wnn.htan,
+  unintegrated.wnn.size + NoLegend(),
+  integrated.wnn.size,
+  
+  ncol = 2,byrow = T)
+
+
+
+```
+```{r fig.height=5.5,fig.width=7}
+figS6D
+pdf("../pdf_files/figS6D.pdf",height=5.5,width=7 )
+figS6D
+dev.off()
+```
+```{r fig.height=5,fig.width=11}
+# 
+# unintegrated.rna.scAtom <- DimPlot(htan.sup,reduction = "wnn.umap",group.by = "scATOMIC_labels",cols = scAtomic.colors)  + 
+#   theme(axis.text = element_blank(),
+#         axis.title = element_blank(),
+#         # plot.title = element_blank(),
+#         axis.ticks = element_blank()) + ggtitle("scATOMIC")
+# 
+# unintegrated.rna.cohort <- DimPlot(htan.sup,reduction = "umap",group.by = "cohort",cols = cohort.colors)  + 
+#   theme(axis.text = element_blank(),
+#         axis.title = element_blank(),
+#         # plot.title = element_blank(),
+#         axis.ticks = element_blank()) + ggtitle("Cohorts")
+# 
+# # unintegrated.rna.sample <- DimPlot(htan.sup,reduction = "umap",group.by = "Sample",cols = sample.colors)  + 
+# #   theme(axis.text = element_blank(),
+# #         axis.title = element_blank(),
+# #         # plot.title = element_blank(),
+# #         axis.ticks = element_blank()) + ggtitle("Samples")
+# 
+# unintegrated.atac.scAtom <- DimPlot(htan.sup,reduction = "cusanovich.lsi.umap",group.by = "scATOMIC_labels",cols = scAtomic.colors)  + 
+#   theme(axis.text = element_blank(),
+#         axis.title = element_blank(),
+#         # plot.title = element_blank(),
+#         axis.ticks = element_blank()) + ggtitle("scATOMIC")
+# 
+# unintegrated.atac.cohort <- DimPlot(htan.sup,reduction = "cusanovich.lsi.umap",group.by = "cohort",cols = cohort.colors)  + 
+#   theme(axis.text = element_blank(),
+#         axis.title = element_blank(),
+#         # plot.title = element_blank(),
+#         axis.ticks = element_blank()) + ggtitle("Cohort")
+# 
+# unintegrated.atac.sample <- DimPlot(htan.sup,reduction = "cusanovich.lsi.umap",group.by = "Sample",cols = sample.colors)  + 
+#   theme(axis.text = element_blank(),
+#         axis.title = element_blank(),
+#         # plot.title = element_blank(),
+#         axis.ticks = element_blank()) + ggtitle("Sample")
+# 
+# wrap_plots(unintegrated.rna.scAtom , unintegrated.rna.cohort,unintegrated.rna.sample + NoLegend(),
+#            unintegrated.atac.scAtom + NoLegend(), unintegrated.atac.cohort+ NoLegend(),unintegrated.atac.sample + NoLegend())
+
+
+
+
+
+```
+```{r fig.height=5,fig.width=11}
+# 
+# integrated.rna.scAtom <- DimPlot(htan.sup,reduction = "ssSTACAS.umap",group.by = "scATOMIC_labels",cols = scAtomic.colors)  + 
+#   theme(axis.text = element_blank(),
+#         axis.title = element_blank(),
+#         # plot.title = element_blank(),
+#         axis.ticks = element_blank()) + ggtitle("scATOMIC")
+# 
+# integrated.rna.cohort <- DimPlot(htan.sup,reduction = "ssSTACAS.umap",group.by = "cohort",cols = cohort.colors)  + 
+#   theme(axis.text = element_blank(),
+#         axis.title = element_blank(),
+#         # plot.title = element_blank(),
+#         axis.ticks = element_blank()) + ggtitle("Cohorts")
+# 
+# integrated.rna.sample <- DimPlot(htan.sup,reduction = "ssSTACAS.umap",group.by = "Sample",cols = sample.colors)  + 
+#   theme(axis.text = element_blank(),
+#         axis.title = element_blank(),
+#         # plot.title = element_blank(),
+#         axis.ticks = element_blank()) + ggtitle("Samples")
+# 
+# integrated.atac.scAtom <- DimPlot(htan.sup,reduction = "cusanovich.harmony.umap",group.by = "scATOMIC_labels",cols = scAtomic.colors)  + 
+#   theme(axis.text = element_blank(),
+#         axis.title = element_blank(),
+#         # plot.title = element_blank(),
+#         axis.ticks = element_blank()) + ggtitle("scATOMIC")
+# 
+# integrated.atac.cohort <- DimPlot(htan.sup,reduction = "cusanovich.harmony.umap",group.by = "cohort",cols = cohort.colors)  + 
+#   theme(axis.text = element_blank(),
+#         axis.title = element_blank(),
+#         # plot.title = element_blank(),
+#         axis.ticks = element_blank()) + ggtitle("Cohort")
+# 
+# integrated.atac.sample <- DimPlot(htan.sup,reduction = "cusanovich.harmony.umap",group.by = "Sample",cols = sample.colors)  + 
+#   theme(axis.text = element_blank(),
+#         axis.title = element_blank(),
+#         # plot.title = element_blank(),
+#         axis.ticks = element_blank()) + ggtitle("Sample")
+# 
+# wrap_plots(integrated.rna.scAtom , integrated.rna.cohort,integrated.rna.sample + NoLegend(),
+#            integrated.atac.scAtom + NoLegend(), integrated.atac.cohort+ NoLegend(),integrated.atac.sample + NoLegend())
+
+
+
+
+
+```
+
+# SAme unsupervised
+
+```{r fig.height=5,fig.width=12}
+# htan.unsup <- FindMultiModalNeighbors(htan.unsup,reduction.list = c("unsupSTACAS","cusanovich.harmony"),dims.list = list(c(1:50),c(1:50)))
+# htan.unsup <- RunUMAP(htan.unsup,nn.name = "weighted.nn",reduction.name = "wnn.umap",reduction.key = "wnnCorUMAP_")
+# htan.unsup <- FindMultiModalNeighbors(htan.unsup,reduction.list = c("pca","cusanovich.lsi"),dims.list = list(c(1:50),c(1:50)),
+#                                              weighted.nn.name = "weighted.uncorrected.nn")
+# htan.unsup <- RunUMAP(htan.unsup,nn.name = "weighted.uncorrected.nn",reduction.name = "wnn.uncorrected.umap",reduction.key = "wnnUncorUMAP_")
+# 
+# 
+# 
+# htan.unsup$scATOMIC_labels <- htan.unsup$label_integration
+# htan.unsup$scATOMIC_labels[grepl(htan.unsup$scATOMIC_labels,pattern =  "CD4")] <-"CD4" 
+# htan.unsup$scATOMIC_labels[grepl(htan.unsup$scATOMIC_labels,pattern =  "CD8")] <-"CD8" 
+# htan.unsup$scATOMIC_labels[grepl(htan.unsup$scATOMIC_labels,pattern =  "killer")] <-"NK" 
+# htan.unsup$scATOMIC_labels[grepl(htan.unsup$scATOMIC_labels,pattern =  "Fibro")] <-"Fibroblasts" 
+# htan.unsup$scATOMIC_labels[grepl(htan.unsup$scATOMIC_labels,pattern =  "Endo")] <-"Endothelial" 
+# htan.unsup$scATOMIC_labels[grepl(htan.unsup$scATOMIC_labels,pattern =  "Dendri")] <-"DC" 
+# htan.unsup$scATOMIC_labels[grepl(htan.unsup$scATOMIC_labels,pattern =  "Plasma")] <-"Plasma" 
+# htan.unsup$scATOMIC_labels[grepl(htan.unsup$scATOMIC_labels,pattern =  "B")] <-"B" 
+# htan.unsup$scATOMIC_labels[grepl(htan.unsup$scATOMIC_labels,pattern =  "Macro")] <-"Mono/Macro" 
+# htan.unsup$scATOMIC_labels[is.na(htan.unsup$scATOMIC_labels)] <- "Unknown"
+# 
+# 
+# 
+# htan.unsup$HTAN <- as.vector(htan.unsup$cell_type)
+# htan.unsup$HTAN[htan.unsup$HTAN == "Macrophages"] <- "Macro"
+# htan.unsup$HTAN[htan.unsup$HTAN == "B-cells"] <- "B"
+# htan.unsup$HTAN[htan.unsup$HTAN == "T-cells"] <- "T"
+# 
+# 
+# 
+# # htan.unsup$scATOMIC_labels <- factor()
+# 
+# 
+# htan.unsup$scATOMIC_labels <- factor(htan.unsup$scATOMIC_labels, levels = c("Fibroblasts","Endothelial","Mono/Macro","DC",
+#                                                                                           "B","Plasma","CD4","CD8","NK","Unknown"))
+# htan.unsup$HTAN <- factor(htan.unsup$HTAN,  levels = c("Fibroblasts","vSMCs","Pericytes","Endothelial","Macro","DC",
+#                                                                      "B","Plasma","T","NK","Mast"))
+
+integrated.wnn.guiding.labels.unsup <- DimPlot(htan.unsup,
+                                               reduction = "wnn.umap",
+                                               group.by = "scATOMIC_labels",shuffle = T,
+                                               cols = scAtomic.colors) + theme(axis.text = element_blank(),
+                                                                               axis.title = element_blank(),
+                                                                               plot.title = element_blank(),
+                                                                               axis.ticks = element_blank()) 
+
+integrated.wnn.sample.unsup <- DimPlot(htan.unsup,reduction = "wnn.umap",group.by = "Sample",cols = sample.colors,shuffle = T)  + 
+  theme(axis.text = element_blank(),
+        plot.title = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank())
+
+
+
+unintegrated.wnn.guiding.labels.unsup <- DimPlot(htan.unsup,reduction = "uncorrected.wnn.umap",group.by = "scATOMIC_labels",cols = scAtomic.colors)  + 
+  theme(axis.text = element_blank(),
+        plot.title = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank())
+
+
+unintegrated.wnn.sample.unsup <- DimPlot(htan.unsup,reduction = "uncorrected.wnn.umap",group.by = "Sample",cols =  (sample.colors))  + 
+  theme(axis.text = element_blank(),
+        plot.title = element_blank(),
+        axis.title = element_blank(),
+        
+        axis.ticks = element_blank())
+
+
+integrated.wnn.cohort.unsup <- DimPlot(htan.unsup,reduction = "wnn.umap",group.by = "cohort",cols =cohort.colors,shuffle = T)  + 
+  theme(axis.text = element_blank(),
+        plot.title = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank()) 
+
+
+integrated.wnn.htan.unsup <- DimPlot(htan.unsup,reduction = "wnn.umap",group.by = "HTAN",cols =htan.colors,shuffle = T)  + 
+  theme(axis.text = element_blank(),
+        plot.title = element_blank(),
+        axis.title = element_blank(),
+        
+        axis.ticks = element_blank())
+
+unintegrated.wnn.cohort.unsup <- DimPlot(htan.unsup,reduction = "uncorrected.wnn.umap",group.by = "cohort",cols = cohort.colors)  + 
+  theme(axis.text = element_blank(),
+        axis.title = element_blank(),
+        plot.title = element_blank(),
+        axis.ticks = element_blank())
+
+
+unintegrated.wnn.htan.unsup <- DimPlot(htan.unsup,reduction = "uncorrected.wnn.umap",group.by = "HTAN",cols =  (htan.colors)) + 
+  theme(axis.text = element_blank(),
+        plot.title = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank()) 
+
+
+unintegrated.wnn.size.unsup <- FeaturePlot(htan.unsup,reduction = "uncorrected.wnn.umap",features = "size") + 
+  theme(axis.text = element_blank(),
+        plot.title = element_blank(),
+        
+        axis.ticks = element_blank())  + 
+  xlab("wnnUMAP_1") +  ylab("wnnUMAP_2")   + 
+  scale_color_distiller(palette = "OrRd",direction = 1,
+  ) + labs(color = "Size")
+
+
+
+
+integrated.wnn.size.unsup <- FeaturePlot(htan.unsup,reduction = "wnn.umap",features = "size") + 
+  theme(axis.text = element_blank(),
+        plot.title = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank())  + 
+  scale_color_distiller(palette = "OrRd",direction = 1,
+  ) + labs(color = "Size")
+
+# + 
+#   scale_color_distiller(palette = "RdBu",
+#                         trans = "log10",
+#                         limits = c(min(htan.sup$size,
+#                                        htan.unsup$size ),
+#                                    max(htan.sup$size,
+#                                        htan.unsup$size )),
+#                         breaks = c(1, 10, 50)) + labs(color = "Size") 
+
+
+figS6E <- wrap_plots(unintegrated.wnn.cohort.unsup + NoLegend(),
+                      integrated.wnn.cohort.unsup,
+                      unintegrated.wnn.guiding.labels.unsup + NoLegend(),
+                      integrated.wnn.guiding.labels.unsup,
+                      unintegrated.wnn.htan.unsup + NoLegend(),
+                      integrated.wnn.htan.unsup,
+                      unintegrated.wnn.size.unsup + NoLegend(),
+                      integrated.wnn.size.unsup,
+                      
+                      ncol = 2,byrow = T)
+
+# unintegrated.wnn.guiding.labels <- unintegrated.wnn.guiding.labels+  guides(color = guide_legend(nrow = 2,override.aes = list(size = 3 )))
+# fig4G <- plot_grid(wrapped.plots,
+#                    get_legend(unintegrated.wnn.guiding.labels+ guides(guide_legend(nrow = 2))),ncol = 1,rel_heights = c(9,1))
+```
+```{r fig.height=10.5,fig.width=7}
+figS6E
+pdf("../pdf_files/figS6E.pdf",height=10.5,width=7 )
+figS6E
+dev.off()
+```
+
+
+```{r}
+# htan.sup$mc_mode <- "Semi-sup. metacells"
+# htan.unsup$mc_mode <- "Unsup. metacells"
+# 
+# names(col.workflow) <- c("Semi-sup. metacells","Unsup. metacells")
+# 
+# meta.mc.all <- rbind(htan.sup@meta.data[,c("cell_type","cell_type_purity","scATOMIC",
+#                                                   "label_scATOMIC","label_scATOMIC_purity",
+#                                                   "size","mc_mode")],
+#                      htan.unsup@meta.data[,c("cell_type","cell_type_purity","scATOMIC",
+#                                                     "label_scATOMIC","label_scATOMIC_purity",
+#                                                     "size","mc_mode")])
+# 
+# 
+# 
+# purity.scAto <- ggplot(meta.mc.all,
+#                        aes(x=mc_mode,y=label_scATOMIC_purity,fill = mc_mode)) +geom_boxplot() + ylab("scATOMIC label purity") + NoLegend() + 
+#   ggsignif::geom_signif(comparisons = list(c("Semi-sup. metacells","Unsup. metacells")),map_signif_level = T) +ylim(c(0.3,1.1)) + theme(axis.title.x = element_blank()) + 
+#   scale_fill_manual(values = col.workflow)  +
+#   NoLegend() + scale_x_discrete(guide = guide_axis(angle = 60)) + theme(axis.title.x = element_blank(),axis.text.x = element_blank())
+# 
+# purity.scAto
+# 
+# purity.htan <- ggplot(meta.mc.all,
+#                       aes(x=mc_mode,y=cell_type_purity,fill = mc_mode)) +geom_boxplot() + ylab("HTAN label purity") + NoLegend()  +ylim(c(0.3,1.1)) + theme(axis.title.x = element_blank())+ 
+#   scale_fill_manual(values = col.workflow) +
+#   NoLegend() + scale_x_discrete(guide = guide_axis(angle = 60)) + theme(axis.title.x = element_blank())
+# 
+# purity.htan
+# 
+# wrap_plots(purity.scAto,purity.htan,ncol = 1)
+```
+
+```{r fig.height=5,fig.width=1.75}
+# wrap_plots(purity.scAto,purity.htan,ncol = 1)
+# pdf("../pdf_files/Fig4H.pdf",height=5,width=1.75)
+# wrap_plots(purity.scAto,purity.htan,ncol = 1)
+# dev.off()
+```
+
+
+```{r}
+
+
+
+# purity.scAto.types <- ggplot(meta.mc.all[meta.mc.all$label_scATOMIC != "unknown",],
+#                              aes(x=mc_mode,y=label_scATOMIC_purity,fill = mc_mode)) +geom_boxplot() + ylab("scATOMIC purity") + NoLegend() + 
+#   ggsignif::geom_signif(comparisons = list(c("Semi-sup. metacells","Unsup. metacells")),map_signif_level = T) +ylim(c(0.3,1.1)) + theme(axis.title.x = element_blank()) + facet_wrap("~scATOMIC_labels") + 
+#   scale_fill_manual(values = col.workflow) +
+#   NoLegend() + scale_x_discrete(guide = guide_axis(angle = 45)) + theme(axis.title.x = element_blank())
+
+```
+```{r fig.height=5,fig.width=5}
+# purity.scAto.types
+# pdf("../pdf_files/figSN2E.pdf",height=5,width=5)
+# purity.scAto.types
+# dev.off()
+```
+
+```{r fig.height=5,fig.width=3}
+# htan.sup[["RNA"]] <- JoinLayers(htan.sup[["RNA"]] )
+# htan.unsup[["RNA"]] <- JoinLayers(htan.unsup[["RNA"]] )
+# 
+# vln.sup <- VlnPlot.SuperCell(htan.sup[,htan.sup$scATOMIC_labels %in% c("CD4","CD8","NK")],features = c("CD4","CD8A","CD8B","NCAM1"),
+#                              group.by = c("scATOMIC_labels"),stack = T,cols = scAtomic.colors,fill.by = "ident",flip = T) + 
+#   theme(axis.title.x = element_blank()) + 
+#   theme(axis.text.x = element_blank())
+# vln.unsup <- VlnPlot.SuperCell(htan.unsup[,htan.unsup$scATOMIC_labels %in% c("CD4","CD8","NK")],
+#                                features = c("CD4","CD8A","CD8B","NCAM1"),group.by = c("scATOMIC_labels"),stack = T,cols = scAtomic.colors,fill.by = "ident",flip = T) + 
+#   theme(axis.title.x = element_blank())
+# 
+# wrap_plots(vln.sup+ NoLegend(), vln.unsup + NoLegend(),ncol = 1)
+# 
+# pdf("../pdf_files/figSN2F.pdf",height=5,width=3)
+# wrap_plots(vln.sup+ NoLegend(), vln.unsup + NoLegend(),ncol = 1)
+# 
+# dev.off()
+
+```
+
+
+## Figure sup correspondance of sc anno
+
+
+
+```{r}
+annotation.all <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/annotation.all.rds")
+
+length(unique(annotation.all$Sample))
+```
+
+
+
+```{r}
+
+annotation.all$scATOMIC_labels <- annotation.all$label_scATOMIC
+annotation.all$scATOMIC_labels[grepl(annotation.all$scATOMIC_labels,pattern =  "CD4")] <-"CD4" 
+annotation.all$scATOMIC_labels[grepl(annotation.all$scATOMIC_labels,pattern =  "CD8")] <-"CD8" 
+annotation.all$scATOMIC_labels[grepl(annotation.all$scATOMIC_labels,pattern =  "killer")] <-"NK" 
+annotation.all$scATOMIC_labels[grepl(annotation.all$scATOMIC_labels,pattern =  "Fibro")] <-"Fibroblasts" 
+annotation.all$scATOMIC_labels[grepl(annotation.all$scATOMIC_labels,pattern =  "Endo")] <-"Endothelial" 
+annotation.all$scATOMIC_labels[grepl(annotation.all$scATOMIC_labels,pattern =  "Dendri")] <-"DC" 
+annotation.all$scATOMIC_labels[grepl(annotation.all$scATOMIC_labels,pattern =  "Plasma")] <-"Plasma" 
+annotation.all$scATOMIC_labels[grepl(annotation.all$scATOMIC_labels,pattern =  "B")] <-"B" 
+annotation.all$scATOMIC_labels[grepl(annotation.all$scATOMIC_labels,pattern =  "Macro")] <-"Mono/Macro" 
+annotation.all$scATOMIC_labels[grepl(annotation.all$scATOMIC_labels,pattern =  "unknown")] <-"Unknown" 
+annotation.all$scATOMIC_labels[grepl(annotation.all$scATOMIC_labels,pattern =  "Mast")] <-"Mast" 
+
+
+
+
+annotation.all$HTAN <- as.vector(annotation.all$cell_type)
+annotation.all$HTAN[annotation.all$HTAN == "Macrophages"] <- "Macro"
+annotation.all$HTAN[annotation.all$HTAN == "B-cells"] <- "B"
+annotation.all$HTAN[annotation.all$HTAN == "T-cells"] <- "T"
+
+
+```
+```{r fig.height=5,fig.width=}
+table.all.atlas <- table(annotation.all$HTAN,annotation.all$scATOMIC_labels)
+df.all.atlas <- as.data.frame(table.all.atlas) 
+# Rename the columns for better understanding
+colnames(df.all.atlas) <- c("HTAN", "scATOMIC", "Frequency")
+
+df.all.atlas<-  df.all.atlas %>%
+  group_by(HTAN) %>%
+  mutate(Percentage = Frequency / sum(Frequency) * 100)
+
+df.all.atlas.ordered <- df.all.atlas %>%
+  group_by(scATOMIC, HTAN) %>%
+  summarise(AvgPercentage = mean(Percentage)) %>%
+  ungroup() %>%
+  arrange(desc(AvgPercentage))
+
+# Reorder the factor levels for Cylinders and Gears based on the rank
+df.all.atlas$scATOMIC <- factor(df.all.atlas$scATOMIC, levels = rev(c("Fibroblasts","Endothelial","Mono/Macro","DC",
+                                                                      "B","Plasma","CD4","CD8","NK","Mast","Unknown")))
+df.all.atlas$HTAN <- factor(df.all.atlas$HTAN,  levels = c("Fibroblasts","vSMCs","Pericytes","Endothelial","Macro","DC",
+                                                           "B","Plasma","T","NK","Mast"))
+
+
+
+corres.table <- ggplot(df.all.atlas, aes(y = scATOMIC,x = HTAN, fill = Percentage)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "red",breaks = c(0,25,50,75,100),limits = c(0,100)) + 
+  geom_text(aes(label =  Frequency), color = "black") + labs(fill = "% scATOMIC") +
+  scale_x_discrete(position = "top",guide = guide_axis(angle = 45)) 
+
+```
+```{r fig.height=4,fig.width=7}
+corres.table
+pdf("../pdf_files/figS6A.pdf", height = 4,width = 7)
+corres.table
+dev.off()
+```
+
