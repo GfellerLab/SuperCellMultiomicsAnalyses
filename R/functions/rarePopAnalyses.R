@@ -1,4 +1,10 @@
-subsampleCellType <- function(seurat,cellType,n=20,nfeatures = 2000,cellTypeCol ="cell_line",seed = 1) {
+subsampleCellType <- function(seurat,
+                              cellType,
+                              n=20,
+                              nfeatures = 2000,
+                              cellTypeCol ="cell_line",
+                              RNAnormalization = "LogNormalize",
+                              seed = 1) {
   Idents(seurat) <- cellTypeCol
   subIdx = which(seurat[[cellTypeCol]][,1] == cellType)
   print(subIdx)
@@ -8,15 +14,18 @@ subsampleCellType <- function(seurat,cellType,n=20,nfeatures = 2000,cellTypeCol 
   seurat <- subset(seurat,cells = subCells,invert = T)
   print(table(seurat[[cellTypeCol]]))
   
-  seurat <- NormalizeData(seurat)
+  #seurat <- NormalizeData(seurat)
   
+  if (RNAnormalization == "SCT") {
+    rnaAssay = "SCT"
+    DefaultAssay(seurat) <- "RNA"
+    seurat <- SCTransform(seurat, verbose = FALSE) 
+    seurat <- RunPCA(seurat)
+  } else {
+    rnaAssay = "RNA"
+    seurat <- NormalizeData(seurat, verbose = FALSE) %>% FindVariableFeatures(,nFeature = nfeatures) %>% ScaleData() %>% RunPCA()
+  }
   
-  #GE_cellLine_sub <- GE_cellLine[,sample(colnames(GE_cellLine),size = n)]
-  #GE_res <- cbind(GE[,which(!cell.meta == cellLine)],GE_cellLine_sub)
-  DefaultAssay(seurat) <- 'RNA'
-  seurat <- FindVariableFeatures(seurat,nfeatures = nfeatures)
-  seurat <- ScaleData(seurat)
-  seurat <- RunPCA(seurat,eduction.name = 'pca')
   
   if ("ADT" %in% names(seurat@assays)) {
     DefaultAssay(seurat) <- 'ADT'
@@ -25,6 +34,13 @@ subsampleCellType <- function(seurat,cellType,n=20,nfeatures = 2000,cellTypeCol 
     VariableFeatures(seurat) <- rownames(seurat[["ADT"]])
     seurat <- NormalizeData(seurat, normalization.method = 'CLR', margin = 2) %>% 
       ScaleData() %>% RunPCA(reduction.name = 'apca')
+  }
+  
+  if ("ATAC" %in% names(seurat@assays)) {
+    DefaultAssay(seurat) <- 'ATAC'
+    seurat <- RunTFIDF(seurat)
+    seurat <- FindTopFeatures(seurat, min.cutoff = "q0")
+    seurat <- RunSVD(seurat)
   }
   return(seurat)
 }

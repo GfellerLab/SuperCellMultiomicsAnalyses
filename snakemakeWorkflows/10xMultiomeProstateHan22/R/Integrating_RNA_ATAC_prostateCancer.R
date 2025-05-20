@@ -1,4 +1,4 @@
-setwd("input/prostateCancer10xMultiome/")
+#setwd("input/prostateCancer10xMultiome/")
 getwd()
 {library(Seurat)
 library(dplyr)
@@ -35,7 +35,7 @@ rna.All.combined.integrated.filter <- harmony::RunHarmony(
 rna.All.combined.integrated.filter <- RunUMAP(rna.All.combined.integrated.filter, dims = 2:50, reduction = 'harmony',reduction.name = "umap.harmony")
 DefaultAssay(rna.All.combined.integrated.filter) <- "ATAC"
 rna.All.combined.integrated.filter <- FindMultiModalNeighbors(rna.All.combined.integrated.filter, reduction.list = list("pca", "harmony"), dims.list = list(1:50, 2:50))
-rna.All.combined.integrated.filter <- FindClusters(rna.All.combined.integrated.filter, resolution = 0.055) 
+rna.All.combined.integrated.filter <- FindClusters(rna.All.combined.integrated.filter, resolution = 0.055,graph.name = "wsnn") 
 rna.All.combined.integrated.filter <- RunUMAP(rna.All.combined.integrated.filter, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_")
 
 p1 <- DimPlot(rna.All.combined.integrated.filter, reduction = "umap",  label = TRUE, label.size = 2.5, repel = TRUE) + ggtitle("RNA")
@@ -50,7 +50,7 @@ write.csv(rna.All.combined.integrated.filter@reductions[['wnn.umap']]@cell.embed
 write.csv(rna.All.combined.integrated.filter@reductions[['umap.harmony']]@cell.embeddings,"wnn.umap.csv")
 write.csv(rna.All.combined.integrated.filter@reductions[['wnn.umap']]@cell.embeddings,"wnn.umap.csv")
 write.csv(rna.All.combined.integrated.filter@reductions[['wnn.umap']]@cell.embeddings,"wnn.umap.csv")
-write.csv(rna.All.combined.integrated@meta.data,"wnn.all.combined.integrated_meta.data.csv")  
+write.csv(rna.All.combined.integrated.filter@meta.data,"wnn.all.combined.integrated_meta.data.csv")  
 
 #save(rna.All.combined.integrated.filter,file="rna.All.wnn.Rdata")
 

@@ -19,7 +19,9 @@ spec = matrix(c(
   'gamma', 'g', 1, "numeric", "gmaa for metacell identification",
   "pythonSeacellEnv", "p", 1, "character", "python path for seacell env to compute compactness/separation",
   "consensusPeakSet", "c", 1, "character", "path to consensus peak set file",
-  "normalization", "n", 1, "character", "normalization method ('LogNormilsation' or 'SCT')"
+  "peakRDS", "a", 1, "character", "direct path to consensus macs2 peak set file (.rds)",
+  "normalization", "n", 1, "character", "normalization method ('LogNormilsation' or 'SCT')",
+  "macs2", "m", 1, "character", "path to macs2 to compue narrow peaks and use them instead of cellranger atac peak"
 ), byrow=TRUE, ncol=5)
 
 opt = getopt(spec)
@@ -55,6 +57,8 @@ if (is.null(opt$normalization)) {
   opt$normalization <- "LogNormalization"
 }
 
+
+
 print(opt)
 
 smp <- strsplit(opt$inputH5,"/")[[1]][length(strsplit(opt$inputH5,"/")[[1]])-1]
@@ -63,25 +67,60 @@ inputdata.10x <- Read10X_h5(opt$inputH5)
 obj <- CreateSeuratObject(counts = inputdata.10x$`Gene Expression`,project = smp)
 
 
-#atac
-grange.counts<- StringToGRanges(rownames(inputdata.10x$Peaks), sep = c(":", "-"))
-grange.use<- seqnames(grange.counts) %in% standardChromosomes(grange.counts)
-atac_counts<- inputdata.10x$Peaks[as.vector(grange.use), ]
-annotations<- GetGRangesFromEnsDb(ensdb = EnsDb.Mmusculus.v79)
-seqlevelsStyle(annotations) <- 'UCSC'
-genome(annotations) <- "mm10"
 
-# same code as in the original study
-chrom_assay<- CreateChromatinAssay(
-  counts = atac_counts,
-  sep = c(":", "-"),
-  genome = 'mm10',
-  fragments = opt$fragmentFile,
-  min.cells = 10,
-  annotation = annotations
-)
+
+if (!is.null(opt$peakRDS)) {
+  consensus_peakset <- readRDS(opt$peakRDS)
+  
+  peaks <- FeatureMatrix(
+    fragments = CreateFragmentObject(opt$fragmentFile),
+    features = consensus_peakset,
+    cells = colnames(obj)
+  )
+  
+  print("macs2 peak loaded")
+  
+  # grange.counts.peakset.inter <- StringToGRanges(rownames(peaks), sep = c(":", "-"))
+  # grange.use.peakset.inter <- seqnames(grange.counts.peakset.inter) %in% standardChromosomes(grange.counts.peakset.inter)
+  # atac_counts.peakset.inter <- peaks[as.vector(grange.use.peakset.inter), ]
+  annotations.peakset.inter <- GetGRangesFromEnsDb(ensdb = EnsDb.Mmusculus.v79)
+  seqlevelsStyle(annotations.peakset.inter) <- 'UCSC'
+  genome(annotations.peakset.inter) <- "mm10"
+  
+  chrom_assay<- CreateChromatinAssay(
+    counts = peaks,
+    #sep = c(":", "-"),
+    genome = 'mm10',
+    min.cells = 1, # peaks have been identified after a first analysis
+    annotation=annotations.peakset.inter,
+    fragments = opt$fragmentFile
+  )
+  print("chrom assay created")
+} else {
+  print("using cell ranger peaks")
+  #atac
+  grange.counts<- StringToGRanges(rownames(inputdata.10x$Peaks), sep = c(":", "-"))
+  grange.use<- seqnames(grange.counts) %in% standardChromosomes(grange.counts)
+  atac_counts<- inputdata.10x$Peaks[as.vector(grange.use), ]
+  annotations<- GetGRangesFromEnsDb(ensdb = EnsDb.Mmusculus.v79)
+  seqlevelsStyle(annotations) <- 'UCSC'
+  genome(annotations) <- "mm10"
+  
+  # same code as in the original study
+  chrom_assay<- CreateChromatinAssay(
+    counts = atac_counts,
+    sep = c(":", "-"),
+    genome = 'mm10',
+    fragments = opt$fragmentFile,
+    min.cells = 10,
+    annotation = annotations
+  )
+  
+}
+
 
 if (!is.null(opt$consensusPeakSet)) {
+  print("Loading consensus peak set table...")
   consensus_peakset <- read.csv(opt$consensusPeakSet,row.names = 1)
   consensus_peakset <- paste(consensus_peakset$seqnames,consensus_peakset$start,consensus_peakset$end,sep = "-")
   
@@ -109,14 +148,45 @@ if (!is.null(opt$consensusPeakSet)) {
   )
 }
 
+if (!is.null(opt$macs2)) {
+  print("Call peaks with macs2")
+  peaks <- CallPeaks(chrom_assay,macs2.path = opt$macs2)
+  
+  # remove peaks on nonstandard chromosomes and in genomic blacklist regions
+  peaks <- keepStandardChromosomes(peaks, pruning.mode = "coarse")
+  peaks <- subsetByOverlaps(x = peaks, ranges = blacklist_mm10, invert = TRUE)
+  # quantify counts in each peak
+  macs2_counts <- FeatureMatrix(
+    fragments = Fragments(chrom_assay),
+    features = peaks,
+    cells = colnames(chrom_assay)
+  )
+  #atac
 
-obj[["ATAC"]] <- chrom_assay
+  
+  #overwrite ATAC assay
+  new_chrom_assay<- CreateChromatinAssay(
+    counts = macs2_counts,
+    genome = 'mm10',
+    min.cells = 1,
+    fragments = Fragments(chrom_assay),
+    annotation = annotations
+  )
+  obj[["ATAC"]] <- new_chrom_assay
+  rm(chrom_assay)
+  rm(new_chrom_assay)
+  
+} else {
+  obj[["ATAC"]] <- chrom_assay
+  rm(chrom_assay)
+}
+
+
 
 DefaultAssay(obj) <- "RNA"
 obj[["percent.mt"]] <- PercentageFeatureSet(obj, pattern = "^mt-")
 
 rm(inputdata.10x)
-rm(chrom_assay)
 gc()
 
 # RNA processing
@@ -169,6 +239,10 @@ outputDirMcFragment <- paste0(opt$outdir,"/aggregated_fragment_file/")
 fragmentFiles <- list()
 fragmentFiles[["ATAC"]] <- GetFragmentData(object = Fragments(obj)[[1]], slot = "path")
 
+if(!is.null(opt$peakRDS)) {
+  saveRDS(obj,paste0(opt$outdir,"/sc_sobj.rds"))
+}
+
 obj.mc <- SCimplify_for_Seurat(seurat = obj,
                                k.knn = 30,
                                kernel = T,
@@ -181,14 +255,15 @@ obj.mc <- SCimplify_for_Seurat(seurat = obj,
                                outputDirMcFragment = paste0(getwd(),"/",outputDirMcFragment),
                                graph.name = "knn")
 
-obj.mc <- NormalizeData(obj.mc)
+DefaultAssay(obj.mc) <- "ATAC"
+obj.mc <- FindTopFeatures(obj.mc, min.cutoff = 'q0') 
+obj.mc <- RunTFIDF(obj.mc)
 
+DefaultAssay(obj.mc) <- "RNA"
 
 if (opt$normalization == "LogNormalization") {
   obj.mc <- NormalizeData(obj.mc, verbose = FALSE) %>% FindVariableFeatures(nfeatures = 2000,verbose = FALSE) %>% ScaleData() %>% RunPCA() %>% RunUMAP(dims = 1:50, reduction.name = 'umap.rna', reduction.key = 'rnaUMAP_')
-  rnaAssay <- "RNA"
 } else {
-  #SCT
   obj.mc <- SCTransform(obj.mc, verbose = FALSE,vst.flavor = "v2")
   obj.mc <- RunPCA(obj.mc, verbose = FALSE)
 }

@@ -1,0 +1,546 @@
+```{r}
+library(Seurat)
+library(dplyr)
+library(Matrix)
+library(ggplot2)
+library(cowplot)
+library(EnsDb.Mmusculus.v79)
+library(Signac)
+library(S4Vectors)
+library(patchwork)
+library(Cairo)
+options(bitmapType = "cairo")
+
+```
+
+## Scalability benchmark
+```{r}
+
+library(ggthemes)
+method.colors.corr <- c(colorblind_pal()(3))[c(2,3)]
+
+
+
+bench.mc <- read.table('../../../benchmark/10xMultiomeProstateHan22/Integrating_metacells_RNA_ATAC_prostateCancer.txt',header = T)
+
+bench.sc <- read.table('../../../benchmark/10xMultiomeProstateHan22/single_cell/RNA_object_construction.txt',header = T)
+bench.sc <- rbind(bench.sc,read.table('../../../benchmark/10xMultiomeProstateHan22/single_cell/ATAC_object_construction.txt',header = T))
+
+bench.sc <- rbind(bench.sc,read.table('../../../benchmark/10xMultiomeProstateHan22/single_cell/ATAC_RNA_integration.txt',header = T))
+
+bench.sc.final <- data.frame(cpu_time = sum(bench.sc$cpu_time),
+                             memory = max(bench.sc$max_rss),
+                             workflow = "single-cells")
+
+bench.mc.final <- data.frame(cpu_time = sum(bench.mc$cpu_time),
+                             memory = max(bench.mc$max_rss),
+                             workflow = "metacells")
+
+bench.final = rbind(bench.sc.final,bench.mc.final)
+bench.final$workflow <- factor(bench.final$workflow,levels = c("single-cells","metacells"))
+bench.final$memory <- bench.final$memory/1000
+
+p1 <- ggplot(data = bench.final,aes(x = workflow,y = cpu_time,fill = workflow)) + geom_bar(stat = "identity") + ylab("CPU time (s)") + scale_fill_manual(values = method.colors.corr) + NoLegend()
+
+p2 <- ggplot(data = bench.final,aes(x = workflow,y = memory,fill = workflow)) + geom_bar(stat = "identity") + ylab("Memory (GB)") + scale_fill_manual(values = method.colors.corr)+ NoLegend()
+
+ggplot(data = bench.final,aes(x = workflow,y = cpu_time,fill = workflow)) + geom_bar(stat = "identity") + ylab("CPU time (s)") + scale_fill_manual(values = method.colors.corr)
+```
+```{r fig.height=2,fig.width=3.25}
+dir.create("plots")
+ressource.plot.prostate <- list("A" = p1, "B" =p2)
+ressource.plot.prostate
+
+saveRDS(ressource.plot.prostate,'plots/ressource.plot.prostate.rds')
+```
+```{r}
+
+```
+
+
+
+```{r}
+#
+```
+
+
+
+
+
+```{r}
+combined.metacells <- readRDS("combined.metacells.annotated.local.frags.rds")
+
+```
+
+
+
+```{r}
+
+
+colors <- c('Luminal'='#E5D2DD',
+           'Neuroendocrine'='#53A85F',
+           'Basal' ='#F3B1A0',
+           "Seminal_vesicle"='#D6E7A3',
+           'Mesenchymal_1'= '#BD956A',
+           'Macrophage'= '#57C3F3',
+           # 'Mesenchymal_3'='#91D0BE',
+           "Endothelial"= '#C1E6F3',
+           "Neutrophil"='#E95C59',
+           "Mesenchymal_2"='#8C549C',
+           "T_cell" = '#F1BB72',
+           "B_cell" = '#AB3282',
+           "Neuron" = '#476D87')
+
+
+DimPlot(combined.metacells,reduction = "wnn.umap",group.by = "major_type",cols = colors)
+
+
+```
+
+```{r fig.height=2.25,fig.width=5}
+DefaultAssay(combined.metacells) <- "RNA"
+genes <- c("Krt8","Chga","Krt5","Svs5","Col1a2","Cdh5","S100a9","C1qa","Cd3e","Cd19","Plp1")
+genes
+
+combined.metacells@meta.data$major_type <- factor(combined.metacells$major_type,                                                
+                                                  levels = rev(c("Luminal","Neuroendocrine","Basal",
+                                                             "Seminal_vesicle","Mesenchymal_1","Mesenchymal_2","Endothelial",
+                                                             "Neutrophil","Macrophage",
+                                                             "T_cell","B_cell","Neuron"))) 
+
+
+vln.prostate.all <- VlnPlot(object = combined.metacells,features = genes,stack = T,group.by = "major_type",fill.by= "ident",cols = colors,same.y.lims = F)  + NoLegend() + theme(axis.title.y = element_blank()) +                                                                # Change font size
+  theme(strip.text.x = element_text(angle = 45))
+
+vln.prostate.all <- vln.prostate.all 
+vln.prostate.all <- ggplot2::ggplotGrob(vln.prostate.all)
+vln.prostate.all <- ggpubr::as_ggplot(vln.prostate.all)
+
+vln.prostate.all
+saveRDS(vln.prostate.all,"plots/vln.prostate.all.rds")
+```
+```{r}
+source("../../../config/SuperCellMultiomics/R/SuperCell_Plots_with_Seurat.R")
+umap.prostate.all <- DimPlot.SuperCell(combined.metacells,reduction = "wnn.umap",group.by = "major_type",cols = colors,label = T,label.box= T,repel = T)
+
+umap.prostate.all <- umap.prostate.all + guides(fill = "none")  +  theme(legend.position = c(0.85,0.9)) + ggtitle(label = "Cell types")
+umap.prostate.all <- umap.prostate.all + scale_size_continuous(breaks = c(10, 50, 250))
+library(ggpubr)
+umap.prostate.all <- as_ggplot(as_grob(umap.prostate.all ))
+umap.prostate.all
+saveRDS(umap.prostate.all,"plots/umap.prostate.all.final.rds")
+```
+
+
+
+
+
+```{r}
+library(reshape2)
+#combined.metacells$major_type <- droplevels(combined.metacells$major_type)
+smpCounts <- aggregate(combined.metacells$size, by=list(sample = combined.metacells$sample,
+                                                        major_type = combined.metacells$major_type,
+                                                        celltype = combined.metacells$celltype,
+                                                        time = combined.metacells$time), FUN=sum)
+ggplot(smpCounts,aes(x=sample,y = x,fill = time)) + geom_bar(stat = "identity")  +
+  scale_x_discrete(guide = guide_axis(angle = 45)) + ylab("sc counts")
+```
+
+
+```{r fig.height=3,fig.width=3.5}
+
+library(colorspace)
+darker_colors <- darken(colors, 0.2)
+names(darker_colors) <- names(colors)
+contingencyTable <- xtabs(x ~ major_type+time,data = smpCounts)
+colSums(contingencyTable)
+
+freqMatrix <- apply(contingencyTable,1,FUN = function(x){x/colSums(contingencyTable)})
+# res <- chisq.test(contingencyTable)
+# Roe <- res$observed/res$expected
+
+freqMatrix_df <- melt(freqMatrix)
+
+freqMatrix_df$major_type <- factor(freqMatrix_df$major_type ,
+                                   levels = c("Basal","Endothelial","Luminal","Neuroendocrine","B_cell","T_cell","Macrophage","Neutrophil","Seminal_vesicle","Mesenchymal_1","Mesenchymal_2","Neuron"))
+
+freqMatrix_df$group <- freqMatrix_df$major_type
+
+#freqMatrix_df$group[freqMatrix_df$time == "WT"] <- NA
+
+prop.mean.all <- ggplot(freqMatrix_df,aes(x = time,y=value*100,color=major_type,group = group)) + geom_point() + geom_line() + facet_wrap("~major_type") +
+  scale_x_discrete(guide = guide_axis(angle = 45)) + theme_bw() + scale_color_manual(values = darker_colors) + ylab("% total cells (mean of samples)") + NoLegend()
+
+prop.mean.all
+```
+```{r}
+freqMatrix_df$category <- "Other cells"
+freqMatrix_df$category[freqMatrix_df$major_type %in% c("Neutrophil","Macrophage","T_cell",'B_cell')] <- "Immune cells"
+freqMatrix_df$category[freqMatrix_df$major_type %in% c("Basal","Neuroendocrine",  "Luminal")] <- "Prostate Cancer cells"
+#freqMatrix_df$group[freqMatrix_df$time == "WT"] <- NA
+freqMatrix_df$category <- factor(freqMatrix_df$category,
+                                 levels = c("Prostate Cancer cells","Immune cells","Other cells"))
+plot.prop.all <-ggplot(freqMatrix_df,aes(x = time,y=value*100,color=major_type,group = group)) + geom_point() + geom_line() + facet_wrap("~category",ncol = 1) +
+  scale_x_discrete(guide = guide_axis(angle = 45)) + theme_bw() + scale_color_manual(values = darker_colors) + ylab("% total cells (mean of samples)")
+
+plot.prop.all
+
+saveRDS(plot.prop.all,"plots/plot.prop.prostate.all.rds")
+```
+
+
+
+```{r}
+p1 <- DimPlot(combined.metacells,reduction = "rna.umap",group.by = "sample")
+p2 <- DimPlot(combined.metacells,reduction = "umap",group.by = "major_type")
+p1+p2
+```
+```{r}
+DimPlot(combined.metacells,reduction = "umap",group.by = "sample")
+```
+#uncorrected data
+```{r fig.width=7,fig.height=2.75}
+DefaultAssay(combined.metacells) <- "RNA"
+combined.metacells <- FindVariableFeatures(combined.metacells) %>% ScaleData() %>% RunPCA(reduction.name = "uncorrected_pca") %>% RunUMAP(reduction ="uncorrected_pca",reduction.name = "uncorrected_rna_umap",dims = 1:50)
+
+combined.metacells <- FindMultiModalNeighbors(combined.metacells, reduction.list = list("uncorrected_pca", "lsi"), dims.list = list(1:50, 2:50),weighted.nn.name = "uncorrected.weighted.nn")
+combined.metacells <- RunUMAP(combined.metacells, nn.name = "uncorrected.weighted.nn", reduction.name = "uncorrected_wnn.umap", reduction.key = "wnnUMAP_")
+
+p1 <- DimPlot(combined.metacells,reduction = "uncorrected_wnn.umap",group.by = c("sample","celltype"),cols = my36colors)
+p2 <- DimPlot(combined.metacells,reduction = "wnn.umap",group.by =  c("sample","celltype"),cols = my36colors)
+
+p1 
+p2
+```
+```{r fig.width=7,fig.height=2.75}
+p1 <- DimPlot(combined.metacells,reduction = "uncorrected_wnn.umap",group.by = c("sample"),cols = rev(my36colors))
+p2 <- DimPlot(combined.metacells,reduction = "wnn.umap",group.by =  c("sample"),cols = rev(my36colors)) 
+p1 + p2
+```
+```{r fig.width=8,fig.height=3}
+p3 <- DimPlot(combined.metacells,reduction = "wnn.umap",group.by =  c("major_type"),cols = colors) 
+p2 + p3
+```
+
+
+
+```{r}
+ggplot(freqMatrix_df[freqMatrix_df$major_type %in% c("Luminal","Neuroendocrine"),],aes(x = time,y=value*100,color=major_type,group = group)) + geom_point() + geom_line() +
+  scale_x_discrete(guide = guide_axis(angle = 45)) + theme_bw() + scale_color_manual(values = darker_colors) + ylab("% total cells")
+```
+
+```{r}
+
+
+ggplot(freqMatrix_df,aes(x = time,y=value*100,color=major_type,group = group)) + 
+         geom_point() + 
+         geom_line() +
+  scale_x_discrete(guide = guide_axis(angle = 45)) + theme_bw() + scale_color_manual(values = darker_colors) + ylab("% total cells") + facet_wrap("~group")
+```
+```{r}
+#saveRDS(combined.metacells,"combined.metacells.annotated.rds")
+```
+
+## Marker plots
+
+
+
+
+
+
+
+```{r}
+# 
+# DefaultAssay(combined.metacells) <- "ATAC"
+# frags <- Fragments(combined.metacells)  # get list of fragment objects
+# 
+# new.paths <- list.files('../../../output/10xMultiomeProstateHan22/logNorm/',
+#                         pattern='MC_atac_fragments.tsv.gz',
+#                         recursive = T,
+#                         full.names = T)
+# 
+# new.paths <- new.paths[grepl(x = new.paths,pattern = "aggregated_fragment_file/MC_atac_fragments.tsv.gz")]
+# new.paths <- new.paths[!grepl(x = new.paths,pattern = "tbi")]
+# 
+# Fragments(combined.metacells) <- NULL  # remove fragment information from assay
+# 
+# 
+# 
+# for (i in seq_along(frags)) {
+#   print(i)
+#   frags[[i]] <- UpdatePath(frags[[i]], new.path = new.paths[i]) # update path
+# }
+# 
+# #Error!!!
+# Fragments(combined.metacells) <- frags # assign updated list back to the object
+# 
+# saveRDS(combined.metacells,"combined.metacells.annotated.local.frags.rds")
+```
+
+```{r fig.height=2,fig.width=4.5}
+DefaultAssay(combined.metacells) <- "ATAC"
+genes <- c("Krt8","Chga","Krt5","Svs5","Col1a2","Cdh5","S100a9","C1qa","Cd3e","Cd19","Plp1")
+combined.metacells@meta.data$major_type <- factor(combined.metacells$major_type,                                                
+                                                  levels = c("Luminal","Neuroendocrine","Basal",
+                                                             "Seminal_vesicle","Mesenchymal","Endothelial",
+                                                             "Neutrophil","Macrophage",
+                                                             "T_cell","B_cell","Neuron"))
+
+#genes <- c("S100a9","C1qa","Cd3e","Cd19")
+
+TSS <- GetTSSPositions(Annotation(combined.metacells))
+TSS <- TSS[TSS$gene_name%in% genes,]
+
+regions <- lapply(X = genes, function(X){
+  TSSgene <- TSS[TSS$gene_name == X]
+  region <- Extend(TSSgene,upstream = 100,downstream = 100)
+  return(region)
+  })
+
+regions
+
+p <- CoveragePlot(
+    object = combined.metacells,
+    region = regions,ncol = length(TSS),
+    peaks = FALSE,color = colors,
+  ) & scale_fill_manual(values = colors) 
+
+p$patches$plots[[1]] <- p$patches$plots[[1]]  & theme(
+                             axis.text.x = element_blank(),
+                             #axis.title.x = element_blank(),
+                             axis.ticks.x= element_blank(),axis.ticks.y = element_blank()) & xlab(gsub(x=p$patches$plots[[1]]$labels$x,pattern = " position \\(bp\\)",replacement = ""))
+
+for (i in c(2:length(TSS))) {
+  p$patches$plots[[i]] <- p$patches$plots[[i]] & theme(strip.text.y.left = element_blank(),strip.background = element_blank())  & theme(strip.text.y.left = element_blank(),
+                             strip.background = element_blank(),
+                             axis.title.y = element_blank(),
+                             axis.text.x = element_blank(),
+                             axis.ticks.x= element_blank(),axis.ticks.y = element_blank())& xlab(gsub(x=p$patches$plots[[i]]$labels$x,pattern = " position \\(bp\\)",replacement = ""))
+ 
+
+}
+
+p
+```
+
+#save immune
+```{r}
+combined.metacells[,combined.metacells$major_type %in% c("T_cell",'B_cell',"Macrophage","Neutrophil")]
+saveRDS(combined.metacells[,combined.metacells$major_type %in% c("T_cell",'B_cell',"Macrophage","Neutrophil")],"immune.combined.metacells.local.frags.rds")
+```
+
+
+
+
+
+
+
+```{r fig.height=2,fig.width=5}
+
+Idents(combined.metacells) <- combined.metacells@meta.data$major_type 
+  
+genes <- c("Krt8","Chga","Krt5","Svs5","Col1a2","Cdh5","S100a9","C1qa","Cd3e","Cd19","Plp1")
+
+genes <- c("S100a9","C1qa","Cd3e","Cd19")
+
+TSS <- GetTSSPositions(Annotation(combined.metacells))
+TSS <- TSS[TSS$gene_name%in% genes,]
+
+regions <- lapply(X = genes, function(X){
+  TSSgene <- TSS[TSS$gene_name == X]
+  region <- Extend(TSSgene,upstream = 500,downstream = 100)
+  return(region)
+  })
+
+regions
+
+p <- CoveragePlot(
+    object = combined.metacells,
+    region = regions,ncol = length(TSS),
+    peaks = F,color = colors, 
+  ) & scale_fill_manual(values = colors) 
+
+for (i in c(2:length(TSS))) {
+  p$patches$plots[[i]] <- p$patches$plots[[i]] & theme(strip.text.y.left = element_blank(),strip.background = element_blank())
+
+}
+
+
+p$patches$plots[[i]] & theme(strip.text.y.left = element_blank(),
+                             strip.background = element_blank(),
+                             title = element_blank(),
+                             axis.text.x = element_blank())
+
+p
+
+
+
+```
+
+
+
+
+
+
+
+```{r}
+# genes <- c("Krt8","Chga","Krt5","Svs5","Col1a2","Cdh5","S100a9","C1qa","Cd3e","Cd19","Plp1")
+# DefaultAssay(combined.metacells) <- "ATAC"
+# 
+png(paste0('../../tests/CoveragePlots.png'),height = 500,width = 1200)
+ plot(CoveragePlot(
+    object = combined.metacells,
+    region = c("S100a9","C1qa","Cd3e","Cd19"),
+    ncol = 4,
+    # extend.upstream = -3000,
+    # extend.downstream = 1000,
+    peaks = FALSE
+  ))+ scale_fill_manual(values = colors)
+dev.off()
+
+
+DefaultAssay(combined.metacells) <- "ATAC"
+
+png(paste0('../../tests/CoveragePlots_',g,'.png'), width = 280, height = 280, units = "px" )
+plot + scale_fill_manual(values = colors)
+dev.off()
+
+for (g in  genes) {
+  print(g)
+  png(paste0('../../tests/CoveragePlots_',g,'.png'), width = 380, height = 280, units = "px")
+  plot <- CoveragePlot(
+    object = combined.metacells,
+    region = g,
+    expression.assay = "RNA",
+    # extend.upstream = -8000,
+    # extend.downstream = 1000,
+    peaks = FALSE
+  )+ scale_fill_manual(values = colors)
+  plot(plot)
+  dev.off()
+}
+
+png(paste0('../../tests/CoveragePlots_',g,'.png'), width = 480, height = 480, units = "px" )
+plot
+dev.off()
+```
+```{r}
+krt8_cov_plot <- readRDS("C")
+```
+
+```{r}
+# DefaultAssay(combined.metacells) <- "ATAC"
+# frags <- Fragments(combined.metacells)  # get list of fragment objects
+# Fragments(combined.metacells) <- NULL  # remove fragment information from assay
+# 
+# new.paths <- list.files('../../output/10xMultiomeProstateHan22/logNorm/',
+#                         pattern='MC_atac_fragments.tsv.gz',
+#                         recursive = T,
+#                         full.names = T)
+# 
+# new.paths <- new.paths[grepl(x = new.paths,pattern = "aggregated_fragment_file/MC_atac_fragments.tsv.gz")]
+# new.paths <- new.paths[!grepl(x = new.paths,pattern = "tbi")]
+# 
+# 
+# for (i in seq_along(frags)) {
+#   print(i)
+#   frags[[i]] <- UpdatePath(frags[[i]], new.path = new.paths[i]) # update path
+# }
+# 
+# #Error!!!
+# Fragments(combined.metacells) <- frags # assign updated list back to the object
+```
+
+
+
+
+
+```{r fig.height=1.5,fig.width=2}
+
+# genes <- c("Krt8","Chga","Krt5","Svs5","Col1a2","Cdh5","S100a9","C1qa","Cd3e","Cd19","Plp1")
+# 
+# genes <- c("S100a9","C1qa","Cd3e","Cd19","Plp1")
+# 
+# DefaultAssay(combined.metacells) <- "ATAC"
+# for (g in genes) {
+#   png(paste0('tests/CoveragePlot_',g,'.png'))
+#   plot(CoveragePlot(
+#     object = combined.metacells,
+#     region = g,
+#     features = g,widths = c(0.5,0.5),ncol = 2,
+#     expression.assay = "RNA",
+#     extend.upstream = -8000,
+#     extend.downstream = 1000,
+#     peaks = FALSE
+#   ))
+# }
+```
+
+```{r fig.height=2,fig.width=4}
+# genes.dot.plot <- c("Epcam","Krt8","Chga","Krt5","Svs5","Col1a2","Pecam1","Ptprc","S100a9","C1qa","Cd3e","Cd19","Plp1")
+# combined.metacells$celltype_rev <- factor(combined.metacells$celltype,levels = rev(levels(combined.metacells$celltype)))
+# DotPlot(combined.metacells,
+#         features = genes.dot.plot,
+#         assay = "RNA",
+#         group.by = "celltype_rev",
+#          cols = c("lightgrey", "red")) +
+#   scale_x_discrete(guide = guide_axis(angle = 45))
+```
+
+
+```{r}
+#saveRDS(combined.metacells,"combined.metacells.local.frags.rds")
+```
+
+```{r}
+bone <- Footprint(
+  object = combined.metacells,
+  motif.name = c("GATA2", "CEBPA", "EBF1"),
+  genome = BSgenome.Hsapiens.UCSC.hg19
+)
+
+```
+
+
+
+
+```{r}
+# immune.combined.metacells <- subset(combined.metacells,idents=c("B_cell","T_cell","Neutrophil","Macrophage"))
+# remove(combined.metacells)
+# remove(frags)
+# saveRDS(immune.combined.metacells,"immune.combined.metacells.rds")
+# 
+# 
+# gc()
+```
+
+```{r}
+# DimPlot(immune.combined.metacells,reduction = "wnn.umap",label = T)
+```
+```{r}
+# DefaultAssay(immune.combined.metacells) <- "ATAC"
+# immune.combined.metacells <- RunTFIDF(immune.combined.metacells)
+# immune.combined.metacells <- FindTopFeatures(immune.combined.metacells, min.cutoff = 'q0')
+# immune.combined.metacells <- RunSVD(immune.combined.metacells)
+# DepthCor(immune.combined.metacells,reduction = "lsi")
+# 
+# 
+# DefaultAssay(immune.combined.metacells) <- "ATAC"
+# immune.combined.metacells <- harmony::RunHarmony(
+#   object = immune.combined.metacells,
+#   group.by.vars = 'orig.ident',
+#   reduction = 'lsi',
+#   assay.use = 'ATAC',
+#   project.dim = FALSE
+# )
+# 
+# DepthCor(immune.combined.metacells,reduction = "harmony")
+# 
+# 
+# immune.combined.metacells <- RunUMAP(immune.combined.metacells,reduction = "harmony",dims = c(2:50),reduction.name = "harmony.umap")
+```
+
+```{r}
+# DimPlot(immune.combined.metacells,reduction = "harmony.umap")
+```
+

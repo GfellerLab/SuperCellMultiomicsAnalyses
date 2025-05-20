@@ -100,7 +100,34 @@ print(opt)
 dir.create(opt$outdir,recursive = T,showWarnings = F)
 
 
-seurat <- readRDS(opt$inputSeurat)
+if (endsWith(opt$inputSeurat,'h5ad')) {
+  return.seurat <- F
+  file.name <- strsplit(opt$inputSeurat,split = ".h5ad")[[1]][1] 
+  adata <- anndata::read_h5ad(opt$inputSeurat)
+  if(!is.null(adata$raw)) {
+    counts <- Matrix::t(adata$raw$X)
+    rownames(counts) <- rownames(adata$raw$var)
+    
+  } else{
+    counts <- Matrix::t(adata$X)
+    rownames(counts) <- rownames(adata$var)
+  }
+  colnames(counts) <- adata$obs_names
+  
+  if (!grepl(x = file.name,pattern = "ADT")) {
+    embeddings <- adata$obsm$X_pca
+    rownames(embeddings) <- adata$obs_names
+    seurat <- CreateSeuratObject(counts = counts,meta.data = adata$obs,assay=opt$RNAassay)
+    seurat[["pca"]] <- CreateDimReducObject(embeddings = embeddings,key = "PCA_",assay = opt$RNAassay)
+  } else {
+    seurat <- CreateSeuratObject(counts = counts,meta.data = adata$obs,assay =opt$ADTassay)
+    embeddings <- adata$obsm$X_apca
+    rownames(embeddings) <- adata$obs_names
+    seurat[["apca"]] <- CreateDimReducObject(embeddings = embeddings,key = "PC_",assay = opt$ADTassay)
+  }
+} else {
+  seurat <- readRDS(opt$inputSeurat)
+}
 
 
 
@@ -148,7 +175,7 @@ if (is.null(opt$inputSeuratMetacell)) {
         gamma = opt$gamma
       )} else {
         if (is.null(opt$RNAcomp)&!is.null(opt$ADTcomp)) {
-          print("identifying metacells on ATAC modality")
+          print("identifying metacells on ADT modality")
           seurat.mc.multi <- SCimplify_for_Seurat(
             seurat, 
             assay = c(opt$ADTassay),
@@ -204,14 +231,25 @@ if (!is.null(opt$doAnalysis)) {
   
   w.cor <- supercell_FeatureFeaturePlot_Seurat(seurat.mc = seurat.mc.multi,
                                                feature_x = gene_protein_final$gene.name,
-                                               feature_y = gene_protein_final$X.protein,
-                                               assays = c("RNA","ADT"), #TODO: DEFINE a RNA slot an the beginning
+                                               feature_y = gene_protein_final$X.protein,method = "spearman",
+                                               assays = c("RNA","ADT"), #TODO: DEFINE a RNA slot at the beginning
+                                               is.normalized = T,
+                                               plot = F)
+  
+  w.cor.pearson <- supercell_FeatureFeaturePlot_Seurat(seurat.mc = seurat.mc.multi,
+                                               feature_x = gene_protein_final$gene.name,
+                                               feature_y = gene_protein_final$X.protein,method = "pearson",
+                                               assays = c("RNA","ADT"), #TODO: DEFINE a RNA slot at the beginning
                                                is.normalized = T,
                                                plot = F)
   
   w.cor$input <- input
   w.cor$gamma <- opt$gamma
   w.cor$origIdent <- seurat.mc.multi$orig.ident[1]
+  
+  w.cor.pearson$input <- input
+  w.cor.pearson$gamma <- opt$gamma
+  w.cor.pearson$origIdent <- seurat.mc.multi$orig.ident[1]
   
   library(reticulate)
   use_python(opt$pythonSeacellEnv)
@@ -246,7 +284,8 @@ if (!is.null(opt$doAnalysis)) {
   
   
   write.csv(seurat.mc.multi@meta.data,paste0(opt$outdir,"/metaData.csv"))
-  write.csv(w.cor,paste0(opt$outdir,"/crData.csv"))
+  write.csv(w.cor,paste0(opt$outdir,"/corrTableSpearman.csv"))
+  write.csv(w.cor.pearson,paste0(opt$outdir,"/corrTablePearson.csv"))
   
   
 }

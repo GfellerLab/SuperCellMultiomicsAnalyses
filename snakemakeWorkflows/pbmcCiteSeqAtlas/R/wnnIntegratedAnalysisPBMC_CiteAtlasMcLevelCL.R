@@ -65,6 +65,10 @@ pbmc <- readRDS(opt$inputSeurat)
 pbmc$orig.ident <- paste0(pbmc$donor,"_",pbmc$time)
 pbmc <- pbmc[,pbmc$celltype.l2 != "Doublet"]
 #pbmc <- pbmc[,pbmc$time == 0]  # first test on reference samples
+pbmc$celltype.l1.5 <- pbmc$celltype.l1
+pbmc$celltype.l1.5[pbmc$celltype.l1 == "other"] <- pbmc$celltype.l2[pbmc$celltype.l1 == "other"]
+
+pbmc$celltype.l1.5[pbmc$celltype.l1 == "other T"] <- pbmc$celltype.l2[pbmc$celltype.l1 == "other T"]
 
 gc()
 

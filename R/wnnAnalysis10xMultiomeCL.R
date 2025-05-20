@@ -16,8 +16,9 @@ spec = matrix(c(
   "k.wnn", "k", 1, "numeric", "k for the knn used in the wnn analysis",
   "RNAnormalization", "a", 1, "character", "normalisation method for RNA (logNormalize or SCTransform)", 
   "nVarGenes", "v", 1, "numeric", "number of variable genes",
-  'minCutOff', "c", 1, "character", "ATAC features selection cut off (default q0)"
-  
+  'minCutOff', "c", 1, "character", "ATAC features selection cut off (default q0)",
+  "diffMap", "d", 0, "logical", "compute diffusion maps (defautl FALSE)",
+  "python", "y", 1, "character", "python path with palantir installed to compute diff map"
 ), byrow=TRUE, ncol=5)
 
 opt = getopt(spec)
@@ -38,8 +39,8 @@ opt = getopt(spec)
 
 if(is.null(opt$RNAnormalization)) {
   opt$RNAnormalization <- "logNormalize"
-  
 }
+
 
 if (is.null(opt$minCutOff)) {
   opt$minCutOff <- "q0"
@@ -69,7 +70,7 @@ dir.create(opt$outdir,recursive = T,showWarnings = F)
 
 
 if(endsWith(opt$inputSeurat,suffix = "rds")) {
-  seurat <- readRDS(opt$inputSeurat)
+  pbmc <- readRDS(opt$inputSeurat)
 }else{
   data("pbmc.atac")
   
@@ -110,7 +111,25 @@ if ("seurat_annotations" %in% colnames(pbmc@meta.data)) {
   Idents(pbmc) <- "seurat_annotations"
 }
 
+addCellTypePBMC <- function(pbmc) {
+  pbmc$celltype <- pbmc$seurat_annotations
+  
+  pbmc$celltype[grepl(pattern = "CD8 TEM",x = pbmc$celltype)] <- "CD8 Mem"
+  
+  pbmc$celltype[grepl(pattern = "CD4 TEM",x = pbmc$celltype)] <- "CD4 Mem"
+  pbmc$celltype[grepl(pattern = "CD4 TCM",x = pbmc$celltype)] <- "CD4 Mem"
+  
+  pbmc$celltype[grepl(pattern = "CD8 TEM",x = pbmc$celltype)] <- "CD8 Mem"
+  
+  pbmc$celltype[grepl(pattern = "Intermediate B",x = pbmc$celltype)] <- "B Interm"
+  pbmc$celltype[grepl(pattern = "Naive B",x = pbmc$celltype)] <- "B Naive"
+  pbmc$celltype[grepl(pattern = "Memory B",x = pbmc$celltype)] <- "B Mem"
+  
+  Idents(pbmc) <- "celltype"
+  return(pbmc)
+}
 
+pbmc <- addCellTypePBMC(pbmc)
 
 # pbmc$coarse.annotation <- pbmc$seurat_annotations
 # 
@@ -141,14 +160,11 @@ if ("seurat_annotations" %in% colnames(pbmc@meta.data)) {
 if (opt$RNAnormalization == "SCTransform") {
   rnaAssay = "SCT"
   DefaultAssay(pbmc) <- "RNA"
-  pbmc <- SCTransform(pbmc, verbose = FALSE) %>% RunPCA() %>% RunUMAP(dims = opt$RNAcomp, 
-                                                                      reduction.name = 'umap.rna', 
-                                                                      reduction.key = 'rnaUMAP_')
+  options(future.globals.maxSize = 8 * 1024 ^ 3) # for 50 Gb RAM
+  pbmc <- SCTransform(pbmc, verbose = FALSE,conserve.memory = TRUE) %>% RunPCA() 
 } else {
   rnaAssay = "RNA"
-  pbmc <- NormlizeData(pbmc, verbose = FALSE) %>% FindVariableFeatures(pbmc,nFeature = opt$nVarGenes) %>% ScaleData(pbmc) %>% RunPCA() %>% RunUMAP(dims = 1:opt$RNAcomp, 
-                                                                                                                                                   reduction.name = 'umap.rna', 
-                                                                                                                                                   reduction.key = 'rnaUMAP_')
+  pbmc <- NormalizeData(pbmc, verbose = FALSE) %>% FindVariableFeatures(pbmc,nFeature = opt$nVarGenes) %>% ScaleData(pbmc) %>% RunPCA()
 }
 
 
@@ -162,6 +178,24 @@ DefaultAssay(pbmc) <- "ATAC"
 pbmc <- RunTFIDF(pbmc)
 pbmc <- FindTopFeatures(pbmc, min.cutoff = opt$minCutOff)
 pbmc <- RunSVD(pbmc)
+
+
+# ## Save in h5ad for SEACells
+# SeuratDisk::SaveH5Seurat(pbmc, filename =  paste0(opt$outdir,"/seurat.h5Seurat"))
+# SeuratDisk::Convert(paste0(opt$outdir,"/seurat.h5Seurat"), dest =paste0(opt$outdir,"/seurat.ATAC.h5ad"),assay ="ATAC")
+# SeuratDisk::Convert(paste0(opt$outdir,"/seurat.h5Seurat"), dest =paste0(opt$outdir,"/seurat.",rnaAssay,".h5ad"),assay =rnaAssay)
+# if (rnaAssay != "RNA") {
+# SeuratDisk::Convert(paste0(opt$outdir,"/seurat.h5Seurat"), dest =paste0(opt$outdir,"/seurat.RNA.h5ad"),assay ="RNA",overwrite = T)
+# }
+# system(command = paste0("rm -f ",paste0(opt$outdir,"/seurat.h5Seurat")))
+
+
+## Multimodal analyzis with Seurat
+
+pbmc <- RunUMAP(pbmc,dims = opt$RNAcomp, 
+                reduction.name = 'umap.rna', 
+                reduction.key = 'rnaUMAP_')
+
 pbmc <- RunUMAP(pbmc, reduction = 'lsi', dims = opt$ATACcomp, reduction.name = "umap.atac", reduction.key = "atacUMAP_")
 
 
@@ -176,21 +210,8 @@ p1
 p2
 dev.off()
 
-## Save in h5ad for SEACells
-SeuratDisk::SaveH5Seurat(pbmc, filename =  paste0(opt$outdir,"/seurat.h5Seurat"))
-SeuratDisk::Convert(paste0(opt$outdir,"/seurat.h5Seurat"), dest =paste0(opt$outdir,"/seurat.ATAC.h5ad"),assay ="ATAC")
-SeuratDisk::Convert(paste0(opt$outdir,"/seurat.h5Seurat"), dest =paste0(opt$outdir,"/seurat.",rnaAssay,".h5ad"),assay =rnaAssay)
-if (rnaAssay != "RNA") {
-SeuratDisk::Convert(paste0(opt$outdir,"/seurat.h5Seurat"), dest =paste0(opt$outdir,"/seurat.RNA.h5ad"),assay ="RNA",overwrite = T)
-}
-system(command = paste0("rm -f ",paste0(opt$outdir,"/seurat.h5Seurat")))
-
-
-## Multimodal analyzis with Seurat
-
-
-pbmc <- FindMultiModalNeighbors(pbmc, reduction.list = list("pca", "lsi"), dims.list = list(1:50, 2:50))
-pbmc <- RunUMAP(pbmc, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_")
+pbmc <- FindMultiModalNeighbors(pbmc, reduction.list = list("pca", "lsi"), dims.list = list(opt$RNAcomp, opt$ATACcomp))
+pbmc <- RunUMAP(pbmc, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_",return.model = T)
 
 #Comparison of UMAP results 
 
@@ -206,5 +227,21 @@ pbmc <- FindClusters(pbmc, graph.name = "wsnn", algorithm = 3, verbose = FALSE)
 pdf(file = paste0(opt$outdir,"/umap_wnn_analysis_clusters.pdf"))
 DimPlot(pbmc, reduction = "wnn.umap", label = TRUE, label.size = 2.5, repel = TRUE) + ggplot2::ggtitle("WNN")
 dev.off()
+
+if(opt$diffMap) {
+  ## compute diffusion map for benchmarking
+  library(MetacellAnalysisToolkit)
+  library(reticulate)
+  use_python(opt$python)
+  pca_diffusion_comp <- get_diffusion_comp(sc.obj = pbmc, dims = opt$RNAcomp)
+  colnames(pca_diffusion_comp) <- c(1:ncol(pca_diffusion_comp))
+  pca_diffusion_comp <-  as.matrix(pca_diffusion_comp)
+  pbmc[["pca_diffusion"]] <- CreateDimReducObject(embeddings = pca_diffusion_comp,assay = "RNA",key = "DM_") 
+  
+  lsi_diffusion_comp <- get_diffusion_comp(sc.obj = pbmc, dims = opt$ATACcomp,sc.reduction = "lsi")
+  colnames(lsi_diffusion_comp) <- c(1:ncol(lsi_diffusion_comp))
+  lsi_diffusion_comp <-  as.matrix(lsi_diffusion_comp)
+  pbmc[["lsi_diffusion"]] <- CreateDimReducObject(embeddings = lsi_diffusion_comp,assay = "ATAC",key = "ADM_") 
+}
 
 saveRDS(pbmc, paste0(opt$outdir,"/seuratWNN.rds"))

@@ -38,7 +38,7 @@ def main(argv):
     adata = sc.read(inputH5ad)
     raw  = ad.AnnData(X = adata.raw.X,
                   obs = adata.obs,
-                  var = adata.var)        
+                  var = adata.raw.var)        
     proj_name = "MetaCell2RNA"
     # set MC object/project name
     mc.ut.set_name(raw, proj_name)

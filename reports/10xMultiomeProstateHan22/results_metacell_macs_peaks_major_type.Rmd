@@ -1,0 +1,573 @@
+```{r}
+library(Seurat)
+library(dplyr)
+library(Matrix)
+library(ggplot2)
+library(cowplot)
+library(EnsDb.Mmusculus.v79)
+library(Signac)
+library(S4Vectors)
+library(patchwork)
+library(SuperCellMultiomics)
+```
+
+```{r}
+combined.metacells <- readRDS("../../output/10xMultiomeProstateHan22/logNorm/macs2_peak_set/combined.metacells.rds")
+#combined.metacells <- readRDS("combined.metacells.local.frags.rds")
+
+```
+
+```{r}
+
+```
+
+
+```{r}
+DepthCor(combined.metacells,reduction = "lsi")
+```
+```{r}
+DepthCor(combined.metacells,reduction = "integrated_lsi")
+```
+
+```{r}
+combined.metacells <- FindClusters(combined.metacells, resolution = c(c(1:7)*0.01),graph.name = "wsnn",algorithm = 3) 
+
+DimPlot(combined.metacells,reduction = "wnn.umap", label = T,group.by = "wsnn_res.0.03")
+
+DimPlot(combined.metacells,reduction = "wnn.umap", label = T)
+```
+```{r}
+# combined.metacells$log_compactness_lsi <- log(combined.metacells$compactness_lsi)
+# combined.metacells$log_compactness_pca <- log(combined.metacells$compactness_pca)
+# combined.metacells$log_INV <- log(combined.metacells$innerNormVar)
+# 
+# 
+# VlnPlot(combined.metacells,features = "log_compactness_lsi")
+# VlnPlot(combined.metacells,features = "log_compactness_pca")
+# VlnPlot(combined.metacells,features = "log_INV")
+# VlnPlot(combined.metacells,features = "size",log = T)
+
+
+
+```
+
+```{r}
+
+
+```
+
+
+```{r}
+Idents(combined.metacells) <- "wsnn_res.0.07" 
+DimPlot(combined.metacells,reduction = "wnn.umap", label = T)
+
+VlnPlot(combined.metacells,'nFeature_RNA')
+VlnPlot(combined.metacells,'nFeature_ATAC')
+
+```
+
+#Luminal
+cluster 0 and 10
+```{r fig.height= 3, fig.width= 3.25}
+DefaultAssay(combined.metacells) <- "RNA"
+
+VlnPlot(combined.metacells,features = c("Krt19","Nupr1","Lmo7","Ceacam1"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+
+```{r}
+VlnPlot(combined.metacells,features = c("Fcgbp","Slc12a2","Lmo7","Ceacam1"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+
+#Basal
+
+Cluster 6
+```{r}
+VlnPlot(combined.metacells,features = c("Krt14","Krt15","Krt5","Krt17"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+
+
+# Neuroendocrine
+
+Cluster 2
+```{r }
+VlnPlot(combined.metacells,features = c("Chga","Nrxn1","Hcn1","Fgf14"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+other Neuroendocrine markers.
+10 might be intermediate states between Luminal and Neuroendocrine 11 are Neurons see below.
+```{r }
+VlnPlot(combined.metacells,features = c("Cadm2","Kcnb2","Kcnip4","Cntn4"),ncol = 2,pt.size = 0,assay = "RNA")
+```
+# Neuron
+```{r }
+VlnPlot(combined.metacells,features = c("Plp1"),ncol = 2,pt.size = 0,assay = "RNA") + NoLegend()
+FeaturePlot(combined.metacells,c("Plp1"),reduction = "wnn.umap")
+
+```
+
+
+# seminal vesicle
+
+Cluster 3
+```{r fig.height= 3, fig.width= 3.25}
+VlnPlot(combined.metacells,features = c("Svs5","Svs2","Cdo1","Fyb2"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+
+# Mesenchymal 1
+
+Cluster 1
+
+```{r fig.height= 3, fig.width= 3.25}
+VlnPlot(combined.metacells,features = c("Col1a2","Apod","Dcn","Serping1"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+# Mesenchymal 2
+
+Cluster 7.
+Main part of cell from cluster 7 light not have pass filtering in original study at the single cell level
+```{r  fig.height= 3, fig.width= 3.25}
+VlnPlot(combined.metacells,features = c("Col1a2","Apod","Flt1","Serping1"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+# Endothelial 
+
+Cluster 8
+```{r }
+VlnPlot(combined.metacells,features = c("Pecam1","Emcn","Selp","Flt1"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+
+# Neutrophil
+
+Cluster 4
+```{r}
+VlnPlot(combined.metacells,features = c("S100a9","Clec4d","Cxcl2","Acod1"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+
+# Macrophage
+
+Cluster 5
+```{r}
+VlnPlot(combined.metacells,features = c("Cd74","Cd86","Cybb","Col1a"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+# T cell
+
+Cluster 9
+```{r }
+VlnPlot(combined.metacells,features = c("Skap1","Itk","Ptpn22","Cd3e"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+# B cell
+```{r}
+FeaturePlot(combined.metacells,features = c("Igkc","Ebf1","Mef2c","Bank1"),reduction = "wnn.umap")
+combined.metacells <- FindSubCluster(combined.metacells,cluster = 5,graph.name = "wsnn",resolution = 0.05)
+DimPlot(combined.metacells[,combined.metacells$wsnn_res.0.07 == 5],group.by = "sub.cluster",reduction = "wnn.umap")
+FeaturePlot(combined.metacells[,combined.metacells$wsnn_res.0.07 == 5],features = c("Igkc","Ebf1","Mef2c","Bank1"),reduction = "wnn.umap")
+
+Idents(combined.metacells) <- "sub.cluster"
+VlnPlot(combined.metacells,features = c("Igkc","Ebf1","Mef2c","Bank1"),ncol = 2,pt.size = 0,assay = "RNA")
+
+
+
+```
+
+```{r}
+combined.metacells <-  RenameIdents(combined.metacells, '0' = 'Luminal_1','10' = "Luminal_2")
+combined.metacells <- RenameIdents(combined.metacells, '6' = 'Basal')
+combined.metacells <- RenameIdents(combined.metacells, '2' = 'Neuroendocrine')
+combined.metacells <- RenameIdents(combined.metacells, '11' = 'Neuron')
+combined.metacells <- RenameIdents(combined.metacells, '3' = 'Seminal_vesicle')
+combined.metacells <- RenameIdents(combined.metacells, '1' = "Mesenchymal_1")
+combined.metacells <- RenameIdents(combined.metacells, '7' = "Mesenchymal_2")
+combined.metacells <- RenameIdents(combined.metacells, '8' = "Endothelial")
+combined.metacells <- RenameIdents(combined.metacells, '4' = "Neutrophil")
+combined.metacells <- RenameIdents(combined.metacells, '9' = "T_cell")
+combined.metacells <- RenameIdents(combined.metacells, '5_0' = "Macrophage")
+combined.metacells <- RenameIdents(combined.metacells, '5_1' = "B_cell")
+
+```
+
+
+```{r}
+VlnPlot(combined.metacells,features = c("Ptprc","Epcam","Krt8"),ncol = 2,pt.size = 0,assay = "RNA")
+
+```
+
+```{r}
+DimPlot(combined.metacells,reduction = "wnn.umap", label = T)
+DimPlot(combined.metacells,reduction = "rna.umap", label = T)
+DimPlot(combined.metacells,reduction = "atac.umap", label = T)
+
+
+```
+```{r}
+DefaultAssay(combined.metacells) <- "ATAC"
+
+CoveragePlot(
+  object = combined.metacells,
+  region = "Cd8a",
+  features = "Cd8a",
+  expression.assay = "RNA",
+  extend.upstream = 500,
+  extend.downstream = 10000
+)
+
+```
+
+```{r}
+combined.metacells$major_type <- Idents(combined.metacells)
+DefaultAssay(combined.metacells) <- "RNA"
+FeaturePlot(combined.metacells[,combined.metacells$major_type == "T_cell"],features = c('Cd8a',"Cd4",'Klrb1c','Tcrg-C1'),reduction = "wnn.umap")
+```
+
+```{r}
+supercell_FeatureFeaturePlot_Seurat(combined.metacells[,combined.metacells$major_type == "T_cell"],feature_x = c("Cd8a","Cd3g"),feature_y = c('Cd4',"Klrb1c"),assays = c("RNA","RNA"),is.normalized = T,cluster = "major_type")
+```
+
+```{r}
+# marker11 <- FindMarkers(combined.metacells,ident.1 = 11,only.pos = T)
+# 
+# marker11 <- marker11[marker11$p_val_adj< 0.05&marker11$avg_log2FC> 1,]
+# marker11
+```
+
+
+
+```{r fig.height=2.5,fig.width=3}
+my36colors <- c('#E5D2DD', '#53A85F', '#F1BB72', '#F3B1A0', '#D6E7A3', '#57C3F3', '#476D87',
+                '#E95C59', '#E59CC4', '#AB3282', '#23452F', '#BD956A', '#8C549C', '#585658',
+                '#9FA3A8', '#E0D4CA', '#5F3D69', '#58A4C3', "#b20000",'#E4C755', '#F7F398',
+                '#AA9A59', '#E63863', '#E39A35', '#C1E6F3', '#6778AE', '#91D0BE', '#B53E2B',
+                '#712820', '#DCC1DD', '#CCE0F5', '#CCC9E6', '#625D9E', '#68A180', '#3A6963',
+                '#968175')
+
+colors <- c('Luminal_1'='#E5D2DD',
+            "Luminal_2" = '#CCC9E6',
+           'Neuroendocrine'='#53A85F',
+           'Basal' = '#F1BB72',
+           "Seminal_vesicle"= '#F3B1A0',
+           'Mesenchymal_1'='#D6E7A3',
+           'Mesenchymal_2'='#57C3F3',
+           "Endothelial"='#476D87',
+           "Neutrophil"='#E95C59',
+           "Macrophage"='#AB3282',
+           "T_cell" = '#23452F',
+           "B_cell" = '#BD956A',
+           "Neuron" = '#8C549C')
+
+#####
+# Idents(combined.metacells) <- combined.metacells$wsnn_res.0.1
+# 
+#  combined.metacells <- RenameIdents(combined.metacells, '0' = 'Luminal_1','1' = 'Mesenchymal_1','2' = 'Neuroendocrine_1','3' = 'Seminal_vesicle','4' = 'Neutrophil','5' = 'Macrophage', '6' = 'Mesenchymal_2','7' = 'Basal','8' = 'Endothelial','9' = 'T_cell','10' = 'Neuroendocrine_2','11' = 'B_cell','12' = 'Neuron')
+
+combined.metacells@meta.data$celltype <- factor(Idents(combined.metacells),                                                levels = c("Basal","Luminal_1","Luminal_2","Neuroendocrine",
+                                                                                                                                                 "Seminal_vesicle","Mesenchymal_1","Mesenchymal_2",
+                                                                                                                                                 "Endothelial","Neutrophil","Macrophage",
+                                                                                                                                                 "T_cell","B_cell","Neuron"))
+
+Idents(combined.metacells) <- "celltype"
+
+plot1 <- DimPlot(combined.metacells,reduction = "wnn.umap",cols = colors,label = T,repel = T)
+plot1 + NoLegend()
+#LabelClusters(plot1, id = "ident", color = unique(ggplot_build(plot1)$data[[1]]$colour), size = 5, repel = T,  box.padding = 3)
+```
+```{r}
+ggplot(combined.metacells@meta.data,aes(x= celltype,y=log(compactness_pca),fill = celltype)) + geom_boxplot() +
+  scale_x_discrete(guide = guide_axis(angle = 45))
+
+ggplot(combined.metacells@meta.data,aes(x= celltype,y=log(compactness_lsi),fill = celltype)) + geom_boxplot() +
+  scale_x_discrete(guide = guide_axis(angle = 45))
+
+```
+
+
+
+```{r}
+combined.metacells@meta.data$sample <- factor(combined.metacells$orig.ident,
+                                                  levels = c("WT_1","WT_2",
+                                                             "2W_1","2W_2",
+                                                             "1M_1","1M_2",
+                                                             "2_5M_1","2_5M_2","2_5M_3","2_5M_4",
+                                                             "3_5M_1","3_5M_2",
+                                                             "4_5M_2",
+                                                             "6M"))
+
+combined.metacells$time <- combined.metacells$orig.ident
+combined.metacells$time[startsWith(combined.metacells$orig.ident,"1M")] <- "1M"
+combined.metacells$time[startsWith(combined.metacells$orig.ident,"2_5M")] <- "2_5M"
+combined.metacells$time[startsWith(combined.metacells$orig.ident,"2W")] <- "2W"
+combined.metacells$time[startsWith(combined.metacells$orig.ident,"3_5M")] <- "3_5M"
+combined.metacells$time[startsWith(combined.metacells$orig.ident,"4_5M")] <- "4_5M"
+combined.metacells$time[startsWith(combined.metacells$orig.ident,"6M")] <- "6M"
+combined.metacells$time[startsWith(combined.metacells$orig.ident,"WT")] <- "WT"
+
+combined.metacells@meta.data$time <- factor(combined.metacells$time,levels = c("WT","2W","1M",
+                                                                     "2_5M","3_5M","4_5M",
+                                                                     "6M"))
+```
+
+```{r}
+ggplot(combined.metacells@meta.data,aes(x=sample,fill = time)) + geom_bar(stat = "count")  +
+  scale_x_discrete(guide = guide_axis(angle = 45)) + ylab("metacell counts")
+```
+
+
+
+```{r}
+
+
+immune_types <- c("T_cell","B_cell","Neutrophil","Macrophage")
+
+ggplot(combined.metacells@meta.data[combined.metacells$celltype %in% immune_types,],aes(x=sample,fill = time)) + geom_bar(stat = "count")  +
+  scale_x_discrete(guide = guide_axis(angle = 45)) + ylab("immune metacell counts")
+```
+```{r}
+combined.metacells$major_type <- combined.metacells$celltype
+combined.metacells$major_type <- as.character(gsub(x=combined.metacells$major_type, pattern = "_[0-9]",replacement = ""))
+# combined.metacells$major_type[combined.metacells$major_type == "Mesenchymal"] <- as.character(combined.metacells$major_type_res.0.2[combined.metacells$major_type == "Mesenchymal"])
+
+DimPlot(combined.metacells,reduction = "wnn.umap",label = T,repel = T,group.by = "major_type")
+
+colors <- c('Luminal'='#E5D2DD',
+           'Neuroendocrine'='#53A85F',
+           'Basal' = '#F1BB72',
+           "Seminal_vesicle"= '#F3B1A0',
+           'Mesenchymal'='#D6E7A3',
+           # 'Mesenchymal_2'='#57C3F3',
+           # 'Mesenchymal_3'='#91D0BE',
+           "Endothelial"='#476D87',
+           "Neutrophil"='#E95C59',
+           "Macrophage"='#AB3282',
+           "T_cell" = '#23452F',
+           "B_cell" = '#BD956A',
+           "Neuron" = '#8C549C')
+
+combined.metacells@meta.data$major_type <- factor(combined.metacells$major_type,                                                
+                                                  levels = (c("Luminal","Neuroendocrine","Basal",
+                                                             "Seminal_vesicle","Mesenchymal","Endothelial",
+                                                             "Neutrophil","Macrophage",
+                                                             "T_cell","B_cell","Neuron"))) 
+
+DimPlot(combined.metacells,reduction = "wnn.umap",group.by = "major_type",cols = colors)
+
+
+```
+
+```{r}
+library(reshape2)
+#combined.metacells$major_type <- droplevels(combined.metacells$major_type)
+smpCounts <- aggregate(combined.metacells$size, by=list(sample = combined.metacells$sample,
+                                                        major_type = combined.metacells$major_type,
+                                                        celltype = combined.metacells$celltype,
+                                                        time = combined.metacells$time), FUN=sum)
+ggplot(smpCounts,aes(x=sample,y = x,fill = time)) + geom_bar(stat = "identity")  +
+  scale_x_discrete(guide = guide_axis(angle = 45)) + ylab("sc counts")
+```
+
+
+```{r}
+
+library(colorspace)
+darker_colors <- darken(colors, 0.2)
+
+contingencyTable <- xtabs(x ~ major_type+time,data = smpCounts)
+colSums(contingencyTable)
+
+freqMatrix <- apply(contingencyTable,1,FUN = function(x){x/colSums(contingencyTable)})
+# res <- chisq.test(contingencyTable)
+# Roe <- res$observed/res$expected
+
+freqMatrix_df <- melt(freqMatrix)
+
+freqMatrix_df$major_type <- factor(freqMatrix_df$major_type ,
+                                   levels = c("Basal","Endothelial","Luminal","Neuroendocrine","B_cell","T_cell","Macrophage","Neutrophil","Seminal_vesicle","Mesenchymal","Neuron"))
+
+freqMatrix_df$group <- freqMatrix_df$major_type
+
+freqMatrix_df$group[freqMatrix_df$time == "WT"] <- NA
+
+ggplot(freqMatrix_df,aes(x = time,y=value*100,color=major_type,group = group)) + geom_point() + geom_line() + facet_wrap("~major_type") +
+  scale_x_discrete(guide = guide_axis(angle = 45)) + theme_bw() + scale_color_manual(values = darker_colors) + ylab("% total cells (mean of samples)")
+```
+
+```{r}
+ggplot(freqMatrix_df[freqMatrix_df$major_type %in% c("Luminal","Neuroendocrine"),],aes(x = time,y=value*100,color=major_type,group = group)) + geom_point() + geom_line() +
+  scale_x_discrete(guide = guide_axis(angle = 45)) + theme_bw() + scale_color_manual(values = darker_colors) + ylab("% total cells")
+```
+
+```{r}
+ggplot(freqMatrix_df[freqMatrix_df$major_type %in% c("Luminal","Neuroendocrine","Neutrophil"),],aes(x = time,y=value*100,color=major_type,group = group)) + geom_point() + geom_line() +
+  scale_x_discrete(guide = guide_axis(angle = 45)) + theme_bw() + scale_color_manual(values = darker_colors) + ylab("% total cells")
+```
+
+```{r}
+#saveRDS(combined.metacells,"combined.metacells.annotated.rds")
+```
+
+
+```{r}
+# markersSem <- FindMarkers(combined.metacells,ident.1 = "Seminal_vesicle",only.pos = T)
+# markersSem <- markersSem[markersSem$p_val_adj< 0.05,]
+# markersSem
+```
+
+```{r}
+# Idents(combined.metacells) <- "major_type"
+# markersMes <- FindMarkers(combined.metacells,ident.1 = "Mesenchymal",only.pos = T)
+# markersMes <- markersMes[markersMes$p_val_adj< 0.05,]
+# markersMes
+```
+
+```{r fig.height=2.25,fig.width=5}
+DefaultAssay(combined.metacells) <- "RNA"
+genes <- c("Krt8","Chga","Krt5","Svs5","Col1a2","Cdh5","S100a9","C1qa","Cd3e","Cd19","Plp1")
+genes
+
+combined.metacells@meta.data$major_type <- factor(combined.metacells$major_type,                                                
+                                                  levels = rev(c("Luminal","Neuroendocrine","Basal",
+                                                             "Seminal_vesicle","Mesenchymal","Endothelial",
+                                                             "Neutrophil","Macrophage",
+                                                             "T_cell","B_cell","Neuron"))) 
+
+
+VlnPlot(object = combined.metacells,features = genes,stack = T,group.by = "major_type",fill.by= "ident",cols = colors,same.y.lims = F)  + NoLegend() + theme(axis.title.y = element_blank())
+
+```
+
+```{r}
+# 
+# DefaultAssay(combined.metacells) <- "ATAC"
+# frags <- Fragments(combined.metacells)  # get list of fragment objects
+# Fragments(combined.metacells) <- NULL  # remove fragment information from assay
+# 
+# new.paths <- list.files('../../output/10xMultiomeProstateHan22/logNorm/',
+#                         pattern='MC_atac_fragments.tsv.gz',
+#                         recursive = T,
+#                         full.names = T)
+# 
+# new.paths <- new.paths[grepl(x = new.paths,pattern = "aggregated_fragment_file/MC_atac_fragments.tsv.gz")]
+# new.paths <- new.paths[!grepl(x = new.paths,pattern = "tbi")]
+# 
+# 
+# for (i in seq_along(frags)) {
+#   print(i)
+#   frags[[i]] <- UpdatePath(frags[[i]], new.path = new.paths[i]) # update path
+# }
+# 
+# #Error!!!
+# Fragments(combined.metacells) <- frags # assign updated list back to the object
+# 
+# saveRDS(combined.metacells,"combined.metacells.annotated.local.frags.rds")
+```
+
+```{r fig.height=2,fig.width=4.5}
+DefaultAssay(combined.metacells) <- "ATAC"
+genes <- c("Krt8","Chga","Krt5","Svs5","Col1a2","Cdh5","S100a9","C1qa","Cd3e","Cd19","Plp1")
+combined.metacells@meta.data$major_type <- factor(combined.metacells$major_type,                                                
+                                                  levels = c("Luminal","Neuroendocrine","Basal",
+                                                             "Seminal_vesicle","Mesenchymal","Endothelial",
+                                                             "Neutrophil","Macrophage",
+                                                             "T_cell","B_cell","Neuron"))
+
+#genes <- c("S100a9","C1qa","Cd3e","Cd19")
+
+TSS <- GetTSSPositions(Annotation(combined.metacells))
+TSS <- TSS[TSS$gene_name%in% genes,]
+
+regions <- lapply(X = genes, function(X){
+  TSSgene <- TSS[TSS$gene_name == X]
+  region <- Extend(TSSgene,upstream = 100,downstream = 100)
+  return(region)
+  })
+
+regions
+
+p <- CoveragePlot(
+    object = combined.metacells,
+    region = regions,ncol = length(TSS),
+    peaks = FALSE,color = colors,
+  ) & scale_fill_manual(values = colors) 
+
+p$patches$plots[[1]] <- p$patches$plots[[1]]  & theme(
+                             axis.text.x = element_blank(),
+                             #axis.title.x = element_blank(),
+                             axis.ticks.x= element_blank(),axis.ticks.y = element_blank()) & xlab(gsub(x=p$patches$plots[[1]]$labels$x,pattern = " position \\(bp\\)",replacement = ""))
+
+for (i in c(2:length(TSS))) {
+  p$patches$plots[[i]] <- p$patches$plots[[i]] & theme(strip.text.y.left = element_blank(),strip.background = element_blank())  & theme(strip.text.y.left = element_blank(),
+                             strip.background = element_blank(),
+                             axis.title.y = element_blank(),
+                             axis.text.x = element_blank(),
+                             axis.ticks.x= element_blank(),axis.ticks.y = element_blank())& xlab(gsub(x=p$patches$plots[[i]]$labels$x,pattern = " position \\(bp\\)",replacement = ""))
+ 
+
+}
+
+```
+
+
+
+
+
+
+
+
+```{r fig.height=2,fig.width=5}
+
+Idents(combined.metacells) <- combined.metacells@meta.data$major_type 
+  
+genes <- c("Krt8","Chga","Krt5","Svs5","Col1a2","Cdh5","S100a9","C1qa","Cd3e","Cd19","Plp1")
+
+
+TSS <- GetTSSPositions(Annotation(combined.metacells))
+TSS <- TSS[TSS$gene_name%in% genes,]
+
+regions <- lapply(X = genes, function(X){
+  TSSgene <- TSS[TSS$gene_name == X]
+  region <- Extend(TSSgene,upstream = 500,downstream = 100)
+  return(region)
+  })
+
+regions
+
+p <- CoveragePlot(
+    object = combined.metacells,
+    region = regions,ncol = length(TSS),
+    peaks = F,color = colors, 
+  ) & scale_fill_manual(values = colors) 
+
+for (i in c(2:length(TSS))) {
+  p$patches$plots[[i]] <- p$patches$plots[[i]] & theme(strip.text.y.left = element_blank(),strip.background = element_blank())
+
+}
+
+
+p$patches$plots[[i]] & theme(strip.text.y.left = element_blank(),
+                             strip.background = element_blank(),
+                             title = element_blank(),
+                             axis.text.x = element_blank())
+
+
+
+
+
+```
+
+
+
+#save immune
+```{r}
+combined.metacells[,combined.metacells$major_type %in% c("T_cell",'B_cell',"Macrophage","Neutrophil")]
+saveRDS(combined.metacells[,combined.metacells$major_type %in% c("T_cell",'B_cell',"Macrophage","Neutrophil")],"../../output/10xMultiomeProstateHan22/logNorm/macs2_major_type/immune.combined.metacells.rds")
+```
+
+
+
+
+

@@ -1,4 +1,4 @@
-setwd("input/prostateCancer10xMultiome/")
+#setwd("input/prostateCancer10xMultiome/")
 BiocManager::install("DiffBind")
 getwd()
 {library(Seurat)

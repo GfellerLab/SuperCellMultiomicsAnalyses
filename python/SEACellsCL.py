@@ -11,7 +11,7 @@ def main(argv):
     matrixFile = ''
     outDir = ''
     try:
-        opts, args = getopt.getopt(argv,"i:g:d:r:o:",["inputH5ad=","gamma=","dims=","reductionKey=","outDir="])
+        opts, args = getopt.getopt(argv,"hi:g:d:r:o:",["inputH5ad=","gamma=","dims=","reductionKey=","outDir="])
     except getopt.GetoptError:
         print('SEACellsCL.py -i <inputH5ad> -g <gamma> -d <dims> -r <reductionKey> -o <outDir>')
         sys.exit(2)
@@ -37,6 +37,10 @@ def main(argv):
     print('dims are "', dimStr)
     print('reductionKey is"', reductionKey)
     ad = sc.read_h5ad(inputH5ad)
+    
+    # remove attributes added by SeuratDisk that cause SEACells to crash
+    del ad.obsp
+    del ad.uns
             
     dimStrList = dimStr.split(":")
     build_kernel_on = "X_"+ reductionKey

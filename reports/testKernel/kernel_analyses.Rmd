@@ -7,28 +7,40 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+```{r}
+library(Cairo)
+options(bitmapType = "cairo")
 ```
 
 ## Library loading
 
 ```{r cars}
- library(Seurat)
-# library(cowplot)
+library(Seurat)
+library(cowplot)
 # library(dplyr)
 # library(future.apply)
 # library(pbapply)
 # library(igraph)
- library(SuperCellMultiomics)
+library(SuperCellMultiomics)
 library(ggsignif)
 library(ggplot2)
+
+g_legend<-function(a.gplot){
+  tmp <- ggplot_gtable(ggplot_build(a.gplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)}
 ```
 
 ## result loading sc mixology
 
 ```{r , echo=FALSE}
 
-cellTypes <- list.files("../output/testKernel/rarePop_mixology/")
-detectionGammaRes <- lapply(cellTypes, function(x){read.csv(paste0("../output/testKernel/rarePop_mixology/",x,"/detectionGammaRes.csv"),
+cellTypes <- list.files("../../output/testKernel/rarePop_mixology/")
+detectionGammaRes <- lapply(cellTypes, function(x){read.csv(paste0("../../output/testKernel/rarePop_mixology/",x,"/detectionGammaRes.csv"),
                                                             row.names = 1)})
 detectionGammaResTable  <- do.call("rbind", detectionGammaRes)
 
@@ -58,10 +70,35 @@ ggplot(detectionGammaResTable, aes(x = kernel, y = gamma, fill = kernel)) +
   geom_point(position = position_jitter(seed = 1, width = 0.2)) +  facet_wrap("~cellType",scales = "free_y")
 
 ```
+```{r fig.height=3,fig.width=3}
+plotCellLineGamma <- list()
+detectionGammaResTable$kernel <- as.character(detectionGammaResTable$kernel)
+for (c in cellTypes) {
+  plotCellLineGamma[[c]] <- ggplot(detectionGammaResTable[detectionGammaResTable$cellType == c,],aes( y = gamma, x = kernel,fill = kernel)) + 
+    geom_boxplot()  + 
+    theme(axis.title.x = element_blank()) +
+    scale_shape(solid = FALSE)  +
+    facet_wrap("~cellType") +ylab("Detection gamma") +
+    geom_signif(comparisons = list(c("FALSE", "TRUE")), 
+                map_signif_level=TRUE,test = "t.test")
+  print(plotCellLineGamma[[c]] )
+}
 
+library(cowplot)
+plotCellLineGamma <- plot_grid(plotCellLineGamma[[1]]+NoLegend(),
+                               plotCellLineGamma[[2]]+ NoLegend(),
+                               plotCellLineGamma[[3]] + NoLegend(),
+                               plotCellLineGamma[[4]] + NoLegend(),
+                               plotCellLineGamma[[5]] +NoLegend(),
+                               g_legend(plotCellLineGamma[[2]]),
+                               nrow = 2)
+
+
+plotCellLineGamma
+```
 ```{r}
-detectionSizeResKernel <- lapply(cellTypes, function(x){table <- read.csv(paste0("../output/testKernel/rarePop_mixology/",x,"/kernel_TRUE/detectionSizeRes.csv"),
-                                                            row.names = 1)
+detectionSizeResKernel <- lapply(cellTypes, function(x){table <- read.csv(paste0("../../output/testKernel/rarePop_mixology/",x,"/kernel_TRUE/detectionSizeRes.csv"),
+                                                                          row.names = 1)
 table$cellType <- x
 return(table)})
 
@@ -69,8 +106,8 @@ return(table)})
 detectionSizeResKernelTable  <- do.call("rbind", detectionSizeResKernel)
 detectionSizeResKernelTable$method <- "k30_kernel"
 
-detectionSizeResStandard <- lapply(cellTypes, function(x){table <- read.csv(paste0("../output/testKernel/rarePop_mixology/",x,"/kernel_FALSE/detectionSizeRes.csv"),
-                                                            row.names = 1)
+detectionSizeResStandard <- lapply(cellTypes, function(x){table <- read.csv(paste0("../../output/testKernel/rarePop_mixology/",x,"/kernel_FALSE/detectionSizeRes.csv"),
+                                                                            row.names = 1)
 table$cellType <- x
 return(table)})
 
@@ -93,18 +130,14 @@ detectionSizeResTable <- rbind(detectionSizeResKernelTable,detectionSizeResKerne
 detectionSizeResTable
 
 ```
-```{r}
+```{r fig.height=3,fig.width=3}
 
-g_legend<-function(a.gplot){
-  tmp <- ggplot_gtable(ggplot_build(a.gplot))
-  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
-  legend <- tmp$grobs[[leg]]
-  return(legend)}
+
 
 for (c in cellTypes) {
   print(c)
-print(t.test(detectionSizeResTable[detectionSizeResTable$kernel == T & detectionSizeResTable$cellType == c,"rarePopProp"],
-            detectionSizeResTable[detectionSizeResTable$kernel == F & detectionSizeResTable$cellType == c,"rarePopProp"]))
+  print(t.test(detectionSizeResTable[detectionSizeResTable$kernel == T & detectionSizeResTable$cellType == c,"rarePopProp"],
+               detectionSizeResTable[detectionSizeResTable$kernel == F & detectionSizeResTable$cellType == c,"rarePopProp"]))
 }
 
 
@@ -118,21 +151,21 @@ print(t.test(detectionSizeResTable[detectionSizeResTable$kernel == T & detection
 plotCellLineSize <- list()
 detectionSizeResTable$kernel <- as.character(detectionSizeResTable$kernel)
 for (c in cellTypes) {
-plotCellLineSize[[c]] <- ggplot(detectionSizeResTable[detectionSizeResTable$cellType == c,],aes( y = rarePopProp, x = kernel,fill = kernel)) + geom_boxplot()  + theme(axis.title.x = element_blank()) +
-  scale_shape(solid = FALSE)  + facet_wrap("~cellType") +ylab("rare pop. proportion") +
-  geom_signif(comparisons = list(c("FALSE", "TRUE")), 
-              map_signif_level=TRUE,test = "t.test")
-print(plotCellLineSize[[c]] )
+  plotCellLineSize[[c]] <- ggplot(detectionSizeResTable[detectionSizeResTable$cellType == c,],aes( y = rarePopProp, x = kernel,fill = kernel)) + geom_boxplot()  + theme(axis.title.x = element_blank()) +
+    scale_shape(solid = FALSE)  + facet_wrap("~cellType") +ylab("rare pop. proportion") +
+    geom_signif(comparisons = list(c("FALSE", "TRUE")), 
+                map_signif_level=TRUE,test = "t.test")
+  print(plotCellLineSize[[c]] )
 }
 
 library(cowplot)
 boxplotKernel <- plot_grid(plotCellLineSize[[1]]+ scale_y_continuous(limits = c(0.002,0.009))+NoLegend(),
-          plotCellLineSize[[2]]+ scale_y_continuous(limits = c(0.002,0.006))+ NoLegend(),
-          plotCellLineSize[[3]]+ scale_y_continuous(limits = c(0.003,0.0115)) + NoLegend(),
-          plotCellLineSize[[4]]+ scale_y_continuous(limits = c(0.00575,0.0155)) + NoLegend(),
-          plotCellLineSize[[5]]+ scale_y_continuous(limits = c(0.005,0.0155)) +NoLegend(),
-          g_legend(plotCellLineSize[[5]]),
-          nrow = 2)
+                           plotCellLineSize[[2]]+ scale_y_continuous(limits = c(0.002,0.006))+ NoLegend(),
+                           plotCellLineSize[[3]]+ scale_y_continuous(limits = c(0.003,0.0115)) + NoLegend(),
+                           plotCellLineSize[[4]]+ scale_y_continuous(limits = c(0.00575,0.0155)) + NoLegend(),
+                           plotCellLineSize[[5]]+ scale_y_continuous(limits = c(0.005,0.0155)) +NoLegend(),
+                           g_legend(plotCellLineSize[[5]]),
+                           nrow = 2)
 
 
 boxplotKernel
@@ -148,21 +181,21 @@ boxplotKernel
 plotCellLineSize <- list()
 detectionSizeResTable$kernel <- as.character(detectionSizeResTable$kernel)
 for (c in cellTypes) {
-plotCellLineSize[[c]] <- ggplot(detectionSizeResTable[detectionSizeResTable$cellType == c,],aes( y = rarePopSize, x = kernel,fill = kernel)) + geom_boxplot()  + theme(axis.title.x = element_blank()) +
-  scale_shape(solid = FALSE)  + facet_wrap("~cellType") +ylab("rare pop. size") +
-  geom_signif(comparisons = list(c("FALSE", "TRUE")), 
-              map_signif_level=TRUE,test = "t.test")
-print(plotCellLineSize[[c]] )
+  plotCellLineSize[[c]] <- ggplot(detectionSizeResTable[detectionSizeResTable$cellType == c,],aes( y = rarePopSize, x = kernel,fill = kernel)) + geom_boxplot()  + theme(axis.title.x = element_blank()) +
+    scale_shape(solid = FALSE)  + facet_wrap("~cellType") +ylab("rare pop. size") +
+    geom_signif(comparisons = list(c("FALSE", "TRUE")), 
+                map_signif_level=TRUE,test = "t.test")
+  print(plotCellLineSize[[c]] )
 }
 
 library(cowplot)
 boxplotKernelSize <- plot_grid(plotCellLineSize[[1]]+NoLegend(),
-          plotCellLineSize[[2]]+ NoLegend(),
-          plotCellLineSize[[3]] + NoLegend(),
-          plotCellLineSize[[4]] + NoLegend(),
-          plotCellLineSize[[5]] +NoLegend(),
-          g_legend(plotCellLineSize[[5]]),
-          nrow = 2)
+                               plotCellLineSize[[2]]+ NoLegend(),
+                               plotCellLineSize[[3]] + NoLegend(),
+                               plotCellLineSize[[4]] + NoLegend(),
+                               plotCellLineSize[[5]] +NoLegend(),
+                               g_legend(plotCellLineSize[[5]]),
+                               nrow = 2)
 
 
 boxplotKernelSize
@@ -173,8 +206,9 @@ boxplotKernelSize
 # Plot an example (A549)
 
 ```{r}
-cellLines <- readRDS("../input/sce_sc_10x_5cl_qc.rds")
-source("../R/functions/rarePopAnalyses.R")
+cellLines <- readRDS("../../input/sce_sc_10x_5cl_qc.rds")
+source("../../R/functions/rarePopAnalyses.R")
+library(dplyr)
 sizePop <- 10
 seuratWithRarePop  <- subsampleCellType(seurat = cellLines,
                                         cellType = "H1975",
@@ -188,28 +222,28 @@ seuratWithRarePop <- RunPCA(seuratWithRarePop)
 seuratWithRarePop <- RunUMAP(seuratWithRarePop,dims = c(1:30))
 
 
-rarePopSC  <-  SCimplify_for_Seurat(seurat = seuratWithRarePop,
-                                    gamma = 20,
-                                    kernel = T, 
-                                    k.knn = 30, 
-                                    dims = list(c(1:30)),
-                                    return.seurat = T) 
+rarePopSC  <-  SCimplify_for_Seurat_v5(seurat = seuratWithRarePop,
+                                       gamma = 20,
+                                       kernel = T, 
+                                       k.knn = 30, 
+                                       dims = list(c(1:30)),
+                                       return.seurat = T) 
 
 
 plotEx <- DimPlotSC(seurat = seuratWithRarePop,seurat.mc = rarePopSC,sc.col = "cell_line",metacell.col = "cell_line",reduction = "umap") +  theme_classic() + 
   theme(axis.ticks =element_blank(),
         axis.text=element_blank()
-        )
+  )
 
 plotEx
 ```
 # Make the plot
 
 ```{r fig.height=2,fig.width=8}
-plotPart1 <- readRDS("plotKernelCD34.rds")
-
-cowplot::plot_grid(plotPart1,plotEx+theme(legend.position = "bottom",legend.box = "vertical")+guides(color=guide_legend(nrow=2,byrow=TRUE)),boxplotKernel,nrow = 1,rel_widths = c(1,0.5,0.75),
-                   labels = c("","C","D"))
+# plotPart1 <- readRDS("plotKernelCD34.rds")
+# 
+# cowplot::plot_grid(plotPart1,plotEx+theme(legend.position = "bottom",legend.box = "vertical")+guides(color=guide_legend(nrow=2,byrow=TRUE)),boxplotKernel,nrow = 1,rel_widths = c(1,0.5,0.75),
+#                    labels = c("","C","D"))
 ```
 
 
@@ -222,8 +256,8 @@ ggplot(detectionSizeResTable, aes(x = kernel, y = rarePopSize, fill = kernel)) +
 
 ```{r , echo=FALSE}
 
-cellTypes <- list.files("../output/testKernel/CITEseq/bmcite/")
-detectionGammaRes <- lapply(cellTypes, function(x){read.csv(paste0("../output/testKernel/CITEseq/bmcite/",x,"/detectionGammaRes.csv"),
+cellTypes <- list.files("../../output/testKernel/CITEseq/bmcite/")
+detectionGammaRes <- lapply(cellTypes, function(x){read.csv(paste0("../../output/testKernel/CITEseq/bmcite/",x,"/detectionGammaRes.csv"),
                                                             row.names = 1)})
 detectionGammaResTable  <- do.call("rbind", detectionGammaRes)
 
@@ -239,6 +273,35 @@ ggplot(detectionGammaResTable,aes( y = purity, x = kernel,fill = kernel)) + geom
 ggplot(detectionGammaResTable,aes( y = gamma, x = kernel,fill = kernel)) + geom_boxplot()  +
   scale_shape(solid = FALSE)  + facet_wrap("~cellType",scales = "free_y")
 ```
+```{r fig.height=3,fig.width=3}
+plotCellLineGamma <- list()
+detectionGammaResTable$kernel <- as.character(detectionGammaResTable$kernel)
+for (c in cellTypes) {
+  plotCellLineGamma[[c]] <- ggplot(detectionGammaResTable[detectionGammaResTable$cellType == c,],aes( y = gamma, x = kernel,fill = kernel)) + 
+    geom_boxplot()  + 
+    theme(axis.title.x = element_blank()) +
+    scale_shape(solid = FALSE)  +
+    facet_wrap("~cellType") +ylab("Detection gamma") +
+    geom_signif(comparisons = list(c("FALSE", "TRUE")), 
+                map_signif_level=TRUE,test = "t.test")
+  print(plotCellLineGamma[[c]] )
+}
+
+library(cowplot)
+plotCellLineGamma <- plot_grid(plotCellLineGamma[[1]]+NoLegend(),
+                               plotCellLineGamma[[2]]+ NoLegend(),
+                               plotCellLineGamma[[3]] + NoLegend(),
+                               plotCellLineGamma[[4]] + NoLegend(),
+                               plotCellLineGamma[[5]] +NoLegend(),
+                               plotCellLineGamma[[6]] +NoLegend(),
+                               nrow = 2)
+
+
+plotCellLineGamma
+```
+
+
+
 ```{r}
 ggplot(detectionGammaResTable, aes(x = kernel, y = purity, fill = kernel)) +
   geom_violin(alpha = 0.5) +
@@ -253,14 +316,14 @@ ggplot(detectionGammaResTable, aes(x = kernel, y = gamma, fill = kernel)) +
   geom_point(position = position_jitter(seed = 1, width = 0.2)) +  facet_wrap("~cellType",scales = "free_y")
 ```
 ```{r}
-detectionSizeResKernel <- lapply(cellTypes, function(x){table <- read.csv(paste0("../output/testKernel/CITEseq/bmcite/",x,"/kernel_TRUE/detectionSizeRes.csv"),
-                                                            row.names = 1)
+detectionSizeResKernel <- lapply(cellTypes, function(x){table <- read.csv(paste0("../../output/testKernel/CITEseq/bmcite/",x,"/kernel_TRUE/detectionSizeRes.csv"),
+                                                                          row.names = 1)
 table$cellType <- x
 return(table)})
 detectionSizeResKernelTable  <- do.call("rbind", detectionSizeResKernel)
 
-detectionSizeResStandard <- lapply(cellTypes, function(x){table <- read.csv(paste0("../output/testKernel//CITEseq/bmcite/",x,"/kernel_FALSE/detectionSizeRes.csv"),
-                                                            row.names = 1)
+detectionSizeResStandard <- lapply(cellTypes, function(x){table <- read.csv(paste0("../../output/testKernel//CITEseq/bmcite/",x,"/kernel_FALSE/detectionSizeRes.csv"),
+                                                                            row.names = 1)
 table$cellType <- x
 return(table)})
 
@@ -278,3 +341,179 @@ ggplot(detectionSizeResTable, aes(x = kernel, y = rarePopSize, fill = kernel)) +
   geom_violin(alpha = 0.5) +
   geom_point(position = position_jitter(seed = 1, width = 0.2)) +  facet_wrap("~cellType",scales = "free_y")
 ```
+```{r fig.height=3,fig.width=3}
+plotCellLineSize <- list()
+detectionSizeResTable$kernel <- as.character(detectionSizeResTable$kernel)
+for (c in cellTypes) {
+  plotCellLineSize[[c]] <- ggplot(detectionSizeResTable[detectionSizeResTable$cellType == c,],aes( y = rarePopSize, x = kernel,fill = kernel)) + 
+    geom_boxplot()  + 
+    theme(axis.title.x = element_blank()) +
+    scale_shape(solid = FALSE)  +
+    facet_wrap("~cellType") +ylab("rare pop. size") +
+    geom_signif(comparisons = list(c("FALSE", "TRUE")), 
+                map_signif_level=TRUE,test = "t.test")
+  print(plotCellLineSize[[c]] )
+}
+
+library(cowplot)
+boxplotKernelSize <- plot_grid(plotCellLineSize[[1]]+NoLegend(),
+                               plotCellLineSize[[2]]+ NoLegend(),
+                               plotCellLineSize[[3]] + NoLegend(),
+                               plotCellLineSize[[4]] + NoLegend(),
+                               plotCellLineSize[[5]] +NoLegend(),
+                               plotCellLineSize[[6]] +NoLegend(),
+                               nrow = 2)
+
+
+boxplotKernelSize
+```
+
+
+## PBMC multiome data
+
+
+```{r , echo=FALSE}
+
+cellTypes <- list.files("../../output/testKernel/10Xmultiome/PBMC/")
+detectionGammaRes <- lapply(cellTypes, function(x){read.csv(paste0("../../output/testKernel/10Xmultiome/PBMC/",x,"/detectionGammaRes.csv"),
+                                                            row.names = 1)})
+detectionGammaResTable  <- do.call("rbind", detectionGammaRes)
+
+```
+
+```{r}
+ggplot(detectionGammaResTable,aes( y = prop, x = kernel,fill = kernel)) + geom_boxplot()  +
+  scale_shape(solid = FALSE)  + facet_wrap("~cellType",scales = "free_y")
+
+ggplot(detectionGammaResTable,aes( y = purity, x = kernel,fill = kernel)) + geom_boxplot()  +
+  scale_shape(solid = FALSE)  + facet_wrap("~cellType",scales = "free_y")
+
+ggplot(detectionGammaResTable,aes( y = gamma, x = kernel,fill = kernel)) + geom_boxplot()  +
+  scale_shape(solid = FALSE)  + facet_wrap("~cellType",scales = "free_y")
+```
+```{r fig.height=3,fig.width=3}
+plotCellLineGamma <- list()
+detectionGammaResTable$kernel <- as.character(detectionGammaResTable$kernel)
+for (c in cellTypes) {
+  plotCellLineGamma[[c]] <- ggplot(detectionGammaResTable[detectionGammaResTable$cellType == c,],aes( y = gamma, x = kernel,fill = kernel)) + 
+    geom_boxplot()  + 
+    theme(axis.title.x = element_blank()) +
+    scale_shape(solid = FALSE)  +
+    facet_wrap("~cellType") +ylab("Detection gamma") +
+    geom_signif(comparisons = list(c("FALSE", "TRUE")), 
+                map_signif_level=TRUE,test = "t.test")
+  print(plotCellLineGamma[[c]] )
+}
+
+library(cowplot)
+plotCellLineGamma <- plot_grid(plotCellLineGamma[[1]]+NoLegend(),
+                               plotCellLineGamma[[2]]+ NoLegend(),
+                               plotCellLineGamma[[3]] + NoLegend(),
+                               plotCellLineGamma[[4]] + NoLegend(),
+                               plotCellLineGamma[[5]] +NoLegend(),
+                               plotCellLineGamma[[6]] +NoLegend(),
+                               nrow = 2)
+
+
+plotCellLineGamma
+```
+
+
+
+```{r}
+ggplot(detectionGammaResTable, aes(x = kernel, y = purity, fill = kernel)) +
+  geom_violin(alpha = 0.5) +
+  geom_point(position = position_jitter(seed = 1, width = 0.2)) +  facet_wrap("~cellType",scales = "free_y")
+
+ggplot(detectionGammaResTable, aes(x = kernel, y = prop, fill = kernel)) +
+  geom_violin(alpha = 0.5) +
+  geom_point(position = position_jitter(seed = 1, width = 0.2)) +  facet_wrap("~cellType",scales = "free_y")
+
+ggplot(detectionGammaResTable, aes(x = kernel, y = gamma, fill = kernel)) +
+  geom_violin(alpha = 0.5) +
+  geom_point(position = position_jitter(seed = 1, width = 0.2)) +  facet_wrap("~cellType",scales = "free_y")
+```
+```{r}
+detectionSizeResKernel <- lapply(cellTypes, function(x){table <- read.csv(paste0("../../output/testKernel/10Xmultiome/PBMC/",x,"/kernel_TRUE/detectionSizeRes.csv"),
+                                                                          row.names = 1)
+table$cellType <- x
+return(table)})
+detectionSizeResKernelTable  <- do.call("rbind", detectionSizeResKernel)
+
+detectionSizeResStandard <- lapply(cellTypes, function(x){table <- read.csv(paste0("../../output/testKernel//10Xmultiome/PBMC/",x,"/kernel_FALSE/detectionSizeRes.csv"),
+                                                                            row.names = 1)
+table$cellType <- x
+return(table)})
+
+detectionSizeResTable <- rbind(detectionSizeResKernelTable,do.call("rbind", detectionSizeResStandard))
+
+detectionSizeResTable
+```
+
+```{r fig.height=3,fig.width=5}
+detectionSizeResTable$cellType <- factor(detectionSizeResTable$cellType,
+                                         levels = c("Plasma","NK","MAIT","HSPC","Treg","pDC")) 
+  
+p1 <- ggplot(detectionSizeResTable,aes( y = rarePopSize, x = kernel,fill = kernel)) + geom_boxplot()  +
+  scale_shape(solid = FALSE)  + facet_wrap("~cellType",scales = "free_y") + geom_signif(comparisons = list(c("FALSE", "TRUE")),
+                                                                                        #test = "t.test", 
+                                                                                        map_signif_level=TRUE,vjust = 1.5)
+
+
+
+
+
+detectionPropMean <- detectionSizeResTable %>%
+  group_by(kernel) %>%
+  summarise(prop.thr = median(rarePopProp))
+
+detectionPropMean
+
+```
+```{r fig.width=6,fig.height=3}
+p2 <- ggplot(detectionSizeResTable,aes( y = rarePopProp, x = kernel,fill = kernel)) + geom_boxplot()  +
+  scale_shape(solid = FALSE)  + geom_signif(comparisons = list(c("FALSE", "TRUE")),
+                                            #test = "t.test", 
+                                            map_signif_level=TRUE,vjust = 1.5) + theme(legend.position = "bottom")
+
+library(patchwork)
+plot_grid(p1 + NoLegend(),
+          p2+ NoLegend(),rel_widths = c(3.5,2))
+```
+
+
+
+```{r}
+ggplot(detectionSizeResTable, aes(x = kernel, y = rarePopSize, fill = kernel)) +
+  geom_violin(alpha = 0.5) +
+  geom_point(position = position_jitter(seed = 1, width = 0.2)) +  facet_wrap("~cellType",scales = "free_y")
+```
+```{r fig.height=3,fig.width=3}
+plotCellLineSize <- list()
+detectionSizeResTable$kernel <- as.character(detectionSizeResTable$kernel)
+for (c in cellTypes) {
+  plotCellLineSize[[c]] <- ggplot(detectionSizeResTable[detectionSizeResTable$cellType == c,],aes( y = rarePopSize, x = kernel,fill = kernel)) + 
+    geom_boxplot()  + 
+    theme(axis.title.x = element_blank()) +
+    scale_shape(solid = FALSE)  +
+    facet_wrap("~cellType") +ylab("rare pop. size") +
+    geom_signif(comparisons = list(c("FALSE", "TRUE")), 
+                map_signif_level=TRUE,test = "t.test")
+  print(plotCellLineSize[[c]] )
+}
+
+library(cowplot)
+boxplotKernelSize <- plot_grid(plotCellLineSize[[1]]+NoLegend(),
+                               plotCellLineSize[[2]]+ NoLegend(),
+                               plotCellLineSize[[3]] + NoLegend(),
+                               plotCellLineSize[[4]] + NoLegend(),
+                               plotCellLineSize[[5]] +NoLegend(),
+                               plotCellLineSize[[6]] +NoLegend(),
+                               nrow = 2)
+
+
+boxplotKernelSize
+```
+
+
+

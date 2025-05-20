@@ -1,0 +1,250 @@
+---
+title: "Analysis of immune cells from prostate tumor microenvironment"
+author: "Leonard Herault"
+date: '2024-01-04'
+output: html_document
+---
+
+## Workflow used
+
+Multiomics metacell were identified in each sample using SCimplify by combining log norm RNA and cell ranger atac peaks (same peaks as in the orginal study).
+RNA and ATAC modality were integrated separately using a similar workflow as in the original study at the single cell level.
+Seurat RPCA was used to integrate RNA, Harmony for ATAC.
+As in the original study, a WNN graph was computed (here for the metacells), using the 2 integrated modality.
+Major cell type corresponding to original clusters were identified.
+
+After this step a new peak calling was performed in each major type using macs2.
+This allow us to use more precise and narrow peaks for downstream analysis of the ATAC modality (motif analysis, DA peaks)
+**Note that here we won't use these new peaks to compute a new multimodal latent space.**
+
+Here we analyzed more deeply the immune clusters of metacells.
+First we will recompute a WNN for the immune metacells (from the corrected LSI + PCA computed for all metacells).
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Environment loading
+
+```{r}
+library(Seurat)
+library(dplyr)
+library(Matrix)
+library(ggplot2)
+library(cowplot)
+library(EnsDb.Mmusculus.v79)
+library(Signac)
+library(S4Vectors)
+library(patchwork)
+#library(JASPAR2022)
+library(TFBSTools)
+library(BSgenome.Mmusculus.UCSC.mm10)
+```
+
+## Loading of data
+
+We load the integrated data of immune cells with 2 ATAC slot:
+
+* ATAC : based on cell ranger peaks, used for data integration and clustering
+* peaks : based on the second peak calling with mac2, here only use for downstream analysis of the ATAC modality
+
+```{r}
+combined.metacells.all <- readRDS("../../output/10xMultiomeProstateHan22/logNorm/macs2_major_type/immune_hoccomoco_motifs/combined.metacells.with.macs.peak.rds")
+
+combined.metacells.all <- FindMultiModalNeighbors(combined.metacells.all, 
+                                              reduction.list = list("integrated_pca", "integrated_lsi"), 
+                                              dims.list = list(1:50, 2:50))
+
+combined.metacells.all <- FindClusters(combined.metacells.all, 
+                                   resolution = c(c(1:9)*0.1),
+                                   graph.name = "wsnn") 
+
+combined.metacells.all <- RunUMAP(combined.metacells.all,
+                              nn.name = "weighted.nn", 
+                              reduction.name = "wnn.umap", 
+                              reduction.key = "wnnUMAP_")
+
+
+DimPlot(combined.metacells.all,reduction = "wnn.umap")
+
+
+Idents(combined.metacells.all) <- "wsnn_res.0.4" 
+DimPlot(combined.metacells.all,reduction = "wnn.umap", label = T)
+DimPlot(combined.metacells.all,reduction = "wnn.umap", label = T,group.by = "celltype")
+
+FeaturePlot(combined.metacells.all,"Siglecf")
+
+combined.metacells <- combined.metacells.all[,combined.metacells.all$wsnn_res.0.4 == c(1,2,7)]
+
+
+combined.metacells
+DimPlot(combined.metacells,reduction = "wnn.umap", group.by = "wsnn_res.0.4")
+
+```
+
+
+
+```{r}
+pfm <- readRDS("../../input/HOCCOMOCO_motifs/H12CORE_pfm.rds")
+
+combined.metacells <- AddMotifs(
+  object = combined.metacells,
+  genome = BSgenome.Mmusculus.UCSC.mm10,
+  pfm = pfm,
+  assay = "peaks"
+)
+
+DefaultAssay(combined.metacells) <- "peaks"
+
+combined.metacells <- RunChromVAR(
+  object = combined.metacells,
+  genome = BSgenome.Mmusculus.UCSC.mm10,
+  new.assay.name = "chromvar_pfm"
+)
+```
+```{r}
+DimPlot(combined.metacells,reduction = "wnn.umap")
+```
+
+```{r}
+# combined.metacells <- FindMultiModalNeighbors(combined.metacells, 
+#                                               reduction.list = list("integrated_pca", "integrated_lsi"), 
+#                                               dims.list = list(1:50, 2:50))
+# 
+# combined.metacells <- FindClusters(combined.metacells, 
+#                                    resolution = c(c(1:5)*0.1),
+#                                    graph.name = "wsnn") 
+
+# combined.metacells <- RunUMAP(combined.metacells,
+#                               nn.name = "weighted.nn", 
+#                               reduction.name = "wnn.umap", 
+#                               reduction.key = "wnnNeutroUMAP_")
+
+Idents(combined.metacells) <- "wsnn_res.0.4" 
+
+
+DimPlot(combined.metacells,reduction = "wnn.umap")
+
+```
+
+
+First LSI component is correlated with sequencing depth. As previously, we won't use it for computing the wnn 
+```{r}
+FeaturePlot(combined.metacells,"Siglecf")
+```
+```{r fig.height=1.5,fig.width=2.7}
+# combined.metacells$Siglecf_exp <- "Siglecf_low"
+# combined.metacells$Siglecf_exp[combined.metacells$wsnn_res.0.4 == 5] <- "Siglecf_high"
+# Idents(combined.metacells) <- "Siglecf_exp"
+# DimPlot(combined.metacells) + theme(legend.position = c(0.5,0.5))
+
+
+motif_marker<- FindAllMarkers(  object = combined.metacells,
+                                  mean.fxn = rowMeans, assay = "chromvar_pfm",
+                                  fc.name = "avg_diff")
+
+motif_marker <- motif_marker[motif_marker$p_val_adj< 0.05,]
+
+motif_marker
+write.csv(motif_Siglecf_exp,"motif_macro.csv")
+```
+```{r}
+VlnPlot(combined.metacells,features = c("STA5A.H12CORE.0.P.B","rna_Siglecf"))
+```
+```{r fig.width=3,fig.height=2}
+p1 <- FeaturePlot(
+  object = combined.metacells,
+  features = "STA5A.H12CORE.0.P.B",
+  min.cutoff = 'q10',
+  max.cutoff = 'q90',
+) + theme_void() + xlim(c(-12.5,-5))
+
+
+p2 <- FeaturePlot(
+  object = combined.metacells,
+  features = "STA5A.H12CORE.0.P.B",
+  min.cutoff = 'q10',
+  max.cutoff = 'q90',
+) + theme_void() + xlim(c(-12.5,-5))
+
+p2 <- FeaturePlot(
+  object = combined.metacells,
+  features = "rna_Siglecf",
+  min.cutoff = 'q10',
+  max.cutoff = 'q90',
+)+ theme_void() + xlim(c(-12.5,-5))
+
+p3 <- FeaturePlot(
+  object = combined.metacells,
+  features = "NFAT5.H12CORE.0.SM.B",
+  min.cutoff = 'q10',
+  max.cutoff = 'q90',
+)+ theme_void() + xlim(c(-12.5,-5))
+
+p4 <- FeaturePlot(
+  object = combined.metacells,
+  features = "RUNX3.H12CORE.0.P.B",
+  min.cutoff = 'q10',
+  max.cutoff = 'q90',
+)+ theme_void() + xlim(c(-12.5,-5))
+
+
+p5 <- FeaturePlot(
+  object = combined.metacells,
+  features = "SMAD4.H12CORE.0.P.B",
+  min.cutoff = 'q10',
+  max.cutoff = 'q90',
+)+ theme_void() + xlim(c(-12.5,-5))
+
+
+
+cowplot::plot_grid(p1 + ggtitle("motif_STAT5A"),
+                   p3 + ggtitle("motif_NFAT5"),
+                   p4 + ggtitle("Motif_RUNX3"),
+                   p5 + ggtitle("motif_SMAD4"),
+                   ncol = 2)
+```
+```{r fig.height=1,fig.width=1.5}
+p2
+```
+
+```{r}
+head(motif_marker[order(abs(motif_marker$avg_diff),decreasing = T),],n=50)
+
+top50.motifs <- head(motif_marker[order(abs(motif_marker$avg_diff),decreasing = T),"gene"],n=50)
+
+# top50.motifs <- rownames(head(motif_Siglecf_exp[order(abs(motif_Siglecf_exp$p_val_adj),decreasing = F),],n=60))
+
+top50.motifs
+```
+```{r fig.height=2,fig.width=3}
+combined.metacells[["chromvar_pfm"]]@scale.data <- combined.metacells[["chromvar_pfm"]]@data
+
+h.clust <- hclust(dist(x = combined.metacells[["chromvar_pfm"]]@scale.data[top50.motifs,]))
+
+top50.motifs.order <-  rownames(combined.metacells[["chromvar_pfm"]]@scale.data[top50.motifs,])[h.clust$order]
+
+DoHeatmap(combined.metacells,assay = "chromvar_pfm",features = top50.motifs.order)
+```
+
+```{r}
+gene_Siglecf_exp<- FindMarkers(  object = combined.metacells,
+                                  ident.1 = "Siglecf_high",
+                                  ident.2 = "Siglecf_low",
+                                  assay = "RNA")
+
+gene_Siglecf_exp <- gene_Siglecf_exp[gene_Siglecf_exp$p_val_adj< 0.05,]
+
+gene_Siglecf_exp
+write.csv(gene_Siglecf_exp,"genes_RNA_Siglecf_high_vs_low.csv")
+```
+
+
+
+```{r}
+marker_rna_Siglecf_exp<- FindMarkers(  object = combined.metacells,ident.1 = "Siglecf_high",ident.2 = "Siglecf_low",
+                                  mean.fxn = rowMeans, assay = "chromvar_pfm",
+                                  fc.name = "avg_diff")
+```
+

@@ -23,7 +23,8 @@ spec = matrix(c(
   "memberships", "c", 1 , "character", "memberships already computed (e.g. with SEACells) csv table: 1st column cell name, 2nd column metacell name",
   "prefixMembership", "x", 1, "character", "metacell name prefix memebership to disccard (e.g. SEACell-)",
   "inputSeuratMetacell", "m", 1, "character", "seurat metacell object if available to rescale directly",
-  "aggregateFragmentfile", "f", 1, "character", 'whether to aggregate fragment file or not'
+  "aggregateFragmentfile", "f", 0, "logical", 'whether to aggregate fragment file or not (default FALSE)',
+  "returnMemberships", "b", 0, "logical", "wether to return only memberships (default seurat object with memberships inn misc slot)"
   
 ), byrow=TRUE, ncol=5)
 
@@ -48,6 +49,12 @@ opt = getopt(spec)
 #fragmentFiles <- list()
 #fragmentFiles[["ATAC"]] <- "~/work/SuperCellMultiomicsAnalyses/input/pbmcMultiome/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
 
+if(is.null(opt$returnMembership)) {
+  return.seurat <- T
+} else {
+  return.seurat <- F
+}
+
 if (is.null(opt$RNAassay)) {
   opt$RNAassay <- "RNA"
 }
@@ -60,11 +67,9 @@ if(is.null(opt$k.wnn)) {
   opt$k.wnn <- 30
 }
 
-
-
-
-frag.file <- opt$fragmentFile 
-
+if (is.null(opt$aggregateFragmentfile)) {
+  opt$aggregateFragmentfile <- F
+}
 
 if(is.null(opt$RNAnormalization)) {
   opt$RNAnormalization <- "logNormalize"
@@ -95,9 +100,33 @@ print(opt)
 
 dir.create(opt$outdir,recursive = T,showWarnings = F)
 
-
-seurat <- readRDS(opt$inputSeurat)
-
+if (endsWith(opt$inputSeurat,'h5ad')) {
+  return.seurat <- F
+  file.name <- strsplit(opt$inputSeurat,split = ".h5ad")[[1]][1] 
+  adata <- anndata::read_h5ad(opt$inputSeurat)
+  if(!is.null(adata$raw)) {
+  counts <- Matrix::t(adata$raw$X)
+  rownames(counts) <- rownames(adata$raw$var)
+  
+  } else{
+    counts <- Matrix::t(adata$X)
+    rownames(counts) <- rownames(adata$var)
+  }
+  colnames(counts) <- adata$obs_names
+  if (!grepl(x = file.name,pattern = "ATAC")) {
+    embeddings <- adata$obsm$X_pca
+    rownames(embeddings) <- adata$obs_names
+    seurat <- CreateSeuratObject(counts = counts,meta.data = adata$obs,assay=opt$RNAassay)
+    seurat[["pca"]] <- CreateDimReducObject(embeddings = embeddings,key = "PCA_",assay = opt$RNAassay)
+  } else {
+    seurat <- CreateSeuratObject(counts = counts,meta.data = adata$obs,assay =opt$ATACassay)
+    embeddings <- adata$obsm$X_lsi
+    rownames(embeddings) <- adata$obs_names
+    seurat[["lsi"]] <- CreateDimReducObject(embeddings = embeddings,key = "LSI_",assay = opt$ATACassay)
+  }
+} else {
+  seurat <- readRDS(opt$inputSeurat)
+}
 
 
 if (is.null(opt$inputSeuratMetacell)) {
@@ -159,7 +188,8 @@ if (is.null(opt$inputSeuratMetacell)) {
         outputDirMcFragment = paste0(getwd(),"/",outputDirMcFragment),
         graph.name = "knn",
         kernel = opt$kernel,
-        gamma = opt$gamma
+        gamma = opt$gamma,
+        return.seurat = return.seurat
       )} else {
         if (is.null(opt$RNAcomp)&!is.null(opt$ATACcomp)) {
           print("identifying metacells on ATAC modality")
@@ -173,7 +203,8 @@ if (is.null(opt$inputSeuratMetacell)) {
             tmpPath =paste0(opt$outdir,"tmp/"),
             outputDirMcFragment = paste0(getwd(),"/",outputDirMcFragment),
             kernel = opt$kernel,
-            gamma = opt$gamma
+            gamma = opt$gamma,
+            return.seurat = return.seurat
           )
         }
         
@@ -189,7 +220,8 @@ if (is.null(opt$inputSeuratMetacell)) {
             tmpPath =paste0(opt$outdir,"tmp/"),
             outputDirMcFragment = paste0(getwd(),"/",outputDirMcFragment),
             kernel = opt$kernel,
-            gamma = opt$gamma)
+            gamma = opt$gamma,
+            return.seurat = return.seurat)
         }
       }
   } 
@@ -202,5 +234,9 @@ if (is.null(opt$inputSeuratMetacell)) {
 }
 
 
-
-saveRDS(seurat.mc.multi, paste0(opt$outdir,"/seurat.multiome.mc.rds"))
+if (return.seurat) {
+  saveRDS(seurat.mc.multi, paste0(opt$outdir,"/seurat.multiome.mc.rds"))
+} else {
+  write.csv(data.frame(seurat.mc.multi$membership),
+            paste0(opt$outdir,"/SuperCellMemberships.csv"))
+}

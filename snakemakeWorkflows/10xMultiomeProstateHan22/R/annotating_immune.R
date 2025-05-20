@@ -1,0 +1,1078 @@
+library(Seurat)
+library(dplyr)
+library(Matrix)
+library(ggplot2)
+library(cowplot)
+library(EnsDb.Mmusculus.v79)
+library(Signac)
+library(S4Vectors)
+library(patchwork)
+library(JASPAR2022)
+library(TFBSTools)
+library(BSgenome.Mmusculus.UCSC.mm10)
+
+options(future.globals.maxSize= 8000*1024^2)
+
+spec = matrix(c(
+  'help',        'h', 0, "logical",   "Help about the program",
+  'input',     'i',1, "character", 'input RDS',
+  'meta',       'm', 1, "character", "metadata table containing major_type annotation",
+  'outdir',     'o',1, "character", 'Outdir path (default ./)',
+  'output',      'u', 1, 'character',"type of output (seurat object default or peaks)"
+), byrow=TRUE, ncol=5)
+
+opt = getopt(spec)
+
+
+print(opt)
+
+combined.metacells <- readRDS(opt$input)
+
+
+DepthCor(combined.metacells)
+
+## WNN on subset data 
+## RNA : pca integrated (seurat rpca) log norm
+## ATAC : lsi integrated (harmony) cell ranger broad peaks
+combined.metacells <- FindMultiModalNeighbors(combined.metacells, reduction.list = list("integrated_pca", "integrated_lsi"), dims.list = list(1:50, 2:50))
+combined.metacells <- FindClusters(combined.metacells, resolution = c(c(1:9)*0.1),graph.name = "wsnn") 
+combined.metacells <- RunUMAP(combined.metacells, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_")
+combined.metacells <- RunUMAP(combined.metacells, reduction  = "integrated_lsi", reduction.name = "atac.umap", reduction.key = "atacUMAP_",dims = c(2:50))
+combined.metacells <- RunUMAP(combined.metacells, reduction  = "integrated_pca", reduction.name = "rna.umap", reduction.key = "rnaUMAP_",dims = c(1:50))
+
+pdf(paste0(opt$outdir,"/wnn.umaps.pdf"))
+DimPlot(combined.metacells,reduction = "wnn.umap")
+DimPlot(combined.metacells,reduction = "wnn.umap",group.by = "celltype")
+DimPlot(combined.metacells,reduction = "wnn.umap",group.by = "wsnn_res.0.3")
+DimPlot(combined.metacells,reduction = "rna.umap",group.by = "wsnn_res.0.3")
+DimPlot(combined.metacells,reduction = "atac.umap",group.by = "wsnn_res.0.3")
+VlnPlot(combined.metacells,"ATAC.weight",sort = T,group.by = "wsnn_res.0.3")
+DimPlot(combined.metacells,reduction = "wnn.umap",group.by = "wsnn_res.0.9",label = T)
+DimPlot(combined.metacells,reduction = "wnn.umap",group.by = "wsnn_res.0.4",label = T)
+DefaultAssay(combined.metacells) <- "RNA"
+FeaturePlot(combined.metacells,c("S100a9","Cd3e","Cd19","C1qa"),reduction = "wnn.umap")
+VlnPlot(combined.metacells,features = c("S100a9","Cd3e","Cd19","C1qa"),pt.size = 0.01,group.by = "celltype",ncol = 2)
+VlnPlot(combined.metacells,features = c("Cd8a","Cd4","Cd19",
+                                        "Clec10a","Ciita","Flt3",
+                                        "Trem2","Gpnmb","Lrp12",
+                                        "Fn1","Cd86",
+                                        "Cxcr2","Mreg"),pt.size = 0.001,ncol = 3)
+dev.off()
+
+
+Idents(combined.metacells) <- "wsnn_res.0.4"
+DefaultAssay(combined.metacells) <- "RNA"
+markers <- FindAllMarkers(combined.metacells,only.pos = T)
+markers <- markers[markers$p_val_adj < 0.05,]
+write.csv(markers,paste0(opt$outdir,"RNA_markers_res.0.4.csv"))
+
+
+pdf(paste0(opt$outdir,"/Neutrophils_res.0.4.pdf"))
+VlnPlot(combined.metacells[,combined.metacells$wsnn_res.0.4 %in% c(0,3,5)], features = c("Nfkb1","Hdc","Il1b","Siglecf","Trem1","Cxcr2"),group.by = "wsnn_res.0.4")
+
+FeaturePlot(combined.metacells[,combined.metacells$wsnn_res.0.4 %in% c(0,3,5)],
+            features = c("Nfkb1","Hdc","Il1b","Siglecf","Trem1","Cxcr2","P2rx7","Mreg"),reduction = "wnn.umap")
+dev.off()
+
+
+## NK and CD8 T cells
+pdf(paste0(opt$outdir,"/NK_CD8_res.0.4.pdf"))
+Idents(combined.metacells) <- 'wsnn_res.0.4'
+combined.metacells <- FindSubCluster(combined.metacells,cluster = 4,resolution = 0.6,graph.name = "wsnn")
+DimPlot(combined.metacells[,combined.metacells$wsnn_res.0.4 == 4],group.by = 'sub.cluster',reduction = "wnn.umap",label = T)
+
+
+DimPlot(combined.metacells[,combined.metacells$wsnn_res.0.4 == 4],group.by = 'sub.cluster',reduction = "wnn.umap",label = T)
+VlnPlot(combined.metacells[,combined.metacells$wsnn_res.0.4 %in% c(4)],features = c("Cd8a","Cd4","Cd3g","Tox","Tcf7","Il7r","Ncr1","Klrb1c", "Klrb1b"),group.by="sub.cluster")
+
+
+DimPlot(combined.metacells,reduction = "wnn.umap",label = T,repel = T)
+dev.off()
+
+
+
+## First annotation
+Idents(combined.metacells) <- "sub.cluster"
+pdf(paste0(opt$outdir,"/NK_CD8_res.0.4.pdf"))
+DimPlot(combined.metacells,reduction = "wnn.umap")
+combined.metacells <- RenameIdents(combined.metacells,
+                                   "0" = "Neutro_inf_low",
+                                   "1" = "Macro_Cd86_high",
+                                   "2" = "Macro_Fn1_high",
+                                   "3" = "Neutro_inf_high",
+                                   "4_0" = "Tex_CD8",
+                                   "4_1" = "Tnaive_CD8",
+                                   "4_2" = "NKT",
+                                   "5" = "Neutro_Siglecf_high",
+                                   "6" = "CD4",
+                                   "7" = "Macro_Trem2_high",
+                                   "8" = "DC",
+                                   "9" = "B cells"
+)
+
+combined.metacells$celltype.l2 <- Idents(combined.metacells)
+
+DimPlot(combined.metacells,reduction = "wnn.umap",label = T,repel = T)
+dev.off()
+combined.metacells$fine_celltype = Idents(combined.metacells)
+
+#Subdivide CD4
+Idents(combined.metacells) <- "wsnn_res.0.4"
+
+combined.metacells <- FindSubCluster(combined.metacells,cluster = 6,resolution = 0.8,graph.name = "wsnn")
+
+pdf(paste0(opt$outdir,"/CD4_res.0.4.pdf"))
+DimPlot(combined.metacells[,combined.metacells$wsnn_res.0.4 == 6],reduction = "wnn.umap",group.by = "sub.cluster")
+
+FeaturePlot(combined.metacells[,combined.metacells$wsnn_res.0.4 == 6],reduction = "wnn.umap",features  = c("Cd8a","Cd4"))
+
+FeatureScatter(combined.metacells[,combined.metacells$wsnn_res.0.4 == 6],feature1 = "Cd8a", feature2 = "Cd4",group.by = "sub.cluster")
+Idents(combined.metacells) <- "sub.cluster"
+
+VlnPlot(combined.metacells[,combined.metacells$wsnn_res.0.4 %in% c(6)],features = c("Cd8a","Runx3","Il7r","Tcf7","Cd4","Foxp3","Il2ra","Pdcd1","Trdc","Tcrg-C1","Tcrg-C2"),group.by = "sub.cluster")
+
+dev.off()
+
+
+## 2nd renaming
+Idents(combined.metacells) <- "sub.cluster"
+combined.metacells <- RenameIdents(combined.metacells,
+                                   "6_0" = "Naive_T_cells",
+                                   "6_1" = "T_reg",
+                                   "6_2" = "gd_T",
+                                   "6_3" = "CD4_CD25posFOXP3neg"
+)
+levels(combined.metacells$fine_celltype) <- c(levels(combined.metacells$fine_celltype),c("Naive_T_cells","T_reg",'gd_T',"CD4_CD25posFOXP3neg"))
+combined.metacells$fine_celltype[combined.metacells$fine_celltype == "CD4"] <- Idents(combined.metacells[,combined.metacells$fine_celltype == "CD4"])
+
+DimPlot(combined.metacells,reduction = "wnn.umap",label = T,repel = T,group.by = "fine_celltype")
+
+```
+```{r fig.height=2.5,fig.width=4}
+mycolors <- c('#E5D2DD', '#53A85F', '#F1BB72', '#F3B1A0', '#D6E7A3', '#57C3F3', '#476D87',
+              '#E95C59', '#E59CC4', '#AB3282', '#BD956A', '#8C549C',
+              '#9FA3A8', '#58A4C3', "#b20000",'#E4C755', '#F7F398',
+              '#AA9A59', '#E63863', '#E39A35', '#C1E6F3', '#6778AE', '#91D0BE', '#B53E2B',
+              '#712820', '#DCC1DD', '#CCE0F5', '#CCC9E6', '#625D9E', '#68A180', '#3A6963',
+              '#968175')
+
+DimPlot(combined.metacells,reduction = "wnn.umap",label = T,repel = T,group.by = "celltype") + ggtitle("original celltype")
+
+
+
+DimPlot(combined.metacells,reduction = "wnn.umap",label = T,repel = T, cols = mycolors,group.by = "fine_celltype")
+
+```
+
+
+
+```{r}
+macs2_counts <- readRDS("../../../output/10xMultiomeProstateHan22/logNorm/immune.peaks.rds")
+combined.metacells[["peaks"]] <- CreateChromatinAssay(
+  counts = macs2_counts,
+  genome = 'mm10',
+  min.cells = 1,
+  fragments = Fragments(combined.metacells),
+  annotation = combined.metacells[["ATAC"]]@annotation
+) 
+
+
+```
+
+
+
+
+
+```{r}
+peaks <- readRDS("../../../output/10xMultiomeProstateHan22/logNorm/immune.peaks.rds")
+
+
+macs2_counts <- FeatureMatrix(
+  fragments = Fragments(chrom_assay),
+  features = peaks,
+  cells = colnames(chrom_assay)
+)
+
+macs2_counts <- readRDS("../macs2_counts_immune.rds")
+
+combined.metacells[["peaks"]] <- CreateChromatinAssay(
+  counts = macs2_counts,
+  genome = 'mm10',
+  min.cells = 1,
+  fragments = Fragments(chrom_assay),
+  annotation = combined.metacells[["ATAC"]]@annotations
+)
+```
+
+
+
+```{r}
+
+# add motif information
+pfm <- getMatrixSet(
+  x = JASPAR2022,
+  opts = list(collection = "CORE", tax_group = 'vertebrates', all_versions = FALSE)
+)
+
+# add motif information
+combined.metacells <- AddMotifs(
+  object = combined.metacells,
+  genome = BSgenome.Mmusculus.UCSC.mm10,
+  pfm = pfm,
+  assay = "peaks"
+)
+DefaultAssay(combined.metacells) <- "peaks"
+# # Scan the DNA sequence of each peak for the presence of each motif, and create a Motif object
+# pwm_set <- getMatrixSet(x = JASPAR2022, opts = list(species = 10090, all_versions = FALSE))
+# motif.matrix <- CreateMotifMatrix(features = granges(combined.metacells), pwm = pwm_set, genome = BSgenome.Mmusculus.UCSC.mm10, use.counts = FALSE)
+# motif.object <- CreateMotifObject(data = motif.matrix, pwm = pwm_set)
+# combined.metacells <- SetAssayData(combined.metacells, assay = 'ATAC', slot = 'motifs', new.data = motif.object)
+
+# Note that this step can take 30-60 minutes
+combined.metacells <- RunChromVAR(
+  object = combined.metacells,
+  genome = BSgenome.Mmusculus.UCSC.mm10
+)
+
+DefaultAssay(combined.metacells) <- 'chromvar'
+
+#saveRDS(combined.metacells.chromvar.peaks,"combined.metacells.chromvar.peaks.rds")
+```
+
+
+```{r}
+Idents(combined.metacells) <- "fine_celltype"
+differential.activity <- FindAllMarkers(
+  object = combined.metacells,
+  only.pos = TRUE,
+  mean.fxn = rowMeans,
+  fc.name = "avg_diff"
+)
+
+differential.activity <- differential.activity[differential.activity$p_val_adj< 0.05,]
+differential.activity <- differential.activity[order(differential.activity$avg_diff,decreasing = T),]
+
+name.conversion <- combined.metacells[["peaks"]]@motifs@motif.names
+
+differential.activity$TF <- plyr::mapvalues(x=differential.activity$gene,
+                                            from = names(unlist(combined.metacells[["peaks"]]@motifs@motif.names)),
+                                            to = as.vector(unlist(combined.metacells[["peaks"]]@motifs@motif.names)))
+
+differential.activity
+
+motif.obj <- SeuratObject::GetAssayData(atac_small, slot = "motifs")
+
+DefaultAssay(combined.metacells) <- "peaks"
+
+MotifPlot(
+  object = combined.metacells,
+  motifs = head((differential.activity[differential.activity$cluster == "B cells","gene"])),
+)
+
+```
+```{r fig.height=4,fig.width=6}
+VlnPlot(combined.metacells,
+        features = head((differential.activity[differential.activity$cluster == "B cells","gene"])),
+        assay = "chromvar",pt.size = 0.01)
+```
+
+```{r}
+DefaultAssay(combined.metacells) <- "peaks"
+
+MotifPlot(
+  object = combined.metacells,
+  motifs = head((differential.activity[differential.activity$cluster == "Neutro_Siglecf_high","gene"]),n = 5),
+)
+```
+
+
+```{r fig.height=4,fig.width=6}
+VlnPlot(combined.metacells,
+        features = head((differential.activity[differential.activity$cluster == "Neutro_Siglecf_high","gene"])),
+        assay = "chromvar",pt.size = 0.01)
+
+VlnPlot(combined.metacells,idents = c("Neutro_inf_low","Neutro_inf_high","Neutro_Siglecf_high"),
+        features = head((differential.activity[differential.activity$cluster == "Neutro_Siglecf_high","gene"])),
+        assay = "chromvar",pt.size = 0.01)
+```
+
+
+
+
+```{r }
+MotifPlot(
+  object = combined.metacells,
+  motifs = head((differential.activity[differential.activity$cluster == "Macro_Trem2_high","gene"])),
+)
+```
+
+```{r}
+
+motif_exhaustion <- FindMarkers(  object = combined.metacells,ident.1 = "Tex_CD8",ident.2 = "Tnaive_CD8",
+  mean.fxn = rowMeans, assay = "chromvar",
+  fc.name = "avg_diff")
+
+motif_exhaustion <- motif_exhaustion[motif_exhaustion$p_val_adj< 0.05,]
+
+
+motif_exhaustion <- motif_exhaustion[order(motif_exhaustion$avg_diff,decreasing = T),]
+
+
+motif_exhaustion$TF <- plyr::mapvalues(x=rownames(motif_exhaustion),
+                                            from = names(unlist(combined.metacells[["peaks"]]@motifs@motif.names)),
+                                            to = as.vector(unlist(combined.metacells[["peaks"]]@motifs@motif.names)))
+
+
+head(motif_exhaustion,n=20)
+
+tail(motif_exhaustion,n=20)
+```
+
+
+
+```{r fig.height=4,fig.width=6}
+macro <- levels(combined.metacells$fine_celltype)[startsWith(levels(combined.metacells$fine_celltype),prefix = "Macro")]
+macro <- combined.metacells[,combined.metacells$fine_celltype %in% macro]
+differential.activity.macro <- FindAllMarkers(
+  object = macro,
+  only.pos = TRUE,
+  mean.fxn = rowMeans,
+  fc.name = "avg_diff"
+)
+
+VlnPlot(combined.metacells,
+        features = head((differential.activity[differential.activity$cluster == "Macro_Trem2_high","gene"])),
+        assay = "chromvar",pt.size = 0.01)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+DefaultAssay(combined.metacells) <- "ATAC"
+Idents(combined.metacells) <- "fine_celltype"
+da_peaks_Macro_Trem2_vs_Cd86 <- FindMarkers(
+  object = combined.metacells,
+  test.use = 'LR',
+  ident.1 = "Macro_Trem2_high",
+  ident.2 = "Macro_Cd86_high",
+  latent.vars = 'nCount_ATAC'
+)
+
+da_peaks_Macro_Trem2_vs_Cd86 <- da_peaks_Macro_Trem2_vs_Cd86[da_peaks_Macro_Trem2_vs_Cd86$p_val_adj< 0.05,]
+da_peaks_Macro_Trem2_vs_Cd86
+```
+```{r}
+da_peaks_Macro_Trem2_vs_Cd86_pos<- rownames(da_peaks_Macro_Trem2_vs_Cd86[da_peaks_Macro_Trem2_vs_Cd86$avg_log2FC > 2, ])
+da_peaks_Macro_Trem2_vs_Cd86_neg <- rownames(da_peaks_Macro_Trem2_vs_Cd86[da_peaks_Macro_Trem2_vs_Cd86$avg_log2FC < -2, ])
+
+closest_genes_Trem2 <- ClosestFeature(combined.metacells, regions = da_peaks_Macro_Trem2_vs_Cd86_pos)
+closest_genes_Trem2
+
+
+closest_genes_Cd86  <- ClosestFeature(combined.metacells, regions = da_peaks_Macro_Trem2_vs_Cd86_neg)
+closest_genes_Cd86
+```
+```{r}
+enriched.motifs <- FindMotifs(
+  object = combined.metacells,
+  features = da_peaks_Macro_Trem2_vs_Cd86_pos
+)
+enriched.motifs
+
+MotifPlot(
+  object = combined.metacells,
+  motifs = head(rownames(enriched.motifs))
+)
+```
+
+
+```{r}
+DefaultAssay(combined.metacells) <- "ATAC"
+Idents(combined.metacells) <- "fine_celltype"
+da_peaks_Tex_Cd8 <- FindMarkers(
+  object = combined.metacells,
+  ident.1 = "Tex_CD8",
+  ident.2 = "Tnaive_CD8",
+  test.use = 'LR',
+  latent.vars = 'nCount_ATAC'
+)
+
+da_peaks_Tex_Cd8 <- da_peaks_Tex_Cd8[da_peaks_Tex_Cd8$p_val_adj< 0.05,]
+da_peaks_Tex_Cd8
+```
+
+```{r}
+open_Tex_Cd8<- rownames(da_peaks_Tex_Cd8[da_peaks_Tex_Cd8$avg_log2FC > 2, ])
+open_Tnaive_Cd8 <- rownames(da_peaks_Tex_Cd8[da_peaks_Tex_Cd8$avg_log2FC < -2, ])
+
+closest_genes_Tex_Cd8 <- ClosestFeature(combined.metacells, regions = open_Tex_Cd8)
+closest_genes_Tex_Cd8
+
+
+closest_genes_Tnaive_Cd8  <- ClosestFeature(combined.metacells, regions = open_Tnaive_Cd8)
+closest_genes_Tnaive_Cd8 
+```
+```{r}
+closest_genes_Tex_Cd8
+```
+
+```{r}
+plot(CoveragePlot(
+  object = combined.metacells,
+  features = "Tox",
+  region = "Tox",
+  expression.assay = "RNA",
+  extend.upstream = -2000,
+  extend.downstream = 1000,
+  peaks = FALSE
+))
+```
+
+
+
+
+```{r}
+# pfm <- getMatrixSet(
+#   x = JASPAR2022,
+#   opts = list(collection = "CORE", tax_group = 'vertebrates', all_versions = FALSE)
+# )
+# 
+# # add motif information
+# combined.metacells <- AddMotifs(
+#   object = combined.metacells,
+#   genome = BSgenome.Mmusculus.UCSC.mm10,
+#   pfm = pfm
+# )
+```
+```{r}
+DefaultAssay(combined.metacells) <- "ATAC"
+enriched.motifs <- FindMotifs(
+  object = combined.metacells,
+  features = rownames(da_peaks_Tex_Cd8[da_peaks_Tex_Cd8$avg_log2FC > 1, ])
+)
+enriched.motifs
+
+MotifPlot(
+  object = combined.metacells,
+  motifs = head(rownames(enriched.motifs))
+)
+```
+
+```{r}
+enriched.motifs <- FindMotifs(
+  object = combined.metacells,
+  features = rownames(da_peaks_Tex_Cd8[da_peaks_Tex_Cd8$avg_log2FC < 0, ])
+)
+enriched.motifs
+
+MotifPlot(
+  object = combined.metacells,
+  motifs = head(rownames(enriched.motifs))
+)
+```
+```{r}
+FeaturePlot(combined.metacells,names(convTable[convTable == "MGA"]),reduction = "wnn.umap",  min.cutoff = 'q10',
+            max.cutoff = 'q90')
+VlnPlot(combined.metacells,names(convTable[convTable == "MGA"]))
+```
+
+
+```{r}
+FeaturePlot(combined.metacells,c(names(convTable[convTable == "Nfatc1"])),,reduction = "wnn.umap",  min.cutoff = 'q10',
+            max.cutoff = 'q90')
+#VlnPlot(combined.metacells,c(names(convTable[convTable == "Runx1"]),"rna_Runx1"))
+```
+
+```{r}
+
+```
+
+
+```{r}
+DefaultAssay(combined.metacells) <- 'chromvar'
+
+differential.activity <- FindMarkers(
+  object = combined.metacells,
+  ident.1 = "Tex_CD8",
+  ident.2 = "Tnaive_CD8",
+  only.pos = TRUE,
+  mean.fxn = rowMeans,
+  fc.name = "avg_diff"
+)
+
+differential.activity
+
+convTable <- unlist(combined.metacells@assays$ATAC@motifs@motif.names)
+differential.activity$TF <- convTable[rownames(differential.activity)]
+
+
+differential.activity$TF <-
+  
+  MotifPlot(
+    object = combined.metacells,
+    motifs = head(rownames(differential.activity)),
+    assay = 'ATAC'
+  )
+```
+
+
+
+
+
+```{r}
+ggplot(combined.metacells@meta.data,aes(x= fine_celltype,y=log(compactness_lsi),fill = fine_celltype)) + geom_boxplot() +
+  scale_x_discrete(guide = guide_axis(angle = 45))
+
+ggplot(combined.metacells@meta.data,aes(x= fine_celltype,y=log(compactness_pca),fill = fine_celltype)) + geom_boxplot() +
+  scale_x_discrete(guide = guide_axis(angle = 45))
+
+ggplot(combined.metacells@meta.data,aes(x= fine_celltype,y=log(innerNormVar),fill = fine_celltype)) + geom_boxplot() +
+  scale_x_discrete(guide = guide_axis(angle = 45))
+
+ggplot(combined.metacells@meta.data,aes(x= fine_celltype,y=size,fill = fine_celltype)) + geom_boxplot() +
+  scale_x_discrete(guide = guide_axis(angle = 45))
+```
+
+```{r}
+mad(log(combined.metacells$compactness_pca),na.rm = T)
+mad(log(combined.metacells$compactness_lsi),na.rm = T)
+4*mad((combined.metacells$size),na.rm = T)
+
+```
+
+```{r}
+library(reshape2)
+#combined.metacells$major_type <- droplevels(combined.metacells$major_type)
+smpCounts <- aggregate(combined.metacells$size, by=list(sample = combined.metacells$sample,
+                                                        major_type = combined.metacells$major_type,
+                                                        fine_celltype = combined.metacells$fine_celltype,
+                                                        time = combined.metacells$time), FUN=sum)
+ggplot(smpCounts,aes(x=sample,y = x,fill = time)) + geom_bar(stat = "identity")  +
+  scale_x_discrete(guide = guide_axis(angle = 45)) + ylab("sc counts")
+```
+
+
+```{r}
+
+library(colorspace)
+darker_colors <- darken(mycolors, 0.2)
+
+contingencyTable <- xtabs(x ~ fine_celltype+time,data = smpCounts)
+colSums(contingencyTable)
+
+freqMatrix <- apply(contingencyTable,1,FUN = function(x){x/colSums(contingencyTable)})
+# res <- chisq.test(contingencyTable)
+# Roe <- res$observed/res$expected
+
+freqMatrix_df <- melt(freqMatrix)
+
+# freqMatrix_df$fine_celltype <- factor(freqMatrix_df$fine_celltype ,
+#                                    levels = c("Basal","Endothelial","Luminal","Neuroendocrine","B_cell","T_cell","Macrophage","Neutrophil","Seminal_vesicle","Mesenchymal","Neuron"))
+
+freqMatrix_df$group <- freqMatrix_df$fine_celltype
+
+freqMatrix_df$group[freqMatrix_df$time == "WT"] <- NA
+
+ggplot(freqMatrix_df,aes(x = time,y=value*100,color=fine_celltype,group = group)) + geom_point() + geom_line() + facet_wrap("~fine_celltype") +
+  scale_x_discrete(guide = guide_axis(angle = 45)) + theme_bw() + scale_color_manual(values = darker_colors) + ylab("% CD45+ cells (mean of samples)")
+```
+```{r}
+
+```
+
+
+
+
+
+```{r fig.height=3,fig.width=3}
+VlnPlot(combined.metacells,features = c("S100a9","Cd3e","Cd19","C1qa"),pt.size = 0.01,group.by = "celltype",ncol = 2)
+VlnPlot(combined.metacells,features = c("S100a9","Cd3e","Cd19","C1qa"),pt.size = 0.01,group.by = "celltype",ncol = 2)
+
+```
+```{r fig.height=4,fig.width=4} 
+DimPlot(combined.metacells,reduction = "wnn.umap",group.by = "wsnn_res.0.3")
+
+VlnPlot(combined.metacells,features = c("Cd8a","Cd4","Cd19",
+                                        "Ciita","Flt3",
+                                        "Trem2","Gpnmb","Lrp12",
+                                        "Fn1","Cd86",
+                                        "Cxcr2","Mreg"),pt.size = 0.01,ncol = 3,group.by = "wsnn_res.0.3")
+```
+```{r fig.height=3,fig.width=3}
+DimPlot(combined.metacells[,combined.metacells$wsnn_res.0.3 %in% c(1,3,6,7,8)],group.by = 'fine_celltype',reduction = "wnn.umap",label = T)
+
+```
+```{r fig.height=4,fig.width=3}
+VlnPlot(combined.metacells[,combined.metacells$wsnn_res.0.3 %in% c(1,3,6,7,8)],features = c("C1qa","Cd19",
+                                                                                            "Ciita","Flt3","Cd86",
+                                                                                            "Trem2","Gpnmb","Lrp12",
+                                                                                            "Fn1"
+),pt.size = 0.01,group.by="fine_celltype")
+```
+
+```{r fig.height=3,fig.width=3}
+DimPlot(combined.metacells[,combined.metacells$wsnn_res.0.3 == 4],group.by = 'fine_celltype',reduction = "wnn.umap",label = T)
+VlnPlot(combined.metacells[,combined.metacells$wsnn_res.0.3 %in% c(4)],features = c("Cd8a","Cd4","Tox","Gzmk","Tcf7","Il7r","Ncr1","Klrb1c", "Klrb1b"),pt.size = 0.01,group.by="fine_celltype")
+```
+```{r fig.height=3,fig.width=3}
+DimPlot(combined.metacells[,combined.metacells$wsnn_res.0.3 == 5],group.by = 'fine_celltype',reduction = "wnn.umap",label = T)
+VlnPlot(combined.metacells[,combined.metacells$wsnn_res.0.3 %in% c(5)],features = c("Cd8a","Cd4","Tcf7","Tox","Foxp3","Il2ra","Trdc","Tcrg-C1","Tcrg-C2"),pt.size = 0.01,group.by="fine_celltype")
+```
+
+```{r fig.height=3,fig.width=4}
+DimPlot(combined.metacells[,combined.metacells$wsnn_res.0.3 %in% c(0,2)],group.by = 'fine_celltype',reduction = "wnn.umap",label = T)
+
+```
+```{r  fig.height=4,fig.width=3}
+VlnPlot(combined.metacells[,combined.metacells$wsnn_res.0.3%in% c(0,2)],features = c("Nfkb1","Il1b","Cxcr2","P2rx7","Mreg","Gramd1c","Rubcnl","Ltc4s","Siglecf"),pt.size = 0.01,group.by="fine_celltype")
+```
+```{r}
+
+combined.metacells@meta.data$sample <- factor(combined.metacells$orig.ident,
+                                              levels = c("WT_1","WT_2",
+                                                         "2W_1","2W_2",
+                                                         "1M_1","1M_2",
+                                                         "2_5M_1","2_5M_2","2_5M_3","2_5M_4",
+                                                         "3_5M_1","3_5M_2",
+                                                         "4_5M_1","4_5M_2",
+                                                         "6M"))
+
+combined.metacells$time <- combined.metacells$orig.ident
+combined.metacells$time[startsWith(combined.metacells$orig.ident,"1M")] <- "1M"
+combined.metacells$time[startsWith(combined.metacells$orig.ident,"2_5M")] <- "2_5M"
+combined.metacells$time[startsWith(combined.metacells$orig.ident,"2W")] <- "2W"
+combined.metacells$time[startsWith(combined.metacells$orig.ident,"3_5M")] <- "3_5M"
+combined.metacells$time[startsWith(combined.metacells$orig.ident,"4_5M")] <- "4_5M"
+combined.metacells$time[startsWith(combined.metacells$orig.ident,"6M")] <- "6M"
+combined.metacells$time[startsWith(combined.metacells$orig.ident,"WT")] <- "WT"
+
+combined.metacells@meta.data$time <- factor(combined.metacells$time,levels = c("WT","2W","1M",
+                                                                               "2_5M","3_5M","4_5M",
+                                                                               "6M"))
+
+ggplot(combined.metacells@meta.data,aes(x=sample,fill = time)) + geom_bar(stat = "count")  +
+  scale_x_discrete(guide = guide_axis(angle = 45))
+```
+
+```{r fig.width=6,fig.width=6}
+
+
+
+DimPlot(combined.metacells,split.by  = "time",reduction = "wnn.umap",label = F,group.by = "fine_celltype",ncol = 4)
+
+```
+
+
+```{r}
+library(reshape2)
+combined.metacells$celltype <- droplevels(combined.metacells$celltype)
+typeCounts <- aggregate(combined.metacells$size, by=list(clusters = combined.metacells$celltype,sample = combined.metacells$sample,time=combined.metacells$time), FUN=sum)
+
+contingencyTable <- xtabs(x ~ clusters+time,data = typeCounts)
+colSums(contingencyTable)
+
+freqMatrix <- apply(contingencyTable,1,FUN = function(x){x/colSums(contingencyTable)})
+# res <- chisq.test(contingencyTable)
+# Roe <- res$observed/res$expected
+
+freqMatrix_df <- melt(freqMatrix)
+
+
+
+ggplot(freqMatrix_df,aes(x = time,y=value,color=clusters,group = clusters)) + geom_point() + geom_line() + facet_wrap("~clusters") +
+  scale_x_discrete(guide = guide_axis(angle = 45))
+```
+```{r}
+typeCounts <- aggregate(combined.metacells$size, by=list(clusters = combined.metacells$celltype,sample = combined.metacells$sample,time=combined.metacells$time), FUN=sum)
+
+contingencyTable <- xtabs(x ~ clusters+sample,data = typeCounts)
+colSums(contingencyTable)
+
+freqMatrix <- apply(contingencyTable,1,FUN = function(x){x/colSums(contingencyTable)})
+# res <- chisq.test(contingencyTable)
+# Roe <- res$observed/res$expected
+
+freqMatrix_df <- melt(freqMatrix)
+
+freqMatrix_df$time <- "2_5M"
+freqMatrix_df$time[grepl(x = freqMatrix_df$sample,pattern = "WT")] <- "WT"
+freqMatrix_df$time[grepl(x = freqMatrix_df$sample,pattern = "2W")] <- "2W"
+freqMatrix_df$time[grepl(x = freqMatrix_df$sample,pattern = "3_5M")] <- "3_5M"
+freqMatrix_df$time[grepl(x = freqMatrix_df$sample,pattern = "4_5M")] <- "4_5M"
+freqMatrix_df$time[grepl(x = freqMatrix_df$sample,pattern = "6M")] <- "6M"
+
+freqMatrix_df$time <- factor(freqMatrix_df$time,levels = c("WT","2W","1M",
+                                                           "2_5M","3_5M","4_5M",
+                                                           "6M"))
+
+ggplot(freqMatrix_df,aes(x = time,y=value,color=clusters)) + geom_boxplot() + facet_wrap("~clusters") +
+  scale_x_discrete(guide = guide_axis(angle = 45))
+```
+
+
+```{r fig.height=2,fig.width=4}
+library(reshape2)
+combined.metacells$fine_celltype <- droplevels(combined.metacells$fine_celltype)
+typeCounts <- aggregate(combined.metacells$size, by=list(clusters = combined.metacells$fine_celltype,sample = combined.metacells$sample,time=combined.metacells$time), FUN=sum)
+
+contingencyTable <- xtabs(x ~ clusters+time,data = typeCounts)
+colSums(contingencyTable)
+
+freqMatrix <- apply(contingencyTable,1,FUN = function(x){x/colSums(contingencyTable)})
+# res <- chisq.test(contingencyTable)
+# Roe <- res$observed/res$expected
+
+freqMatrix_df <- melt(freqMatrix)
+
+freqMatrix_df$celltype <- "other_T_cells"
+freqMatrix_df$celltype[grepl(x = freqMatrix_df$clusters,pattern = "Neutro")] <- "Neutrophils"
+freqMatrix_df$celltype[grepl(x = freqMatrix_df$clusters,pattern = "Macro")] <- "Macro/DC"
+freqMatrix_df$celltype[grepl(x = freqMatrix_df$clusters,pattern = "DC")] <- "Macro/DC"
+
+freqMatrix_df$celltype[grepl(x = freqMatrix_df$clusters,pattern = "B cells")] <- "B cells"
+freqMatrix_df$celltype[grepl(x = freqMatrix_df$clusters,pattern = "CD8")] <- "CD8"
+freqMatrix_df$celltype[grepl(x = freqMatrix_df$clusters,pattern = "NK")] <- "NK"
+
+
+
+
+
+ggplot(freqMatrix_df,aes(x = time,y=value*100,color=clusters,group = clusters)) + geom_point() + geom_line() + facet_wrap("~celltype") +
+  scale_x_discrete(guide = guide_axis(angle = 45)) + scale_color_manual(values = mycolors) + ylab("%CD45_pos")
+
+# ggplot(freqMatrix_df[freqMatrix_df$clusters %in% c("CD14_Mono_ifn","CD14_Mono_platelet"),],aes(x = time,y=value,color=donor,group = clusters)) + geom_point() + geom_line() + facet_wrap("~donor") + scale_color_manual(values = colsClusters[c(5,4)]) + facet_wrap(c("clusters","donor")) + ylab("frequence in donor PBMCs")
+
+# freqMatrix_df$clusters <- factor(freqMatrix_df$clusters,levels =  c("ASDC","B intermediate","B memory", "B naive" , "CD14_Mono_ifn" ,"CD14_Mono_main", "CD16 Mono"     ,     "CD4 CTL"          ,  "CD4 Naive"    ,      "CD4 Proliferating" , "CD4 TCM" , "CD4 TEM" , "CD8 Naive" ,"CD8 Proliferating",  "CD8 TCM",  "CD8 TEM" ,"cDC1" ,  "cDC2" ,  "dnT"   , "Eryth"  ,  "gdT"  ,"HSPC"  ,"ILC" , "MAIT","NK"   ,  "NK Proliferating" ,"NK_CD56bright", "pDC", "Plasmablast", "Platelet" , "Treg"  ))
+# 
+# freqMatrix_df$time[freqMatrix_df$time == 2] <- 3 
+# 
+# ggplot(freqMatrix_df[freqMatrix_df$clusters %in%  c("CD14_Mono_main","CD14_Mono_ifn"),],aes(x = time,y=value,color=clusters,group = donor)) + geom_point() + geom_line() +  scale_color_manual(values = colfinale[c(1,4)]) + facet_wrap("~clusters",ncol = 1,scales = "free_y") + ylab("Frequence in PBMCs") + NoLegend() + xlab("day")
+```
+
+```{r}
+DimPlot(combined.metacells,group.by = "fine_celltype",reduction = "atac.umap")
+DimPlot(combined.metacells,group.by = "fine_celltype",reduction = "rna.umap")
+DimPlot(combined.metacells,group.by = "fine_celltype",reduction = "wnn.umap")
+
+DefaultAssay(combined.metacells) <- 'chromvar'
+
+combined.metacells$celltype <- "ab_T_cells"
+combined.metacells$celltype[grepl(x = combined.metacells$fine_celltype,pattern = "Neutro")] <- "Neutro"
+combined.metacells$celltype[grepl(x = combined.metacells$fine_celltype,pattern = "Macro")] <- "Macro"
+combined.metacells$celltype[grepl(x = combined.metacells$fine_celltype,pattern = "DC")] <- "DC"
+
+combined.metacells$celltype[grepl(x = combined.metacells$fine_celltype,pattern = "B cells")] <- "B_cells"
+combined.metacells$celltype[grepl(x = combined.metacells$fine_celltype,pattern = "gd_T")] <- "gd_T_cells"
+combined.metacells$celltype[grepl(x = combined.metacells$fine_celltype,pattern = "NK")] <- "NK"
+
+DimPlot(combined.metacells,group.by = "celltype",reduction = "atac.umap")
+DimPlot(combined.metacells,group.by = "celltype",reduction = "rna.umap")
+DimPlot(combined.metacells,group.by = "celltype",reduction = "wnn.umap")
+```
+```{r}
+combined.metacells$major_celltype <- "NK/T_cells"
+combined.metacells$major_celltype[grepl(x = combined.metacells$fine_celltype,pattern = "Neutro")] <- "Neutro"
+combined.metacells$major_celltype[grepl(x = combined.metacells$fine_celltype,pattern = "Macro")] <- "Macro/DC"
+combined.metacells$major_celltype[grepl(x = combined.metacells$fine_celltype,pattern = "DC")] <- "Macro/DC"
+
+combined.metacells$major_celltype[grepl(x = combined.metacells$fine_celltype,pattern = "B cells")] <- "B_cells"
+DimPlot(combined.metacells,group.by = "major_celltype",reduction = "wnn.umap")
+
+Idents(combined.metacells) <- "major_celltype"
+DefaultAssay(combined.metacells) <- "RNA"
+markers_major_types_rna <- FindAllMarkers(combined.metacells,only.pos = T)
+markers_major_types_rna <- markers_major_types_rna[markers_major_types_rna$p_val_adj < 0.05,]
+
+```
+
+
+```{r}
+convTable <- unlist(combined.metacells@assays$ATAC@motifs@motif.names)
+
+Idents(combined.metacells) <- "major_celltype"
+DefaultAssay(combined.metacells) <- "chromvar"
+markers_major_types_chromvar <- FindAllMarkers(
+  object = combined.metacells,
+  only.pos = TRUE,
+  mean.fxn = rowMeans,
+  fc.name = "avg_diff"
+)
+markers_major_types_chromvar$TF <- convTable[markers_major_types_chromvar$gene]
+
+markers_major_types_chromvar <- markers_major_types_chromvar[markers_major_types_chromvar$p_val_adj < 0.05,]
+
+
+markers_major_types_chromvar$gene_name <- stringr::str_split_fixed(markers_major_types_chromvar$gene,"-",4)[,3]
+markers_major_types_rna$gene_name <-  markers_major_types_rna$gene
+
+markers_chromvar_rna <- data.frame()
+for (i in unique(combined.metacells$major_celltype)) {
+  
+  chromvar_markers <- markers_major_types_chromvar[markers_major_types_chromvar$cluster == i,"gene_name"]
+  rna_markers <- markers_major_types_rna[markers_major_types_rna$cluster == i,"gene_name"]
+  conserved_markers <- chromvar_markers[chromvar_markers%in%rna_markers]
+  print(conserved_markers)
+  markers_chromvar_rna <- rbind(markers_chromvar_rna,markers_major_types_chromvar[markers_major_types_chromvar$gene_name %in% conserved_markers & markers_major_types_chromvar$cluster == i,])
+  
+}
+
+
+markers_chromvar_rna
+#write.csv(differential.activity,'differential.activity.major.celltype.csv')
+
+
+
+
+
+
+# uniqueMotifMarkers <- names(table(differential.activity$gene))[table(differential.activity$gene)==2]
+# differential.activity[differential.activity$gene %in% uniqueMotifMarkers,]
+# 
+# differential.activity
+```
+
+```{r fig.height=4,fig.width=6}
+tfs <- c("Fli1","Ets1","Tcf7")
+convTable <- unlist(combined.metacells@assays$ATAC@motifs@motif.names)
+
+convTableToName <- names(convTable)
+names(convTableToName) <- as.vector(convTable)
+convTableToName[tfs]
+
+VlnPlot(combined.metacells,features =  c("ENSMUSG00000016087-LINE1018-Fli1-D" ,
+                                         "ENSMUSG00000032035-LINE1028-Ets1-D-N1",
+                                         "ENSMUSG00000032446-LINE1801-Eomes-D" 
+                                         ,
+                                         "rna_Fli1","rna_Ets1","rna_Eomes"),
+        pt.size = 0,cols = mycolors,ncol=3)
+
+FeaturePlot(
+  object = combined.metacells,
+  features =   c("ENSMUSG00000016087-LINE1018-Fli1-D" ,
+                 "ENSMUSG00000032035-LINE1028-Ets1-D-N1",
+                 "ENSMUSG00000032446-LINE1801-Eomes-D" 
+                 ,
+                 "rna_Fli1","rna_Ets1","rna_Eomes"),ncol = 3,
+  min.cutoff = 'q10',
+  max.cutoff = 'q90',
+  reduction = "wnn.umap",
+  pt.size = 0.1
+)
+
+
+tfs <- c("Spi1","Mafb","MITF")
+convTableToName[tfs]
+
+VlnPlot(combined.metacells,features = c("ENSMUSG00000020275-LINE1654-Rel-I","ENSMUSG00000074622-LINE260-Mafb-D-N2","ENSMUSG00000035158-LINE115-Mitf-D",
+                                        "Rel","rna_Mafb","rna_Mitf"),
+        pt.size = 0,cols = mycolors,ncol = 3)
+
+FeaturePlot(
+  object = combined.metacells,
+  features = c("ENSMUSG00000020275-LINE1654-Rel-I","ENSMUSG00000074622-LINE260-Mafb-D-N2","ENSMUSG00000035158-LINE115-Mitf-D",
+               "Rel","rna_Mafb","rna_Mitf"),
+  min.cutoff = 'q10',
+  max.cutoff = 'q90',
+  reduction = "wnn.umap",
+  pt.size = 0.1,ncol=3
+)
+
+
+
+
+tfs <- c("POU2F1","PAX5")
+convTableToName[tfs]
+
+
+VlnPlot(combined.metacells,features = c("MA0785.1", "MA0497.1","rna_Pou2f1","rna_Pax5"),pt.size = 0,cols = mycolors,ncol = 2)
+
+FeaturePlot(
+  object = combined.metacells,
+  features =  c("MA0785.1", "MA0014.3","rna_Pou2f1","rna_Pax5"),
+  min.cutoff = 'q10',
+  max.cutoff = 'q90',
+  reduction = "wnn.umap",
+  pt.size = 0.1,
+)
+
+```
+```{r fig.height=3,fig.width=3}
+Idents(combined.metacells) <- "fine_celltype"
+DefaultAssay(combined.metacells) <- "RNA"
+markers_macro_dc_types_rna <- FindAllMarkers(combined.metacells[,combined.metacells$celltype %in% c("Macro")],only.pos = T)
+markers_macro_dc_types_rna <- markers_macro_dc_types_rna[markers_macro_dc_types_rna$p_val_adj < 0.05,]
+
+DefaultAssay(combined.metacells) <- "chromvar"
+differential.activity.macro.dc <- FindAllMarkers(
+  object = combined.metacells[,combined.metacells$celltype %in% c("Macro")],
+  only.pos = T,
+  mean.fxn = rowMeans,
+  fc.name = "avg_diff"
+)
+differential.activity.macro.dc <- differential.activity.macro.dc[differential.activity.macro.dc$p_val_adj < 0.05,]
+#differential.activity.macro.dc$TF <- convTable[differential.activity.macro.dc$gene]
+differential.activity.macro.dc$gene_name <- stringr::str_split_fixed(differential.activity.macro.dc$gene,"-",4)[,3]
+markers_macro_dc_types_rna$gene_name <-  markers_macro_dc_types_rna$gene
+
+markers_chromvar_rna <- data.frame()
+for (i in unique(combined.metacells$fine_celltype)) {
+  
+  chromvar_markers <- differential.activity.macro.dc[differential.activity.macro.dc$cluster == i,"gene_name"]
+  rna_markers <- markers_macro_dc_types_rna[markers_macro_dc_types_rna$cluster == i,"gene_name"]
+  conserved_markers <- chromvar_markers[chromvar_markers%in%rna_markers]
+  print(conserved_markers)
+  markers_chromvar_rna <- rbind(markers_chromvar_rna,differential.activity.macro.dc[differential.activity.macro.dc$gene_name %in% conserved_markers & differential.activity.macro.dc$cluster == i,])
+  
+}
+
+
+VlnPlot(combined.metacells[,combined.metacells$major_celltype %in% c("Macro/DC")],
+        features = convTableToName[c("CEBPB","CEBPE","CEBPG")],pt.size = 0,cols = mycolors)
+
+markers_chromvar_rna
+
+FeaturePlot(
+  object = combined.metacells[,combined.metacells$major_celltype %in% c("Macro/DC")],
+  features =  convTableToName[c("CEBPB","CEBPE","CEBPG")],
+  min.cutoff = 'q10',
+  max.cutoff = 'q90',
+  reduction = "wnn.umap",
+  pt.size = 0.1,
+)
+
+markers_chromvar_rna
+
+FeaturePlot(
+  object = combined.metacells[,combined.metacells$celltype %in% c("Macro")],
+  features =  c("ENSMUSG00000003032-LINE286-Klf4-D-N2","rna_Klf4",
+                "ENSMUSG00000035158-LINE115-Mitf-D","rna_Mitf",
+                "ENSMUSG00000026663-LINE196-Atf6-I","rna_Atf6"),
+  min.cutoff = 'q10',
+  max.cutoff = 'q90',
+  reduction = "wnn.umap",
+  pt.size = 0.1,
+)
+```
+
+
+
+
+
+
+
+```{r}
+Idents(combined.metacells) <- "fine_celltype"
+# Treg_vs_naive_motif <- FindMarkers(combined.metacells,
+#                                    ident.1 = "T_reg",
+#                                    ident.2 = "Naive_T_cells",  
+#                                    mean.fxn = rowMeans,
+#                                    fc.name = "avg_diff")
+
+Treg_vs_naive_motif <- Treg_vs_naive_motif[Treg_vs_naive_motif$p_val_adj < 0.05,]
+Treg_vs_naive_motif$TF <- convTable[rownames(Treg_vs_naive_motif)]
+
+Treg_vs_naive_motif
+
+VlnPlot(combined.metacells[,combined.metacells$major_celltype %in% 'NK/T_cells'],
+        features = convTableToName[c("NFKB2","REL","RELA","FOXP3")],pt.size = 0,cols = mycolors,ncol = 2)
+
+
+
+```
+```{r fig.width=5,fig.height=3}
+FeaturePlot(
+  object = combined.metacells[,combined.metacells$major_celltype == "NK/T_cells"],
+  features =   c("ENSMUSG00000016087-LINE1018-Fli1-D" ,
+                 "ENSMUSG00000032035-LINE1028-Ets1-D-N1",
+                 "ENSMUSG00000032446-LINE1801-Eomes-D" 
+                 ,
+                 "rna_Fli1","rna_Ets1","rna_Eomes"),ncol = 3,
+  min.cutoff = 'q10',
+  max.cutoff = 'q90',
+  reduction = "wnn.umap",
+  pt.size = 0.1
+)
+```
+
+```{r}
+FeaturePlot(
+  object = combined.metacells[,combined.metacells$major_celltype %in% 'NK/T_cells'],
+  features =  names(convTable[which(convTable %in%c("NFKB2","REL","RELA","FOXP3"))]),
+  min.cutoff = 'q10',
+  max.cutoff = 'q90',
+  reduction = "wnn.umap",
+  pt.size = 0.1,
+)
+```
+
+
+```{r}
+differential.activity[fig]
+
+uniqueMotifMarkers <- names(table(differential.activity$gene))[table(differential.activity$gene)==2]
+differential.activity[differential.activity$gene %in% uniqueMotifMarkers,]
+
+FeaturePlot(
+  object = combined.metacells,
+  features =  names(convTable[which(convTable %in% c("EOMES","CEBPA"))]),
+  min.cutoff = 'q10',
+  max.cutoff = 'q90',
+  reduction = "wnn.umap",
+  pt.size = 0.1,
+)
+```
+
+```{r}
+
+convTableToName <- names(convTable)
+names(convTableToName) <- as.vector(convTable)
+
+
+convTableToName <- names(convTable)
+names(convTableToName) <- as.vector(convTable)
+differential.activity.abTcells <- FindAllMarkers(
+  object = combined.metacells[,combined.metacells$fine_celltype %in% c("Tex_CD8","T_reg","Tnaive_CD8","Naive_T_cells")],
+  only.pos = T,
+  mean.fxn = rowMeans,
+  fc.name = "avg_diff"
+)
+differential.activity.abTcells <- differential.activity.abTcells[differential.activity.abTcells$p_val_adj < 0.05,]
+
+differential.activity.abTcells$TF <- convTable[(differential.activity.abTcells$gene)]
+differential.activity.abTcells
+
+VlnPlot(combined.metacells[,combined.metacells$fine_celltype %in% c("Tex_CD8","T_reg","Tnaive_CD8","Naive_T_cells")],features = convTableToName[c("TBX21","NFKB2")],pt.size = 0,cols = mycolors)
+
+
+```
+
+```{r fig.height=4,fig.width=4}
+VlnPlot(combined.metacells,features = convTableToName[c("REL","RELA","NFKB1","NFKB2")],pt.size = 0,cols = mycolors,ncol = 2)
+```
+
+```{r}
+differential.activity <- differential.activity[differential.activity$p_val_adj < 0.05,]
+
+```
+
+
+
+https://www.nature.com/articles/s41598-020-62664-x
+
+
+
+
