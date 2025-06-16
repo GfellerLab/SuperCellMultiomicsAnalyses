@@ -55,3 +55,14 @@ rule all:
     expand("output/pbmcMultiome/singlecells_analysis/grn_object_{pandoSC}.rds", pandoSC = pando_method_sc),
     expand("output/pbmcMultiome/SuperCellMulti/pando_metrics_summary_p_thresh0.1.RData"),
     expand("output/pbmcMultiome/SuperCellMulti/pando_metrics_summary_p_thresh0.05.RData")
+
+
+# snakemake -j 30 -kps snakefile.py --configfile config/workflow.yml --use-singularity --conda-frontend conda --cluster-config config/cluster.yml --cluster "sbatch -A {cluster.account} \
+#         -p {cluster.partition} \
+#         -N {cluster.N} \
+#         -t {cluster.time} \
+#         --job-name {cluster.name} \
+#         --mem {cluster.mem} \
+#         --cpus-per-task {cluster.cpus-per-task}\
+#         --output {cluster.output} \
+#         --error {cluster.error}" --dry-run
