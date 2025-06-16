@@ -19,7 +19,6 @@ wdir = os.getcwd()
 
 include: "snakemakeWorkflows/pbmcMultiome/snakefile.py"
 include: "snakemakeWorkflows/hspcMultiomePersad/snakefile.py"
-include: "snakemakeWorkflows/pbmcCiteSeqAtlas/snakefile.py"
 
 rule all:
   input:
