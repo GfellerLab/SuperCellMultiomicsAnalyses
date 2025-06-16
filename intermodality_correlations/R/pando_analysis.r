@@ -23,16 +23,6 @@ spec = matrix(c(
 
 opt = getopt(spec)
 
-# machine_path <- "" #"/mnt/curnagl/"
-# dataset <- "pbmcMultiome" #pbmcMultiome hspcMultiomePersad
-# data_path <- paste0(machine_path, "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/output/", dataset, "/")
-# opt <- list()
-# opt$mcSeurat <- paste0(data_path, "SuperCellMulti/g20/seurat.multiome.activities.rds") # seurat.multiome.mc.activities.rds
-# opt$singleCellSeurat <- paste0(data_path, "singlecells_analysis/seurat.multiome.activities.rds") #seurat.multiome.mc.activities.rds
-# opt$mc.method <- "weights"
-# opt$ncores <- 8
-# opt$membership <- paste0(data_path, "/SuperCellMulti/g20/SuperCellMemberships.csv")
-
 registerDoParallel(opt$ncores)
 
 source("R/functions/pando_functions.r")
@@ -42,58 +32,58 @@ source("R/functions/pando_functions.r")
 
 
 if(opt$mcSeurat != opt$singleCellSeurat){
-  
+
   # Load single-cell object to get the same variable genes as the one used for single-cell data
   sc.seurat <- readRDS(opt$singleCellSeurat)
   sc.seurat <- DietSeurat(object = sc.seurat, assays = c("RNA", "ATAC"))
   gc()
-  
+
   # Define most variable genes (used as targets later)
   DefaultAssay(sc.seurat) <- "RNA"
   sc.seurat <- NormalizeData(sc.seurat, assay='RNA')
   sc.seurat <- FindVariableFeatures(sc.seurat, assay='RNA', nfeatures = 4000)
   hvgs <- Seurat::VariableFeatures(sc.seurat)
-  
+
   mc.use = T
   if(opt$mc.method == "aggregate"){
-   
+
     # load membership
     membership_df <- read.csv(opt$membership, header = T, row.names = 1)
     membership <- membership_df$seurat.mc.multi.membership
     names(membership) <- rownames(membership_df)
-    
+
     # add membership to the metadata
     seurat_object <- sc.seurat
-    seurat_object$mc_membership <- membership[colnames(seurat_object)] 
+    seurat_object$mc_membership <- membership[colnames(seurat_object)]
     rm(sc.seurat)
     gc()
-    
-    
+
+
   }else if(opt$mc.method %in% c("LSI1_norm", "LSI1_norm_svy")){
     rm(sc.seurat)
     gc()
-    
+
     seurat_object <- readRDS(opt$mcSeurat)
     DefaultAssay(seurat_object) <- "RNA"
     seurat_object <- NormalizeData(seurat_object, assay='RNA')
-    
-    DefaultAssay(seurat_object) <- "ATAC" 
+
+    DefaultAssay(seurat_object) <- "ATAC"
     seurat_object <- Signac::RunTFIDF(seurat_object, assay='ATAC', method = 1)
-    
+
   }else if(opt$mc.method %in% c("LSI2_norm", "LSI2_norm_svy")){
     rm(sc.seurat)
     gc()
-    
+
     seurat_object <- readRDS(opt$mcSeurat)
     DefaultAssay(seurat_object) <- "RNA"
     seurat_object <- NormalizeData(seurat_object, assay='RNA')
-    
-    DefaultAssay(seurat_object) <- "ATAC" 
+
+    DefaultAssay(seurat_object) <- "ATAC"
     seurat_object <- Signac::RunTFIDF(seurat_object, assay='ATAC', method = 2)
-    
+
   }else if(opt$mc.method  %in% c("meanSC_norm", "meanSC_norm_svy")){
-    
-    
+
+
     membership_df <- read.csv(opt$membership, header = T, row.names = 1)
     membership <- membership_df$seurat.mc.multi.membership
     names(membership) <- rownames(membership_df)
@@ -104,21 +94,21 @@ if(opt$mcSeurat != opt$singleCellSeurat){
                                              return.seurat = T)
     rm(sc.seurat)
     gc()
-    
+
   }
-  
+
 }else{
   mc.use = F
   seurat_object <- readRDS(opt$singleCellSeurat)
   seurat_object <- DietSeurat(object = seurat_object, assays = c("RNA", "ATAC"))
   gc()
-  
+
   # Define most variable genes (used as targets later)
-  DefaultAssay(seurat_object) <- "RNA"  
+  DefaultAssay(seurat_object) <- "RNA"
   seurat_object <- NormalizeData(seurat_object, assay='RNA')
   seurat_object <- FindVariableFeatures(seurat_object, assay='RNA', nfeatures = 4000)
   hvgs <- VariableFeatures(seurat_object)
-  
+
 }
 
 
@@ -126,9 +116,9 @@ if(opt$mcSeurat != opt$singleCellSeurat){
 data('phastConsElements20Mammals.UCSC.hg38')
 
 # Initiate GRN object and select candidate regions ------------------------
-grn_object <- initiate_grn(seurat_object, 
-                           peak_assay = "ATAC", 
-                           rna_assay = "RNA", 
+grn_object <- initiate_grn(seurat_object,
+                           peak_assay = "ATAC",
+                           rna_assay = "RNA",
                            regions = phastConsElements20Mammals.UCSC.hg38)
 
 data('motifs')
@@ -142,8 +132,8 @@ motif2tf_use
 grn_object <- find_motifs(
   grn_object,
   pfm = motifs_use,
-  genome = BSgenome.Hsapiens.UCSC.hg38, 
-  motif_tfs = motif2tf_use 
+  genome = BSgenome.Hsapiens.UCSC.hg38,
+  motif_tfs = motif2tf_use
 )
 
 
@@ -165,7 +155,7 @@ if(mc.use){
       genes = hvgs,
       parallel = T
     )
-   
+
   }else{
     grn_object <- infer_grn.GRNData(
       object = grn_object,
@@ -176,11 +166,11 @@ if(mc.use){
       parallel = T
     )
   }
-  
+
 }else{
-  grn_object <- infer_grn(grn_object, 
+  grn_object <- infer_grn(grn_object,
                           genes = hvgs,
-                          peak_to_gene_method = 'GREAT', 
+                          peak_to_gene_method = 'GREAT',
                           method = model[opt$mc.method], parallel = T)
 }
 

@@ -26,51 +26,35 @@ spec = matrix(c(
 
 opt = getopt(spec)
 
-# opt <- list()
-# opt$inputSeurat <- "output/hspcMultiomePersad/singlecells_analysis/seuratWNN.rds"
-# opt$nWorkers <- 3
-# opt$genomeVersion <- "hg38"
-# opt$minTSS <- 0
-# opt$minFrags <- 0
-# opt$maxFrags <- Inf
-# opt$Upstream <- 2000
-# opt$Downstream <- 100
-# opt$ATACassay <- "ATAC"
-# opt$outdir <- "output/hspcMultiomePersad/singlecells_analysis/"
-# opt$outname <- paste0("seurat.multiome.ArchRGA.mc.rds")
-# opt$removeArchrOutputs <- T
-# opt$runArchR <- T
-# opt$pfm <- input/H13CORE_human_pfm.rds"
-
 if(is.null(opt$nWorkers)){
   opt$nWorkers = parallel::detectCores()-4
-} 
+}
 
 if(is.null(opt$minTSS)){
   opt$minTSS = 0
-} 
+}
 
 if(is.null(opt$minFrags)){
   opt$minFrags = 0
-} 
+}
 
 if(is.null(opt$maxFrags)){
   opt$maxFrags = Inf
-} 
+}
 
 if(is.null(opt$Upstream)){
   opt$Upstream = 2000
-} 
+}
 
 if(is.null(opt$Downstream)){
   opt$Downstream = 100
-} 
+}
 
 if(is.null(opt$ATACassay)){
   opt$ATACassay = "ATAC"
-} 
+}
 
-# options("scipen"=100, "digits"=4)  
+# options("scipen"=100, "digits"=4)
 
 if(!opt$genomeVersion %in% c("hg38", "hg19", "mm10")){
   message("genome_version should one of the following: hg38, hg19, mm10")
@@ -95,31 +79,31 @@ if(length(fragments_file[[1]]@path) == 0){
 
 if(opt$runArchR){
   # Compute GA using ArchR --------------------------------------------------
-  
+
   # create the output directory
   dir.create(paste0(opt$outdir, "/ArchR_res/"), recursive = T)
-  
+
   # Create arrow files ------------------------------------------------------
   # Choose genome version
   addArchRGenome(opt$genomeVersion)
-  
+
   sampleNames <- paste0("sample", 1:length(fragments_file))
-  
+
   start_path <- getwd()
   setwd(paste0(opt$outdir, "/ArchR_res/"))
   ArrowFiles <- createArrowFiles(
     inputFiles = sapply(fragments_file, function(x) x@path),
     sampleNames = sampleNames,
     validBarcodes = as.vector(sapply(fragments_file, function(x) x@cells)),
-    minTSS = opt$minTSS, 
-    minFrags = opt$minFrags, 
+    minTSS = opt$minTSS,
+    minFrags = opt$minFrags,
     maxFrags = opt$maxFrags,
-    addTileMat = F, 
+    addTileMat = F,
     addGeneScoreMat = T, GeneScoreMatParams = list(geneUpstream = opt$Upstream, geneDownstream = opt$Downstream),
     threads = opt$nWorkers, force = T, cleanTmp = T
   )
-  
-  
+
+
   # Create project ----------------------------------------------------------
   print(getwd())
   print(ArrowFiles)
@@ -129,10 +113,10 @@ if(opt$runArchR){
     outputDirectory = paste0(opt$outdir, "/ArchR_res/"),
     copyArrows = F
   )
-  
-  
+
+
   # QC metrics --------------------------------------------------------------
-  
+
   # Plotting QC metrics (most robust are TSS and the number of unique nuclear fragments)
   df <- getCellColData(ArchR_proj, select = c("log10(nFrags)", "TSSEnrichment"))
   p <- ggPoint(
@@ -145,46 +129,41 @@ if(opt$runArchR){
     xlim = c(log10(500), quantile(df[,1], probs = 0.99)),
     ylim = c(0, quantile(df[,2], probs = 0.99))
   ) + geom_hline(yintercept = 4, lty = "dashed") + geom_vline(xintercept = 3, lty = "dashed")
-  
+
   plotPDF(p, name = "TSS-vs-Frags-filtered.pdf", ArchRProj = ArchR_proj, addDOC = FALSE)
   
-  # # Filter doublets ---------------------------------------------------------
-  # 
-  # if(opt$removeDoublets){
-  #   ArchR_proj <- filterDoublets(ArchR_proj)
-  # }
-  
+
   # Extract gene activity matrix --------------------------------------------
-  
+
   GA_matrix = getMatrixFromProject(
     ArchRProj = ArchR_proj,
     useMatrix = "GeneScoreMatrix",
     binarize = FALSE
   )
-  
+
   gene_names <- GA_matrix@elementMetadata$name
   ga_counts <- GA_matrix@assays@data$GeneScoreMatrix
   rownames(ga_counts) <- gene_names
   # ga_counts[1:5, 1:5]
-  
-  
+
+
   matching.barcodes <- unlist(lapply(1:length(sampleNames), function(i){
     seurat.barcodes <- names(fragments_file[[i]]@cells)
     names(seurat.barcodes) <- paste0(sampleNames[i], "#", fragments_file[[i]]@cells)
     return(seurat.barcodes)
   }))
-  
-  
+
+
   colnames(ga_counts) <- matching.barcodes[colnames(ga_counts)]
   # ga_counts[1:5, 1:5]
-  
+
   seurat.obj[["GA_ArchR"]] <- CreateAssayObject(counts = ga_counts)
-  
+
   if (!is.null(opt$removeArchrOutputs) && opt$removeArchrOutputs) {
     cat("Removing ArchR output files.\n")
     system(paste0("rm -r ", opt$outdir, "/ArchR_res/"))
-  }  
-  
+  }
+
 }
 
 
@@ -202,14 +181,14 @@ DefaultAssay(seurat.obj) <- "ATAC"
 
 # genes <- read.table(opt$geneList)$x
 gene.activities <- GeneActivity(object = seurat.obj, assay = "ATAC",
-                                features = rownames(seurat.obj[["RNA"]]), 
+                                features = rownames(seurat.obj[["RNA"]]),
                                 extend.upstream = opt$Upstream,
                                 extend.downstream = opt$Downstream)
 seurat.obj[["GA_Signac"]] <- CreateAssayObject(counts = gene.activities)
 DefaultAssay(seurat.obj) <- "GA_Signac"
 
 seurat.obj <- NormalizeData(
-  seurat.obj, assay = "GA_Signac", 
+  seurat.obj, assay = "GA_Signac",
   normalization.method = "LogNormalize", scale.factor = median(seurat.obj$nCount_GA_Signac) #10000 # to mimic the normalization performed in ArchR
 )
 
@@ -242,4 +221,3 @@ seurat.obj <- RunChromVAR(
 )
 
 saveRDS(seurat.obj, file = paste0(opt$outdir, "/seurat.multiome.activities.rds"))
-

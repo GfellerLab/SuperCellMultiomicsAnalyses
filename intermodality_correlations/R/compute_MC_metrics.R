@@ -26,18 +26,6 @@ spec = matrix(c(
 
 opt = getopt(spec)
 
-# machine_path <- "" # "/mnt/curnagl/"
-# dataset <- "hspcMultiomePersad" #pbmcMultiome hspcMultiomePersad
-# data_path <- paste0(machine_path, "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/manuscript_version/output/", dataset, "/")
-# opt <- list()
-# opt$mcSeurat <- paste0("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/manuscript_version/output/hspcMultiomePersad/SuperCellMulti/g20/seurat.multiome.mc.rds") #seurat.multiome.ArchRGA.mc.rds"
-# opt$scSeurat <- paste0("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/manuscript_version/output/hspcMultiomePersad/singlecells_analysis/seurat_multimodal.rds")
-# opt$outdir <- paste0(data_path, "/SuperCellMulti/g20")
-# opt$RNAcomp <- "1:50"
-# opt$ATACcomp <- "2:50"
-# opt$pythonSeacellEnv <- "/opt/conda/envs/MetacellAnalysisToolkit/bin/python"
-
-
 library(reticulate)
 use_python(opt$pythonSeacellEnv)
 library(MetacellAnalysisToolkit)

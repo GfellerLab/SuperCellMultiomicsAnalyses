@@ -22,19 +22,6 @@ spec = matrix(c(
 
 opt = getopt(spec)
 
-
-# if help was asked, print a friendly message
-# and exit with a non-zero error code
-# test
-# opt <- list()
-# opt$fragmentFile <- "~/Documents/multiomicsMetacells/multiome_PBMC_data/fragments_files/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
-# opt$inputSeurat <- "pbmcMultiome"
-# opt$outdir <- "output/correlationAnalyzis/pbmcMultiome/singlecell_analysis"
-# frag.file <- opt$fragmentFile
-
-# opt$minCutOff <- "q0"
-# opt$RNAnormalization <- "SCTransform"
-
 if(is.null(opt$RNAnormalization)) {
   opt$RNAnormalization <- "logNormalize"
 }
@@ -90,15 +77,12 @@ frag_rep1 <- CreateFragmentObject(path = opt$fragmentFile[1],cells = rep1)
 frag_rep2 <- CreateFragmentObject(path = opt$fragmentFile[2],cells = rep2)
 
 
-# Cells(frag_rep1) <- rep1.ori
-# Cells(frag_rep2) <- rep2.ori
 frag.file <- list(frag_rep1,frag_rep2)
 chrom_assay <- CreateChromatinAssay(
   counts = atac.count,
   sep = c(":", "-"),
   genome = 'hg38',
   fragments = frag.file,
-  #min.cells = 10,
   annotation = annotations
 )
 hspc[["ATAC"]] <- chrom_assay

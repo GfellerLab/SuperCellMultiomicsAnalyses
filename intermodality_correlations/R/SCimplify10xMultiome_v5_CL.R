@@ -33,36 +33,6 @@ spec = matrix(c(
 opt = getopt(spec)
 
 
-# if help was asked, print a friendly message
-# and exit with a non-zero error code
-# test
-# opt <- list()
-# opt$aggregateFragmentfile <-T
-# opt$inputSeurat <- "output/correlationAnalyzis/pbmcMultiome/singlecells_analysis/seuratWNN.rds"
-# opt$outdir <- "output/correlationAnalyzis/pbmcMultiome/randomMetacells/"
-# opt$RNAcomp <- "1:50"
-# opt$ATACcomp <- "2:50"
-# opt$kernel <- TRUE
-# opt$aggregateFragmentfile <- TRUE
-# opt$gamma <- 50
-# opt$k.wnn <- 30
-# opt$randomMetacells = T
-#outputDirMcFragment <- "~/work/SuperCellMultiomicsAnalyses/input/pbmcMultiome/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
-#fragmentFiles <- list()
-#fragmentFiles[["ATAC"]] <- "~/work/SuperCellMultiomicsAnalyses/input/pbmcMultiome/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
-# opt <- list()
-# opt$inputSeurat <- "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/output/hspcMultiomePersad/singlecells_analysis/seuratWNN.rds"
-# opt$outdir <- "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/output/hspcMultiomePersad/SuperCellMulti/g100/"
-# opt$memberships <- "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/output/hspcMultiomePersad/SuperCellMulti/g100/SuperCellMemberships.csv"
-# opt$aggregateFragmentfile <- TRUE
-# opt$gamma <- 100
-# opt$mergeFragments = F
-# opt$threads = 8
-# outputDirMcFragment <- NULL #"~/work/SuperCellMultiomicsAnalyses/input/hspcMultiomePersad/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
-# opt$RNAcomp <- "1:50"
-# opt$ATACcomp <- "2:50"
-# opt$kernel <- T
-
 if(is.null(opt$returnMembership)) {
   return.seurat <- T
 } else {

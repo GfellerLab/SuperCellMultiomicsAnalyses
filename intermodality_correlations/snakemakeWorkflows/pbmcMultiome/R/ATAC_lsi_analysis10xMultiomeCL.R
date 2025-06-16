@@ -22,19 +22,6 @@ spec = matrix(c(
 opt = getopt(spec)
 
 
-# if help was asked, print a friendly message
-# and exit with a non-zero error code
-# test
-# opt <- list()
-# opt$fragmentFile <- "~/Documents/multiomicsMetacells/multiome_PBMC_data/fragments_files/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
-# opt$inputSeurat <- "pbmcMultiome"
-# opt$outdir <- "output/correlationAnalyzis/pbmcMultiome/singlecell_analysis"
-# frag.file <- opt$fragmentFile
-# opt$RNAcomp <- "1:50"
-# opt$ATACcomp <- "2:50"
-# opt$minCutOff <- "q0"
-# opt$RNAnormalization <- "SCTransform"
-
 if(is.null(opt$RNAnormalization)) {
   opt$RNAnormalization <- "logNormalize"
 

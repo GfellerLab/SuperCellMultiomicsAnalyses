@@ -23,19 +23,6 @@ spec = matrix(c(
 opt = getopt(spec)
 
 
-# if help was asked, print a friendly message
-# and exit with a non-zero error code
-# test
-# opt <- list()
-# opt$fragmentFile <- "~/Documents/multiomicsMetacells/multiome_PBMC_data/fragments_files/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
-# opt$inputSeurat <- "pbmcMultiome"
-# opt$outdir <- "output/correlationAnalyzis/pbmcMultiome/singlecell_analysis"
-# frag.file <- opt$fragmentFile
-# opt$RNAcomp <- "1:50"
-# opt$ATACcomp <- "2:50"
-# opt$minCutOff <- "q0"
-# opt$RNAnormalization <- "SCTransform"
-
 if(is.null(opt$RNAnormalization)) {
   opt$RNAnormalization <- "logNormalize"
 
@@ -80,25 +67,9 @@ if (opt$RNAnormalization == "SCTransform") {
 }
 
 
-## Save in h5ad
-# SeuratDisk::SaveH5Seurat(hspc, filename =  paste0(opt$outdir,"/seurat.RNA.h5Seurat"))
-# SeuratDisk::Convert(paste0(opt$outdir,"/seurat.RNA.h5Seurat"), dest =paste0(opt$outdir,"/seurat.",rnaAssay,".h5ad"),assay =rnaAssay)
-# if (rnaAssay != "RNA") {
-# SeuratDisk::Convert(paste0(opt$outdir,"/seurat.RNA.h5Seurat"), dest =paste0(opt$outdir,"/seurat.RNA.h5ad"),assay ="RNA",overwrite = T)
-# }
-# system(command = paste0("rm -f ",paste0(opt$outdir,"/seurat.RNA.h5Seurat")))
-#adata.raw <- anndata::AnnData(X = Matrix::t(GetAssayData(object = hspc,slot = "counts",assay = "RNA")))
 adata <- anndata::AnnData(X = Matrix::t(GetAssayData(object = hspc,slot = "counts",assay = "RNA")),
                  obs = hspc@meta.data,
                  #raw = adata.raw,
                  obsm = list("X_pca" = hspc[["pca"]]@cell.embeddings))
 
 anndata::write_h5ad(adata,paste0(opt$outdir,"/seurat.RNA.h5ad"))
-
-# if (rnaAssay != "RNA") {
-# adata <- anndata::AnnData(X = Matrix::GetAssayData(object = hspc,slot = "data",assay = "RNA"),
-#                           obs = hspc@meta.data
-#                           )
-#
-# anndata::write_h5ad(adata,paste0(opt$outdir,"/seurat.RNA.h5ad"))
-# }

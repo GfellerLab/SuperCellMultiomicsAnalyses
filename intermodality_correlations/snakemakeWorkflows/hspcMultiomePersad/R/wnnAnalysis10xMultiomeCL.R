@@ -25,23 +25,6 @@ spec = matrix(c(
 
 opt = getopt(spec)
 
-
-# if help was asked, print a friendly message
-# and exit with a non-zero error code
-# test
-# machine_path <- "/mnt/curnagl/"
-# machine_path <- ""
-# opt <- list()
-# opt$fragmentFile <- paste0(machine_path, "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/input/hspcMultiomePersad/BM_CD34_Rep1_atac_fragments.tsv.gz+/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/input/hspcMultiomePersad/BM_CD34_Rep2_atac_fragments.tsv.gz")
-# opt$inputRNA <- paste0(machine_path, "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/input/hspcMultiomePersad/cd34_multiome_rna.h5ad")
-# opt$inputATAC <- paste0(machine_path, "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/input/hspcMultiomePersad/cd34_multiome_atac.h5ad")
-# # frag.file <- opt$fragmentFile
-# opt$RNAcomp <- "1:50"
-# opt$ATACcomp <- "2:50"
-# opt$minCutOff <- "q0"
-# opt$RNAnormalization <- "SCTransform"
-# opt$threads <- 8
-
 if(is.null(opt$RNAnormalization)) {
   opt$RNAnormalization <- "logNormalize"
 }
@@ -153,9 +136,7 @@ cell.names <- gsub("#", "_", colnames(hspc))
 names(cell.names) <- colnames(hspc)
 frag.obj <- CreateFragmentObject(path = frag.file, cells = cell.names)
 
-# Cells(frag_rep1) <- rep1.ori
-# Cells(frag_rep2) <- rep2.ori
-# frag.file <- list(frag_rep1,frag_rep2)
+
 chrom_assay <- CreateChromatinAssay(
   counts = atac.count,
   sep = c(":", "-"),
@@ -165,18 +146,6 @@ chrom_assay <- CreateChromatinAssay(
   annotation = annotations
 )
 hspc[["ATAC"]] <- chrom_assay
-
-
-# pbmc$coarse.annotation <- pbmc$seurat_annotations
-#
-# #pbmc$coarse.annotation[grepl(pattern = "B",x = pbmc$coarse.annotation)] <- "B"
-#
-# pbmc$coarse.annotation[grepl(pattern = "CD8 TEM",x = pbmc$coarse.annotation)] <- "CD8 Mem"
-#
-# pbmc$coarse.annotation[grepl(pattern = "CD4 TEM",x = pbmc$coarse.annotation)] <- "CD4 Mem"
-# pbmc$coarse.annotation[grepl(pattern = "CD4 TCM",x = pbmc$coarse.annotation)] <- "CD4 Mem"
-
-
 
 
 # #We define a color palette for this new annotations.

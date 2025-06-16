@@ -23,15 +23,6 @@ spec = matrix(c(
 
 opt = getopt(spec)
 
-# opt <- list()
-# #setwd("~/work/SuperCellMultiomicsAnalyses/")
-# opt$singleCellSeurat <- "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds"
-# opt$pwm <- "input/JASPAR_2024_human_motifs/pwm.rds"
-# opt$outdir <- 'output/pbmcMultiome/singlecells_analysis/'
-
-
-
-
 print(opt)
 
 seurat.sc <- readRDS(opt$singleCellSeurat)
@@ -40,12 +31,11 @@ seurat.sc <- readRDS(opt$singleCellSeurat)
 DefaultAssay(seurat.sc) <- "ATAC"
 peaks <- CallPeaks(
   object = seurat.sc,
-  #macs2.path = "/home/leonard/bin/miniconda3/envs/MACS_env/bin/macs2",
   group.by = "wsnn_res.0.8" # need to be computed before
 )
 
 peaks <- keepStandardChromosomes(peaks, pruning.mode = "coarse")
-peaks <- subsetByOverlaps(x = peaks, ranges = blacklist_hg38_unified, invert = TRUE) 
+peaks <- subsetByOverlaps(x = peaks, ranges = blacklist_hg38_unified, invert = TRUE)
 
 peak.counts <- FeatureMatrix(
   fragments = Fragments(seurat.sc),
@@ -70,5 +60,3 @@ chrom_assay<- CreateChromatinAssay(
 
 seurat.sc[['peaks']] <- chrom_assay
 saveRDS(seurat.sc,paste0(opt$outdir,"/seuratWNN_with_macs2_peaks.rds"))
-
-

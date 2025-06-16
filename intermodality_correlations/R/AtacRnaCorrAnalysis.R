@@ -10,9 +10,6 @@ library(SuperCellMultiomics)
 
 # Increase max size limit
 # options(future.globals.maxSize = 2000 * 1024^2)  # 2 GiB
-# Functions ---------------------------------------------------------------
-# source("R/functions/SuperCellMultiomics_functions2.R")
-
 
 # Parameters --------------------------------------------------------------
 
@@ -24,21 +21,6 @@ spec = matrix(c(
 ), byrow=TRUE, ncol=5)
 
 opt = getopt(spec)
-
-# machine_path <- "" # "/mnt/curnagl/"
-# dataset <- "hspcMultiomePersad" #pbmcMultiome hspcMultiomePersad
-# data_path <- paste0(machine_path, "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/manuscript_version/output/", dataset, "/")
-# opt <- list()
-# # opt$inputSeurat <- paste0("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/manuscript_version/output/pbmcMultiome/singlecells_analysis/seurat.multiome.activities.rds")
-# opt$inputSeurat <- paste0("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/manuscript_version/output/hspcMultiomePersad/SuperCellMulti/g20/seurat.multiome.activities.rds") #seurat.multiome.ArchRGA.mc.rds"
-# opt$scSeurat <- paste0("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/manuscript_version/output/hspcMultiomePersad/singlecells_analysis/seurat.multiome.activities.rds")
-# opt$outdir <- paste0(data_path, "/SuperCellMulti/g20")
-# # opt$geneList <- paste0(machine_path, "/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/SuperCellMultiomicsAnalyses/manuscript_version/output/pbmcMultiome/selectedGenes.txt")
-
-# if(is.null(opt$nWorkers)){
-#   opt$nWorkers = parallel::detectCores()-4
-# } 
-# future::plan("multisession", workers = opt$nWorkers)
 
 dir.create(opt$outdir, recursive = T, showWarnings = F)
 print(opt)
@@ -71,13 +53,8 @@ celltypes <- unique(seurat.obj$celltype)
 ############################################################################
 
 # Compute correlations between TF activities and gene expression ------------
-# pwm <- readRDS("input/H13CORE_human_pfm.rds")
-# DefaultAssay(seurat.obj) <- "ATAC"
-# motif.matrix <- CreateMotifMatrix(features = granges(seurat.obj), pwm = pwm, genome = "hg38", use.counts = FALSE)
-# motif.object <- CreateMotifObject(data = motif.matrix, pwm = pwm)
-# seurat.obj <- SetAssayData(seurat.obj, assay = "ATAC", slot = 'motifs', new.data = motif.object)
 
-# Extract TFs in common in the chromVAR and RNA assays 
+# Extract TFs in common in the chromVAR and RNA assays
 DefaultAssay(seurat.obj) <- "ATAC"
 detectedMotifs <- rownames(seurat.obj[['chromvar']]) #motif
 relatedTFs <- ConvertMotifID(seurat.obj, id = detectedMotifs) #tf
@@ -111,7 +88,7 @@ GA.ArchR.CorrTable <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.obj,
                                                    feature.y = GA.genes,
                                                    use.size = use.weights,
                                                    plot = F)
-ArchRGA.perCell <- cor(as.matrix(GetAssayData(seurat.obj, assay = "GA_ArchR", slot = "data")[GA.genes,]), 
+ArchRGA.perCell <- cor(as.matrix(GetAssayData(seurat.obj, assay = "GA_ArchR", slot = "data")[GA.genes,]),
                        as.matrix(GetAssayData(seurat.obj, assay = "RNA", slot = "data")[GA.genes,]))
 
 
@@ -126,7 +103,7 @@ GA.Signac.CorrTable <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.obj,
                                                     feature.y = GA.genes,
                                                     use.size = use.weights,
                                                     plot = F)
-SignacGA.perCell <- cor(as.matrix(GetAssayData(seurat.obj, assay = "GA_Signac", slot = "data")[GA.genes,]), 
+SignacGA.perCell <- cor(as.matrix(GetAssayData(seurat.obj, assay = "GA_Signac", slot = "data")[GA.genes,]),
                         as.matrix(GetAssayData(seurat.obj, assay = "RNA", slot = "data")[GA.genes,]))
 
 cor.matrices <- list(chromVar.RNA = chromVarCorrTable,
@@ -157,24 +134,12 @@ if(!use.weights){
                                                      test.use = multimodalMarkersMethod,
                                                      only.pos = T, fc.name1 = "avg_log2FC",
                                                      fc.name2 = "avg_diff")
-  # TFs <- ConvertMotifID(seurat.obj, id = rownames(seurat.obj[["chromvar"]]))
-  # motifs.subset <- rownames(seurat.obj[["chromvar"]])[TFs %in% rownames(seurat.obj[["RNA"]])]
-  # TFs.subset <- TFs[TFs %in% rownames(seurat.obj[["RNA"]])]
-  # markers.summary <- FindMultimodalMarkers.SuperCell2(seurat.obj = seurat.obj, group.by = 'celltype',
-  #                                                    assay1 = "RNA", assay2 = "chromvar",
-  #                                                    min.cells.feature = 0, min.cells.group = 0,
-  #                                                    min.pct = 0, padj.cutoff = 0.05, base = 2,
-  #                                                    logfc.threshold1 = 0, logfc.threshold2 = 0,
-  #                                                    features.1 = TFs.subset, features.2 = motifs.subset,
-  #                                                    test.use = multimodalMarkersMethod,
-  #                                                    only.pos = T, fc.name1 = "avg_log2FC", 
-  #                                                    fc.name2 = "avg_diff") 
-  
+
   saveRDS(markers.summary, file = paste0(opt$outdir, "/multimodalMarkers_ttest.rds"))
 
-  
+
   # Get TopTFs using Seurat approach ----------------------------------------
-  
+
   wilcox.rna <- presto:::wilcoxauc.Seurat(
     X = seurat.obj,
     group_by = 'celltype',
@@ -194,10 +159,10 @@ if(!use.weights){
   wilcox.rna$gene <- wilcox.rna$RNA.feature
   DefaultAssay(seurat.obj) <- "ATAC"
   wilcox.motifs$gene <- ConvertMotifID(seurat.obj, id = motif.names)
-  
+
   saveRDS(wilcox.rna, file = paste0(opt$outdir, "wilcox_rna.rds"))
   saveRDS(wilcox.motifs, file = paste0(opt$outdir, "wilcox_motifs.rds"))
-  
+
   topTFs.original <- function(markers_rna, markers_motifs, celltype, padj.cutoff = 0.05) {
     ctmarkers_rna <- dplyr::filter(
       markers_rna, RNA.group == celltype, RNA.padj < padj.cutoff, RNA.logFC > 0.1) %>%
@@ -213,11 +178,11 @@ if(!use.weights){
     top_tfs <- dplyr::arrange(top_tfs, -avg_auc)
     return(top_tfs)
   }
-  
+
   topTFs.wilcoxonAUC <- do.call(rbind, lapply(unique(seurat.obj$celltype), function(i) topTFs.original(markers_rna = wilcox.rna, markers_motifs = wilcox.motifs, celltype = i)))
   saveRDS(topTFs.wilcoxonAUC, paste0(opt$outdir,"/multimodalMarkers_wilcoxonAUC.rds"))
-  
-  
+
+
 }else{
   for(multimodalMarkersMethod in c("nonWeigthed", "survey_weighted_t", "weighted_t")){
     if(multimodalMarkersMethod == "nonWeigthed"){
@@ -234,26 +199,10 @@ if(!use.weights){
                                                        test.use = test.method,
                                                        only.pos = T,
                                                        fc.name1 = "avg_log2FC", fc.name2 = "avg_diff")
-    # TFs <- ConvertMotifID(seurat.obj, id = rownames(seurat.obj[["chromvar"]]))
-    # motifs.subset <- rownames(seurat.obj[["chromvar"]])[TFs %in% rownames(seurat.obj[["RNA"]])]
-    # TFs.subset <- TFs[TFs %in% rownames(seurat.obj[["RNA"]])]
-    # markers.summary <- FindMultimodalMarkers.SuperCell2(seurat.obj = seurat.obj, group.by = 'celltype',
-    #                                                    assay1 = "RNA", assay2 = "chromvar",
-    #                                                    min.cells.feature = 0, min.cells.group = 0,
-    #                                                    min.pct = 0, padj.cutoff = 0.05, base = 2, 
-    #                                                    logfc.threshold1 = 0, logfc.threshold2 = 0,
-    #                                                    features.1 = TFs.subset, features.2 = motifs.subset,
-    #                                                    test.use = test.method,
-    #                                                    only.pos = T, 
-    #                                                    fc.name1 = "avg_log2FC", fc.name2 = "avg_diff") 
-    
+
     saveRDS(markers.summary, paste0(opt$outdir,"/multimodalMarkers_", gsub("_", "",multimodalMarkersMethod), ".rds"))
-    
+
   }
-  
-  
+
+
 }
-
-
-
-
