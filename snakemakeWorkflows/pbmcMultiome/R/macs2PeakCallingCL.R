@@ -19,15 +19,6 @@ spec = matrix(c(
 
 opt = getopt(spec)
 
-# opt <- list()
-# #setwd("~/work/SuperCellMultiomicsAnalyses/")
-# opt$singleCellSeurat <- "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds"
-# opt$pwm <- "input/JASPAR_2024_human_motifs/pwm.rds"
-# opt$outdir <- 'output/pbmcMultiome/singlecells_analysis/'
-
-
-
-
 print(opt)
 
 seurat.sc <- readRDS(opt$singleCellSeurat)
@@ -42,7 +33,7 @@ peaks <- CallPeaks(
 )
 
 peaks <- keepStandardChromosomes(peaks, pruning.mode = "coarse")
-peaks <- subsetByOverlaps(x = peaks, ranges = blacklist_hg38_unified, invert = TRUE) 
+peaks <- subsetByOverlaps(x = peaks, ranges = blacklist_hg38_unified, invert = TRUE)
 
 peak.counts <- FeatureMatrix(
   fragments = Fragments(seurat.sc),
@@ -68,5 +59,3 @@ DefaultAssay(seurat.sc) <- "RNA"
 seurat.sc[["ATAC"]] <- NULL
 seurat.sc[['ATAC']] <- chrom_assay
 saveRDS(seurat.sc,paste0(opt$outdir,"/pbmcMultiome.rds"))
-
-
