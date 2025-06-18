@@ -53,7 +53,13 @@ rule all:
     expand("output/pbmcMultiome/SuperCellMulti/g{gamma}/grn_object_{pandoMC}.rds", gamma = GAMMA, pandoMC = pando_method_mc),
     expand("output/pbmcMultiome/singlecells_analysis/grn_object_{pandoSC}.rds", pandoSC = pando_method_sc),
     expand("output/pbmcMultiome/SuperCellMulti/pando_metrics_summary_p_thresh0.1.RData"),
-    expand("output/pbmcMultiome/SuperCellMulti/pando_metrics_summary_p_thresh0.05.RData")
+    expand("output/pbmcMultiome/SuperCellMulti/pando_metrics_summary_p_thresh0.05.RData"),
+    # semi-supervised results on PBMC multiome data
+    expand("output/pbmcMultiome/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
+    # generate figures
+    "figures/manuscript/Figure2_pbmcMultiome_bench_v2.html",
+    "figures/manuscript/figure_3_intermodality_v2.html",
+    "figures/manuscript/figure_S4_intermodality.html"
 
 
 # snakemake -j 30 -kps snakefile.py --configfile config/workflow.yml --use-singularity --conda-frontend conda --cluster-config config/cluster.yml --cluster "sbatch -A {cluster.account} \
