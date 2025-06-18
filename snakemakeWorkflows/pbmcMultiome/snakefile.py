@@ -293,6 +293,24 @@ rule mc_metrics_computation:
         python = "/opt/conda/envs/MetacellAnalysisToolkit/bin/python"
   shell: "Rscript R/compute_MC_metrics.R -s {input.singlecells} -o {params.outdir} -m {input.metacells} -n 1:50 -q 2:50 -e {params.python}"
 
+
+####################################################################################################################################
+################################################ Test semi-supervised  #############################################################
+####################################################################################################################################
+
+
+
+rule Semi_sup_test_pbmc_multiome:
+  input:
+        singlecells = "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds"
+  output: "output/pbmcMultiome/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv"
+  singularity: "config/supercell_multiomics.sif"
+  params: workdir = wdir
+  # benchmark :  "benchmark/pbmcMultiome/SuperCellMulti/g{graining}/seurat.multiome.mc.txt"
+  shell: "Rscript R/SCimplify_test_semi_sup_CL.R -i {input.singlecells} \
+          -o output/pbmcMultiome/SuperCellMulti/testSemiSup/g{wildcards.graining}/ \
+          -p 1:40 -q 2:40 -r SCT -a ATAC -v pca -w lsi -g {wildcards.graining} -s 2025 -l seurat_annotations"
+
 ####################################################################################################################################
 ########################################## Benchmark and Correlations  #############################################################
 ####################################################################################################################################
@@ -417,10 +435,34 @@ rule gather_pando_pbmc2:
         mem_mb = 64000
     singularity: "config/supercell_multiomics.sif"
     shell: "Rscript R/gather_pando_results.r -i 'output/pbmcMultiome/' -p 0.05 -o {params.outdir}"
+
+####################################################################################################################################
+########################################## Figures #################################################################################
+####################################################################################################################################
+
+rule generate_figures_from_figure2:
+  input: "figures/manuscript/Figure2_pbmcMultiome_bench_v2.Rmd",
+        "output/pbmcMultiome/singlecells_analysis/seurat.multiome.activities.rds",
+        expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsRNA","seacellsATAC","MetaCellRNA"]),
+        expand("output/pbmcMultiome/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
+  output: "figures/manuscript/Figure2_pbmcMultiome_bench_v2.html"
+  singularity: "config/supercell_multiomics_v2.sif"
+  shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"
+
+rule generate_figures_from_figure3:
+  input: "figures/manuscript/figure_3_intermodality_v2.Rmd",
+        "output/pbmcMultiome/singlecells_analysis/seurat.multiome.activities.rds",
+        expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsRNA","seacellsATAC","MetaCellRNA"]),
+        expand("output/pbmcMultiome/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
+  output: "figures/manuscript/figure_3_intermodality_v2.html"
+  singularity: "config/supercell_multiomics_v2.sif"
+  shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"
+
 # rule report_all_bench_corr:
 #   input: "reports/pbmcMultiome/pbmcMultiome.Rmd",
 #         "output/pbmcMultiome/singlecells_analysis/seurat.multiome.mc.activities.rds",
+#         expand("output/pbmcMultiome/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
 #         expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/corrTablePearson.csv",gamma = GAMMA,inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsRNA","seacellsATAC","MetaCellRNA"])
 #   output: "reports/pbmcMultiome/pbmcMultiome.html"
-#   singularity: "config/supercell_multiomics.sif"
+#   singularity: "config/matk_multiomics.sif"
 #   shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"

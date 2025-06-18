@@ -173,3 +173,15 @@ rule atacRnaMetacellAnalysis_hspc:
         mem_mb = 100000
     singularity: "config/supercell_multiomics.sif"
     shell: "Rscript R/AtacRnaCorrAnalysis.R -i {input.metacells} -o {params.outdir} -s {input.singlecells}"
+
+####################################################################################################################################
+########################################## Figures #################################################################################
+####################################################################################################################################
+
+rule generate_figures_from_figureS4:
+  input: "figures/manuscript/figure_S4_intermodality.Rmd",
+        "output/hspcMultiomePersad/singlecells_analysis/seurat.multiome.activities.rds",
+        expand("output/hspcMultiomePersad/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti"])
+  output: "figures/manuscript/figure_S4_intermodality.html"
+  singularity: "config/supercell_multiomics_v2.sif"
+  shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"
