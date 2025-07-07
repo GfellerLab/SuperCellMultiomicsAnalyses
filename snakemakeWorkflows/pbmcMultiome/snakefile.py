@@ -61,7 +61,7 @@ rule singlecells_rna_pca_analysis_pbmc_multiome:
   output: "output/pbmcMultiome/singlecells_analysis/seurat.RNA.h5ad"
   singularity: "config/supercell_multiomics.sif"
   benchmark: "benchmark/pbmcMultiome/singlecells_analysis/seurat.RNA.txt"
-  shell: "Rscript snakemakeWorkflows/pbmcMultiome/R/RNA_pca_analysis10xMultiomeCL.R -i {input.dataset}  \
+  shell: "Rscript R/RNA_pca_analysis10xMultiomeCL.R -i {input.dataset}  \
           -o output/pbmcMultiome/singlecells_analysis \
           -a SCTransform"
 
@@ -72,7 +72,7 @@ rule singlecells_atac_lsi_analysis_pbmc_multiome:
   output: "output/pbmcMultiome/singlecells_analysis/seurat.ATAC.h5ad",
   singularity: "config/supercell_multiomics.sif"
   benchmark: "benchmark/pbmcMultiome/singlecells_analysis/seurat.ATAC.txt"
-  shell: "Rscript snakemakeWorkflows/pbmcMultiome/R/ATAC_lsi_analysis10xMultiomeCL.R -i {input.dataset}\
+  shell: "Rscript R/ATAC_lsi_analysis10xMultiomeCL.R -i {input.dataset}\
           -f {input.fragment} \
           -o output/pbmcMultiome/singlecells_analysis"
 
@@ -83,7 +83,7 @@ rule preprocessing_supercell_pbmc_multiome:
   output: "output/pbmcMultiome/singlecells_analysis/seurat_multimodal.rds",
   singularity: "config/supercell_multiomics.sif"
   benchmark: "benchmark/pbmcMultiome/singlecells_analysis/seurat_multimodal.txt"
-  shell: "Rscript snakemakeWorkflows/pbmcMultiome/R/preprocessing_seurat_for_SuperCell_10xMultiomeCL.R -i {input.dataset} -f {input.fragment} \
+  shell: "Rscript R/preprocessing_seurat_for_SuperCell_10xMultiomeCL.R -i {input.dataset} -f {input.fragment} \
           -o output/pbmcMultiome/singlecells_analysis \
           -a SCTransform"
 
@@ -95,7 +95,7 @@ rule wnn_single_cell_pbmc_multiome:
   singularity: "config/supercell_multiomics.sif"
   params: python = "/opt/conda/envs/MetacellAnalysisToolkit/bin/python3.9"
   benchmark: "benchmark/pbmcMultiome/singlecells_analysis/seuratWNN.txt"
-  shell: "Rscript snakemakeWorkflows/pbmcMultiome/R/wnnAnalysis10xMultiomeCL.R -i {input.dataset} -f {input.fragment} \
+  shell: "Rscript R/wnnAnalysis10xMultiomeCL.R -i {input.dataset} -f {input.fragment} \
           -o output/pbmcMultiome/singlecells_analysis \
           -d -y {params.python} \
           -p 1:40 -q 2:40 -a SCTransform "
