@@ -11,6 +11,7 @@ from math import hypot
 from scipy import sparse
 import sys, getopt
 from pathlib import Path
+np.random.seed(123456)
 
 def main(argv):
     matrixFile = ''
@@ -31,14 +32,14 @@ def main(argv):
         elif opt in ("-o", "--outDir"):
             print(arg)
             outDir = arg
-          
+
     print('Output dir is "', outDir)
     print('inputH5ad is "', inputH5ad)
     print('gamma is "', gamma)
     adata = sc.read(inputH5ad)
     raw  = ad.AnnData(X = adata.raw.X,
                   obs = adata.obs,
-                  var = adata.raw.var)        
+                  var = adata.raw.var)
     proj_name = "MetaCell2RNA"
     # set MC object/project name
     mc.ut.set_name(raw, proj_name)
@@ -85,7 +86,7 @@ def main(argv):
       % (too_excluded_cells_count,
          too_excluded_cells_percent,
          100.0 * properly_sampled_max_excluded_genes_fraction))
-         
+
     mc.pl.analyze_clean_cells(
         raw,
         properly_sampled_min_cell_total=properly_sampled_min_cell_total,
@@ -95,7 +96,7 @@ def main(argv):
     mc.pl.pick_clean_cells(raw)
     # Extract clean dataset (with fillered cells and genes)
     clean = mc.pl.extract_clean_data(raw)
-    
+
     # Estimate target_metacell_size(gamma):
     print(f'The requested graining level is {gamma}, lets estimate the target_metacell_size that should result in such graining level.')
 
@@ -110,7 +111,7 @@ def main(argv):
 
     #target_metacell_size = int(gamma*np.mean(np.array(total_umis_of_cells))* scale)
     target_metacell_size
-    
+
     mc.pl.divide_and_conquer_pipeline(
         clean,
         #feature_gene_names   = feature_gene_names, # comment this line to allow Metacell2 selecting features
@@ -120,11 +121,11 @@ def main(argv):
 
     ## make anndata of metacells
     metacells = mc.pl.collect_metacells(clean, name='cell_lines.metacells')
-    
+
     gamma_obtained = clean.shape[0]/metacells.shape[0]
 
     gamma_obtained
-    
+
     clean.obs['membership'] = [np.nan for i in clean.obs.metacell]
     outlier = 0
     for m in range(0,len(clean.obs.metacell)):
@@ -138,10 +139,3 @@ def main(argv):
 
 if __name__ == "__main__":
     main(sys.argv[1:])
-    
-
-
-
-
-
-

@@ -6,6 +6,7 @@ import scanpy as sc
 import os
 import sys, getopt
 from pathlib import Path
+np.random.seed(123456)
 
 def main(argv):
     matrixFile = ''
@@ -30,30 +31,30 @@ def main(argv):
         elif opt in ("-o", "--outDir"):
             print(arg)
             outDir = arg
-          
+
     print('Output dir is "', outDir)
     print('inputH5ad is "', inputH5ad)
     print('gamma is "', gamma)
     print('dims are "', dimStr)
     print('reductionKey is"', reductionKey)
     ad = sc.read_h5ad(inputH5ad)
-    
+
     # remove attributes added by SeuratDisk that cause SEACells to crash
     del ad.obsp
     del ad.uns
-            
+
     dimStrList = dimStr.split(":")
     build_kernel_on = "X_"+ reductionKey
     ad.obsm[build_kernel_on] = ad.obsm[build_kernel_on][:,range(int(dimStrList[0])-1, int(dimStrList[1]))]
     n_SEACells = int(len(ad)/gamma)
     n_waypoint_eigs = 10 # Number of eigenvalues to consider when initializing metacells
-    
-    model = SEACells.core.SEACells(ad, 
-                  build_kernel_on=build_kernel_on, 
-                  n_SEACells=n_SEACells, 
+
+    model = SEACells.core.SEACells(ad,
+                  build_kernel_on=build_kernel_on,
+                  n_SEACells=n_SEACells,
                   n_waypoint_eigs=n_waypoint_eigs,
                   convergence_epsilon = 1e-5)
-                  
+
     model.construct_kernel_matrix()
     # M = model.kernel_matrix
     model.initialize_archetypes()
@@ -64,10 +65,3 @@ def main(argv):
 
 if __name__ == "__main__":
     main(sys.argv[1:])
-    
-
-
-
-
-
-
