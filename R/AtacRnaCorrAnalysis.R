@@ -6,7 +6,7 @@ library(getopt)
 library(future)
 library(presto)
 library(BiocParallel)
-library(SuperCellMultiomics)
+library(SuperCell)
 
 # Increase max size limit
 # options(future.globals.maxSize = 2000 * 1024^2)  # 2 GiB

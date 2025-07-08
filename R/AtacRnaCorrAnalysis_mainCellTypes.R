@@ -6,7 +6,7 @@ library(getopt)
 library(future)
 library(presto)
 library(BiocParallel)
-library(SuperCellMultiomics)
+library(SuperCell)
 
 # Increase max size limit
 # options(future.globals.maxSize = 2000 * 1024^2)  # 2 GiB
@@ -36,7 +36,7 @@ opt = getopt(spec)
 
 # if(is.null(opt$nWorkers)){
 #   opt$nWorkers = parallel::detectCores()-4
-# } 
+# }
 # future::plan("multisession", workers = opt$nWorkers)
 
 dir.create(opt$outdir, recursive = T, showWarnings = F)
@@ -67,7 +67,7 @@ seurat.obj <- seurat.obj[, !seurat.obj$celltype %in% c("Plasma", "HSPC")]
 seurat.obj$celltype_main <- plyr::revalue(seurat.obj$celltype, c("B Interm" = "Bcells", "B Mem" = "Bcells", "B Naive" = "Bcells",
                                                                  "CD14 Mono" = "Monocytes", "CD16 Mono" = "Monocytes",
                                                                  "Treg"= "Tcells","CD4 Naive" = "Tcells", "CD4 Mem" = "Tcells",
-                                                                 "CD8 Naive" = "Tcells","CD8 Mem" = "Tcells", "MAIT"="Tcells", 
+                                                                 "CD8 Naive" = "Tcells","CD8 Mem" = "Tcells", "MAIT"="Tcells",
                                                                  "MAIT"="Tcells", "Treg" = "Tcells", "gdT" = "Tcells", "cDC" = "Dendritic", "pDC" = "Dendritic"))
 celltypes <- unique(seurat.obj$celltype_main)
 
@@ -108,10 +108,10 @@ if(!use.weights){
                                                       fc.name2 = "avg_diff")
   head(markers.summary[[1]])
   saveRDS(markers.summary, file = paste0(opt$outdir, "/multimodalMarkers_mainCellTypes_ttest.rds"))
-  
-  
+
+
   # Get TopTFs using Seurat approach ----------------------------------------
-  
+
   wilcox.rna <- presto:::wilcoxauc.Seurat(
     X = seurat.obj,
     group_by = 'celltype_main',
@@ -124,17 +124,17 @@ if(!use.weights){
     assay = 'data',
     seurat_assay = 'chromvar'
   )
-  
+
   motif.names <- wilcox.motifs$feature
   colnames(wilcox.rna) <- paste0("RNA.", colnames(wilcox.rna))
   colnames(wilcox.motifs) <- paste0("chromvar.", colnames(wilcox.motifs))
   wilcox.rna$gene <- wilcox.rna$RNA.feature
   DefaultAssay(seurat.obj) <- "ATAC"
   wilcox.motifs$gene <- ConvertMotifID(seurat.obj, id = motif.names)
-  
+
   saveRDS(wilcox.rna, file = paste0(opt$outdir, "wilcox_rna_mainCellTypes.rds"))
   saveRDS(wilcox.motifs, file = paste0(opt$outdir, "wilcox_motifs_mainCellTypes.rds"))
-  
+
   topTFs.original <- function(markers_rna, markers_motifs, celltype, padj.cutoff = 0.05) {
     ctmarkers_rna <- dplyr::filter(
       markers_rna, RNA.group == celltype, RNA.padj < padj.cutoff, RNA.logFC > 0.1) %>%
@@ -150,14 +150,14 @@ if(!use.weights){
     top_tfs <- dplyr::arrange(top_tfs, -avg_auc)
     return(top_tfs)
   }
-  
+
   topTFs.wilcoxonAUC <- do.call(rbind, lapply(unique(seurat.obj$celltype_main), function(i) topTFs.original(markers_rna = wilcox.rna, markers_motifs = wilcox.motifs, celltype = i)))
   saveRDS(topTFs.wilcoxonAUC, paste0(opt$outdir,"/multimodalMarkers_mainCellTypes_wilcoxonAUC.rds"))
-  
-  
+
+
 }else{
   DefaultAssay(seurat.obj) <- 'ATAC'
-  
+
   for(multimodalMarkersMethod in c("survey_weighted_t", "weighted_t","nonWeigthed")){
     if(multimodalMarkersMethod == "nonWeigthed"){
       seurat.obj$size <- 1
@@ -186,12 +186,8 @@ if(!use.weights){
                                                         fc.name1 = "avg_log2FC", fc.name2 = "avg_diff")
     head(markers.summary[[1]])
     saveRDS(markers.summary, paste0(opt$outdir,"/multimodalMarkers_mainCellTypes_", gsub("_", "",multimodalMarkersMethod), ".rds"))
-    
+
   }
-  
-  
+
+
 }
-
-
-
-
