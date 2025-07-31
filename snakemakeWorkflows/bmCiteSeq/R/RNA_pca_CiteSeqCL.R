@@ -1,3 +1,5 @@
+library(reticulate)
+use_python("/opt/conda/envs/MetacellAnalysisToolkit/bin/python", required = TRUE)
 library(Seurat)
 library(dplyr)
 library(getopt)
@@ -20,7 +22,7 @@ opt = getopt(spec)
 # opt$fragmentFile <- "~/Documents/multiomicsMetacells/multiome_bm_data/fragments_files/bm_granulocyte_sorted_10k_atac_fragments.tsv.gz"
 # opt$inputSeurat <- "bmMultiome"
 # opt$outdir <- "output/correlationAnalyzis/bmMultiome/singlecell_analysis"
-# frag.file <- opt$fragmentFile 
+# frag.file <- opt$fragmentFile
 # opt$RNAcomp <- "1:50"
 # opt$ATACcomp <- "2:50"
 # opt$minCutOff <- "q0"
@@ -28,7 +30,7 @@ opt = getopt(spec)
 
 if(is.null(opt$RNAnormalization)) {
   opt$RNAnormalization <- "logNormalize"
-  
+
 }
 
 
@@ -52,7 +54,7 @@ bm <- readRDS(opt$inputSeurat)
 DefaultAssay(bm) <- "RNA"
 if (opt$RNAnormalization == "SCT") {
   rnaAssay = "SCT"
-  bm <- SCTransform(bm, verbose = FALSE,conserve.memory = T) %>% RunPCA() 
+  bm <- SCTransform(bm, verbose = FALSE,conserve.memory = T) %>% RunPCA()
 } else {
   rnaAssay = "RNA"
   bm <- NormalizeData(bm,normalization.method = "LogNormalize",assay = "RNA") %>% FindVariableFeatures() %>% ScaleData() %>% RunPCA()
@@ -72,5 +74,3 @@ anndata::write_h5ad(adata,paste0(opt$outdir,"/seurat.RNA.h5ad"))
 # SeuratDisk::Convert(paste0(opt$outdir,"/seurat.h5Seurat"), dest =paste0(opt$outdir,"/seurat.RNA.h5ad"),assay ="RNA",overwrite = T)
 # }
 # system(command = paste0("rm -f ",paste0(opt$outdir,"/seurat.h5Seurat")))
-
-

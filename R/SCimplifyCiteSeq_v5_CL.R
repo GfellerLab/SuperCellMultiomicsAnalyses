@@ -1,3 +1,5 @@
+library(reticulate)
+use_python("/opt/conda/envs/MetacellAnalysisToolkit/bin/python", required = TRUE)
 library(Seurat)
 library(dplyr)
 library(getopt)
