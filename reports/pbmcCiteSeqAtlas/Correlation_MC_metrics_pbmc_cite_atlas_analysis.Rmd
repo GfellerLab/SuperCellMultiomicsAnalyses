@@ -1,0 +1,440 @@
+---
+title: "Bmcite Analyzis"
+output: html_document
+date: '2022-08-04'
+author: "Leonard Herault"
+---
+
+```{r setup, include=FALSE, echo = FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE)
+```
+
+In this tutorial we will construct multiomic metacells for the CITE-seq dataset of Bone marrow mononuclear cells from [(Stuart*, Butler* et al, Cell 2019)](https://www.cell.com/cell/fulltext/S0092-8674(19)30559-8).
+This dataset consists of 30,672 cells with two assays, RNA (17009 genes) and antibody-derived tags (ADT) (25 proteins).
+First we will follow Seurat [tutorial](https://satijalab.org/seurat/articles/weighted_nearest_neighbor_analysis.html) for multiomic analyzis.
+Then we will use homemade functions to use the SuperCell approach with Seurat in order to construc multiomic metacells.
+
+# Packages loading
+
+
+```{r loading,warning=FALSE}
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(future.apply)
+library(pbapply)
+library(igraph)
+library(ggplot2)
+library(SuperCell)
+```   
+
+
+# Install and load bmcite multiomic data
+Data are installed and loaded thanks to `SeuratData` package.
+
+# Loading results
+
+# single cell data
+
+
+```{r}
+pbmc <- readRDS("../../output/pbmcCiteSeqAtlas/pbmc_cite_seq_atlas_filtered.rds")
+pbmc <- pbmc[,pbmc$time == 0]
+pbmc <- NormalizeData(pbmc)
+pbmc$sample <- paste0(pbmc$donor,"_",pbmc$time)
+gc()
+```
+
+
+## Correlation single cells
+
+```{r}
+pbmc$size <- 1
+
+gene_protein_final <- read.csv("../../input/pbmcCiteSeqAtlas/gene_protein.csv",row.names = 1)
+
+
+
+Idents(pbmc) <- "celltype.l1"
+
+
+
+w.cor.all <- FeatureFeaturePlot.SuperCell(seurat.obj = pbmc,
+                                                 feature.x = gene_protein_final$gene.name,
+                                                 feature.y = gene_protein_final$X.protein,
+                                                 assays = c("RNA","ADT"),
+                                                 cluster = "celltype.l1",
+                                                 is.normalized = F,
+                                                 plot = F)     
+
+```
+
+```{r}
+sampleNames <- c("P1_0","P2_0", "P3_0", "P4_0", "P5_0", "P6_0", "P7_0", "P8_0")
+#methods <- c("SuperCellMulti","SuperCellADT","SuperCellRNA","seacellsRNA","seacellsADT","MetaCellRNA","randomMetacells")
+
+methods <- c("SuperCellMulti","randomMetacells")
+
+gammas <- c(20,50,75,100)
+
+crData <- data.frame()
+metaData <- data.frame()
+
+for (s in sampleNames) {
+  pbmc.smp <- pbmc[,pbmc$sample == s]
+  # single cells
+  pbmc.smp$size = 1
+  w.cor <- FeatureFeaturePlot.SuperCell(seurat.obj = pbmc.smp,
+                                               feature.x = gene_protein_final$gene.name,
+                                               feature.y = gene_protein_final$X.protein,
+                                               assays = c("RNA","ADT"), #TODO: DEFINE a RNA slot an the beginning
+                                               is.normalized = F,
+                                               plot = F)
+
+  w.cor$input <- "Single-cells"
+  w.cor$gamma <- 1
+  w.cor$origIdent <- pbmc.smp$orig.ident[1]
+  crData <- rbind(crData,w.cor)
+
+  for (g in gammas) {
+    # subsampling
+    sub.cells <- sample(colnames(pbmc.smp),size = floor(ncol(pbmc.smp)/g),replace = F)
+    pbmc.smp.sub <- subset(pbmc,cells = sub.cells)
+    pbmc.smp.sub$size = 1
+    w.cor <- FeatureFeaturePlot.SuperCell(seurat.obj = pbmc.smp.sub,
+                                                 feature.x = gene_protein_final$gene.name,
+                                                 feature.y = gene_protein_final$X.protein,
+                                                 assays = c("RNA","ADT"), #TODO: DEFINE a RNA slot an the beginning
+                                                 is.normalized = F,
+                                                 plot = F)
+
+    w.cor$input <- "Down-sampling"
+    w.cor$gamma <- g
+    w.cor$origIdent <- pbmc.smp.sub$orig.ident[1]
+
+    crData <- rbind(crData,w.cor)
+    for (m in methods) {
+
+      cr <- read.csv(paste0('../../output/pbmcCiteSeqAtlas/',s,'/',m,'/g',g,'/corrTablePearson.csv'),row.names = 1)
+      crData <- rbind(crData,cr)
+
+
+
+      # meta <- read.csv(paste0('../../output/pbmcCiteSeqAtlas/',s,'/',m,'/g',g,'/metaData.csv'),row.names = 1)
+      # meta$gamma <- g
+      # meta$method <- m
+      # metaData <- rbind(metaData,meta)
+    }
+
+  }
+}
+
+
+
+#col <- ggthemes::colorblind_pal()(8)[-1][1:4]
+col <- c("#E69F00","#56B4E9","#009E73","#F0E442")
+names(col) <- c("Down-sampling","SuperCell","Random-grouping","Single-cells")
+
+crData$input <- plyr::mapvalues(x= crData$input,
+                                from = c("Single-cells"  ,  "Down-sampling" ,  "SuperCell_Multi", "randomMetacells"),
+                                to = c("Single-cells", "Down-sampling","SuperCell","Random-grouping"))
+
+crData <- na.exclude(crData)
+crData$gamma <- factor(as.character(crData$gamma),levels = c(1,20,50,75,100))
+ggplot(crData,aes(x = gamma,y=w.cor,fill = input)) + geom_boxplot() + scale_fill_manual(values =col)
+
+saveRDS(crData,"plots/cr.pbmc_cite_d0_boxplot.rds")
+```
+
+
+```{r}
+
+outliersMetaCell <- data.frame()
+for (s in sampleNames) {
+  m <- "MetaCellRNA"
+  for (g in gammas) {
+    memberships <- read.csv(paste0('../../output/pbmcCiteSeqAtlas/',s,'/',m,'/g',g,'/MetaCellMemberships.csv'),row.names = 1)
+    assignRes <- table(memberships[,1]< 0)
+    membUsed <- memberships[,1][memberships[,1]> 0]
+    out <- (assignRes/sum(table(memberships[,1]< 0)))[2]
+    trueGamma <- length(memberships[,1])/length(unique(membUsed))
+    res <- data.frame(gamma = g, sample = s, outlierPercent = out,trueGamma= trueGamma  )
+    outliersMetaCell <- rbind(outliersMetaCell,res)
+
+  }
+
+
+}
+
+ggplot(outliersMetaCell,aes(x=sample, y = trueGamma)) + geom_bar(stat="identity") + facet_wrap('~gamma')
+
+ggplot(outliersMetaCell,aes(x=gamma, y = trueGamma)) + geom_point() + facet_wrap('~sample') + geom_abline()
+
+ggplot(outliersMetaCell,aes(x=gamma, y = trueGamma,color = sample)) + geom_point()  + geom_abline()
+
+
+ggplot(outliersMetaCell,aes(x=gamma, y = outlierPercent)) + geom_bar(stat="identity") + facet_wrap('~sample')
+
+```
+
+
+```{r}
+crData$method <- factor(crData$input,levels = unique(crData$input))
+crData$input <- stringr::str_split_fixed(crData$input,pattern = "_",n=2)[,2]
+crData$tool <- stringr::str_split_fixed(crData$input,pattern = "_",n=2)[,1]
+crData$gamma <- factor(as.character(crData$gamma),levels = c(1,10,20,50,75,100,200))
+
+
+ggplot(crData,aes(y=w.cor,x = gamma,fill = method)) +geom_boxplot() + theme(legend.position = "bottom")
+
+```
+
+```{r}
+ggplot(crData[crData$method ],aes(y=w.cor,x = gamma,fill = method)) +geom_boxplot() + theme(legend.position = "bottom")
+
+```
+
+
+```{r}
+crDataSingleCells <- readRDS("../../output/pbmcCiteSeqAtlas/pbmcCiteSeqAtlas_single_cells/")
+```
+
+
+
+```{r}
+metaData$method <- plyr::mapvalues(x= metaData$method,
+                                   from = c("SuperCellMulti","SuperCellADT","SuperCellRNA", "seacellsRNA", "seacellsADT","MetaCellRNA","randomMetacells"),
+                                   to = c("SuperCell_Multi", "SuperCell_ADT", "SuperCell_RNA","SEACells_RNA", "SEACells_ADT" ,"MetaCell_RNA","random_NA"))
+
+metaData$method <- factor(metaData$method,levels = c("SuperCell_Multi", "SuperCell_RNA","SuperCell_ADT","SEACells_RNA", "SEACells_ADT" ,"MetaCell_RNA","random_NA"))
+metaData$input <- stringr::str_split_fixed(metaData$method,pattern = "_",n=2)[,2]
+metaData$tool <- stringr::str_split_fixed(metaData$input,pattern = "_",n=2)[,1]
+metaData$gamma <- factor(as.character(metaData$gamma),levels = c(1,10,20,50,75,100,200))
+
+
+ggplot(metaData,aes(y=celltype.l1_purity,x = gamma,fill = method)) +geom_boxplot()  + theme(legend.position = "bottom")
+
+ggplot(metaData[metaData$gamma %in% c("50","100","200"),],aes(y=celltype.l1_purity,x = gamma,fill = method)) +geom_boxplot() + theme(legend.position = "bottom")
+
+```
+
+
+
+
+
+
+
+```{r}
+ggplot(metaData,aes(y=celltype.l1_purity,x = gamma,fill = method)) +geom_boxplot()  + theme(legend.position = "bottom")
+
+```
+
+
+```{r}
+ggplot(metaData,aes(y=celltype.l2_purity,x = gamma,fill = method)) +geom_boxplot() + theme(legend.position = "bottom")
+```
+```{r}
+ggplot(metaData,aes(y=celltype.l3_purity,x = gamma,fill = method)) +geom_boxplot() + theme(legend.position = "bottom")
+
+```
+
+```{r fig.height=5,fig.width=5}
+ggplot(metaData,aes(y=log(separation_pca),x = log(compactness_pca))) +geom_point() + facet_wrap(c("gamma","method"))
+
+```
+
+
+```{r}
+ggplot(metaData,aes(y=celltype.l2_purity,x = gamma,fill = method)) +geom_boxplot() +facet_wrap("~input",ncol = 2)
+ggplot(metaData,aes(y=celltype.l1_purity,x = gamma,fill = method)) +geom_boxplot() +facet_wrap("~input",ncol = 2)
+
+
+```
+
+
+
+
+```{r}
+metaData2 <- metaData
+#metaData2$compactness_pca[is.na(metaData2$compactness_pca)] <- 10^(-5)
+ggplot(metaData,aes(y=log(compactness_pca),x = gamma,fill = method))  +geom_boxplot()
+```
+```{r}
+ggplot(metaData,aes(y=log(separation_pca),x = gamma,fill = method))  +geom_boxplot()
+```
+```{r}
+metaData2 <- metaData
+#metaData2$compactness_apca[is.na(metaData2$compactness_apca)] <- 10^(-5)
+ggplot(metaData,aes(y=log(compactness_apca),x = gamma,fill = method))  +geom_boxplot()
+```
+```{r}
+ggplot(metaData,aes(y=log(separation_apca),x = gamma,fill = method))  +geom_boxplot()
+```
+```{r}
+ggplot(metaData,aes(y=log(innerNormVar),x = gamma,fill = method))  +geom_boxplot() + theme(legend.position = "bottom")
+
+ggplot(metaData,aes(y=log(innerNormVar),x = gamma,fill = method))  +geom_boxplot() + facet_wrap("~input")
+
+```
+
+```{r}
+ggplot(metaData,aes(y=size,x = gamma,fill = method))  +geom_boxplot() + theme(legend.position = "bottom")
+
+ggplot(metaData,aes(y=size,x = gamma,fill = method))  +geom_boxplot() + facet_wrap("~input")
+```
+```{r, fig.height= 4}
+ggplot(metaData[metaData$gamma %in% c(20,50,100)&metaData$method != "random_NA",],aes(y=log(compactness_pca), x = log(innerNormVar))) + geom_point()  + facet_wrap(c("gamma","method"),ncol = 6)
+
+```
+```{r fig.height= 4}
+ggplot(metaData[metaData$gamma %in% c(20,50,100)&metaData$method != "random_NA",],aes(y=log(compactness_pca), x = log(compactness_apca))) + geom_point()  + facet_wrap(c("gamma","method"),ncol = 6)
+```
+```{r fig.height= 4}
+ggplot(metaData[metaData$gamma %in% c(20,50,100)&metaData$method != "random_NA",],aes(y=log(separation_pca), x = log(separation_apca))) + geom_point()  + facet_wrap(c("gamma","method"),ncol = 6)
+```
+```{r fig.height= 4}
+ggplot(metaData[metaData$gamma %in% c(20,50,100)&metaData$method != "random_NA",],aes(y=log(compactness_apca), x = log(separation_apca))) + geom_point()  + facet_wrap(c("gamma","method"),ncol = 6)
+
+ggplot(metaData[metaData$gamma %in% c(20,50,100)&metaData$method != "random_NA",],aes(y=log(compactness_pca), x = log(separation_pca))) + geom_point()  + facet_wrap(c("gamma","method"),ncol = 6)
+```
+
+
+## Illustrative example of better correlation
+
+
+```{r}
+my35colors <- c('#E5D2DD', '#53A85F', '#F1BB72', '#F3B1A0', '#D6E7A3', '#57C3F3', '#476D87',
+                '#E95C59', '#E59CC4', '#AB3282', '#BD956A', '#8C549C',
+                '#9FA3A8', '#E0D4CA', '#5F3D69', '#58A4C3', "#b20000",'#E4C755', '#F7F398',
+                '#AA9A59', '#E63863', '#E39A35', '#C1E6F3', '#6778AE', '#91D0BE', '#B53E2B',
+                '#712820', '#DCC1DD', '#CCE0F5', '#CCC9E6', '#625D9E', '#68A180', '#3A6963',
+                '#968175')
+
+
+color <- c("NK"="#004949",
+           "Mono"="#ff6db6",
+           "DC" = "#24ff24",
+           "CD4 T"="#999999",
+           "B"="#b6dbff",
+           "CD8 T"="#db6d00",
+           "other"="#924900",
+           "other T"="#8494FF")
+```
+
+
+```{r}
+#pbmc.combined <- readRDS("../output/correlationAnalyzis/CITEseq/pbmc_HIV_integrated/seuratCombinedWNN.rds")
+pbmc.combined.mc <- readRDS("../../output/pbmcCiteSeqAtlas/pbmcCiteSeqAtlas_sup_metacells_supSTACAS//g20/metacell_SCT_STACAS_logNorm/seuratCombinedWNN.rds")
+
+pbmc.combined.mc$donor = stringr::str_split_fixed(pbmc.combined.mc$orig.ident,"_",2)[,1]
+pbmc.combined.mc$day = stringr::str_split_fixed(pbmc.combined.mc$orig.ident,"_",2)[,2]
+
+pbmc.combined.mc$day[pbmc.combined.mc$day == 2] <- 3
+# pbmc.combined.mc$celltype.l1.5 <- pbmc.combined.mc$celltype.l1
+# pbmc.combined.mc$celltype.l1.5[pbmc.combined.mc$celltype.l1 == "other"] <- pbmc.combined.mc$celltype.l2[pbmc.combined.mc$celltype.l1 == "other"]
+#
+# pbmc.combined.mc$celltype.l1.5[pbmc.combined.mc$celltype.l1 == "other T"] <- pbmc.combined.mc$celltype.l2[pbmc.combined.mc$celltype.l1 == "other T"]
+```
+
+
+```{r fig.height=2,fig.width=2.5}
+pmc_ct <- DimPlot(pbmc.combined.mc,reduction = "wnn.umap", group.by = 'celltype.l1',cols = color) +  theme(axis.ticks = element_blank(),axis.text = element_blank(),plot.title = element_blank())
+pmc_ct
+```
+
+```{r fig.height=2.4,fig.width=2.2}
+source("../../figures/R_fun.R")
+single.cells.p1 <- readRDS("../../output/pbmcCiteSeqAtlas/P1_0/singlecells_analysis/seuratWNN.rds")
+DefaultAssay(single.cells.p1) <- "RNA"
+single.cells.p1 <- NormalizeData(single.cells.p1)
+
+cr.single.cell <- supercell_FeatureFeature_Corr_Seurat(seurat.mc = single.cells.p1,
+                                                       feature_x = c("CD8A","CD14"),
+                                                       feature_y = c("CD8a","CD14"),
+                                                       assays = c("RNA","ADT"),
+                                                       cluster = "celltype.l1.5",
+                                                       cluster.colors = my36colors,method = "pearson")
+
+cr.meta.cell <- supercell_FeatureFeature_Corr_Seurat(seurat.mc = pbmc.combined.mc[,pbmc.combined.mc$orig.ident == "P1_0"],
+                                                     feature_x = c("CD8A","CD14"),
+                                                     feature_y = c("CD8a","CD14"),
+                                                     assays = c("RNA","ADT"),
+                                                     cluster = "celltype.l1.5",
+                                                     cluster.colors = my36colors,method = "pearson")
+
+
+cowplot::plot_grid(cr.single.cell$plots$RNA_CD8A_ADT_CD8a + NoLegend() + ylab("Prot_CD8A") + theme( plot.title= element_blank()),
+                   cr.meta.cell$plots$RNA_CD8A_ADT_CD8a + NoLegend()+ ylab("Prot_CD8A") + theme(plot.title=element_blank()),
+                   cr.single.cell$plots$RNA_CD14_ADT_CD14 + NoLegend() + ylab("Prot_CD14") + theme(plot.title=element_blank()),
+                   cr.meta.cell$plots$RNA_CD14_ADT_CD14 + NoLegend()+ ylab("Prot_CD14") + theme(plot.title= element_blank()) ,scale = 0.9)
+
+
+
+```
+
+
+
+
+
+
+
+
+
+```{r}
+# ggplot(metaData,aes(y=compactness_pca,x = gamma,fill = method))  +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaData$compactness_pca[metaData$gamma == 200],factor = 7))) + facet_wrap("~tool")
+```
+
+
+
+```{r}
+# metaTable <- metaData[metaData$gamma != "200",]
+# ggplot(metaData,aes(y=separation_pca,x = gamma,fill = method))  +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaData$separation_pca[metaData$gamma == 200],factor = 10)))
+#
+#
+# ggplot(metaTable,aes(y=separation_pca,x = gamma,fill = method))  +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaTable$separation_pca[metaTable$gamma == 100],factor = 5)))
+# ```
+# ```{r }
+#
+# ggplot(metaData,aes(y=compactness_apca,x = gamma,fill = method))  +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaData$compactness_apca[metaData$gamma == 200],factor = 7)))
+#
+#
+# ggplot(metaTable,aes(y=compactness_apca,x = gamma,fill = method))  +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaTable$compactness_apca[metaTable$gamma == 100],factor = 8)))
+```
+```{r}
+# ggplot(metaData,aes(y=compactness_apca,x = gamma,fill = method))  +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaData$compactness_apca[metaData$gamma == 200],factor = 7))) + facet_wrap("~tool")
+```
+
+
+```{r}
+# metaTable <- metaData[metaData$gamma != "200",]
+# ggplot(metaData,aes(y=separation_apca,x = gamma,fill = method))  +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaData$separation_apca[metaData$gamma == 200],factor = 10)))
+#
+#
+# ggplot(metaTable,aes(y=separation_apca,x = gamma,fill = method))  +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaTable$separation_apca[metaTable$gamma == 100],factor = 5)))
+```
+
+```{r}
+# ggplot(metaData,aes(y=compactness_pca/separation_pca,x = gamma,fill = method))   +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaData$separation_apca[metaData$gamma == 200],factor = 14)))
+#
+# ggplot(metaData,aes(y=compactness_apca/separation_apca,x = gamma,fill = method))   +geom_boxplot(outlier.shape = NA)    +
+#   geom_boxplot(outlier.shape = NA) +   
+#   coord_cartesian(ylim = c(0,newyLim(metaData$separation_apca[metaData$gamma == 200],factor = 7)))
+```

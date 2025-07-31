@@ -1,0 +1,1322 @@
+---
+title: "pbmc_cite_atlas_integration"
+author: "Leonard Herault"
+date: '2023-02-02'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+ExpandMetacellSeuratAssay5 <- function(metacell.sobj,
+                                       features,
+                                       assay = "RNA",
+                                       #slot = "data",
+                                       meta.data.vars = NULL) {
+  membership <- rep(1:ncol(metacell.sobj), metacell.sobj$size)
+  DefaultAssay(metacell.sobj) <- assay
+  feature.data <- GetAssayData(
+    object = metacell.sobj, assay = assay, layer = "data"
+  )
+
+  meta.data <- FetchData(metacell.sobj,vars = c(c("orig.ident","ident"),meta.data.vars))
+  expanded.meta.data <- meta.data[membership,]
+  feature.data <- feature.data[features,]
+  expanded.data <-  as(feature.data[,membership],"CsparseMatrix")
+  colnames(expanded.data) <- rownames(expanded.meta.data)
+
+  if(!sum(dim(metacell.sobj[[assay]]$counts)) == 0) {
+    feature.counts <- GetAssayData(
+      object = metacell.sobj, assay = assay, layer = "counts"
+    )
+    feature.counts <- feature.counts[features,]
+    expanded.counts <-  as(feature.counts[,membership],"CsparseMatrix")
+    colnames(expanded.counts) <- rownames(expanded.meta.data)
+  } else {
+    expanded.counts <- expanded.data
+  }
+
+
+  #colnames(expanded.data) <- colnames(expanded.data)
+  expanded.sobj <- CreateSeuratObject(counts = expanded.counts,
+                                      meta.data = expanded.meta.data,
+                                      assay = assay)
+  expanded.sobj[[assay]]$data <- expanded.data
+  Idents(expanded.sobj) <- "ident"
+  return(expanded.sobj)
+}
+DotPlot.SuperCell <- function (mc.object, features, assay = NULL,  group.by = NULL, split.by = NULL,...)
+{
+  assay <- assay %||% DefaultAssay(object = mc.object)
+  features.plot <- features
+
+  if (length(features) == 1) { # take another feature
+    features <- c(c(features),rownames(mc.object[[assay]])[rownames(mc.object[[assay]])!= features][1])
+  }
+
+  object <- ExpandMetacellSeuratAssay5(mc.object,features = features,
+                                       assay = assay,
+                                       meta.data.vars = c("ident",c(split.by,group.by)[!is.null(c(split.by,group.by))]))
+
+  plot <- DotPlot(object, features.plot, assay = assay,  group.by = group.by, split.by = split.by,...)
+  remove(object)
+  gc()
+
+
+
+  return(plot)
+}
+
+VlnPlot.SuperCell <- function(mc.object, features, assay = NULL,  group.by = NULL, split.by = NULL,...) {
+  assay <- assay %||% DefaultAssay(object = mc.object)
+  features.plot <- features
+  if (length(features) == 1) { # take another feature
+    features <- c(c(features),rownames(mc.object[[assay]])[rownames(mc.object[[assay]])!= features][1])
+  }
+
+  object <- ExpandMetacellSeuratAssay5(mc.object,features = features,assay = assay,
+                                       meta.data.vars = c("ident","orig.ident",c(split.by,group.by)[!is.null(c(split.by,group.by))]))
+
+  plot <- VlnPlot(object, features.plot, assay = assay,  group.by = group.by, split.by = split.by,pt.size = 0,...)
+  remove(object)
+  gc()
+  return(plot)
+}
+```
+
+## package loading
+```{r}
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(future.apply)
+library(pbapply)
+library(igraph)
+library(ggplot2)
+library(SuperCell)
+#library(ggthemes)
+
+library(Cairo)
+options(bitmapType = "cairo")
+
+#library(gprofiler2)
+```
+
+```{r}
+my35colors <- c('#E5D2DD',
+                '#53A85F', '#F1BB72', '#F3B1A0', '#D6E7A3', '#57C3F3', '#476D87',
+                '#E95C59', '#E59CC4', '#AB3282', '#BD956A', '#8C549C',
+                '#9FA3A8', '#E0D4CA', '#CCE0F5','#58A4C3', "#b20000",'#E4C755', '#F7F398',
+                '#AA9A59', '#E63863', '#E39A35', '#C1E6F3', '#6778AE', '#91D0BE', '#B53E2B',
+                '#712820', '#DCC1DD', '#3A6963','#CCE0F5', '#CCC9E6', '#625D9E', '#68A180', '#5F3D69',
+                '#968175')
+
+scales::show_col(my35colors)
+
+color <- c("NK"="#004949",
+           "Mono"="#ff6db6",
+           "DC" = "#24ff24",
+           "CD4 T"="#999999",
+           "B"="#b6dbff",
+           "CD8 T"="#db6d00",
+           "other"="#924900",
+           "other T"="#8494FF")
+```
+
+
+```{r}
+files <- list.files("../../output/pbmcCiteSeqAtlas/",pattern = "seuratCombinedWNN.rds",recursive = T,full.names = T)
+files <- files[!grepl(x = files,pattern = "_metacells")]
+files <- files[!grepl(x = files,pattern = "_MonoCD14")]
+files <- files[!grepl(x = files,pattern = "pbmcCiteSeqAtlas_")]
+
+files
+```
+```{r}
+info <- data.frame(file = files)
+info
+id <- stringr::str_split_fixed(files,pattern = "//",n=2)[,2]
+id <-  stringr::str_split_fixed(id,pattern = "/",n=2)[,1]
+rownames(info)<- id
+rns <- c("100percent_semisupMetacells_SCT_supStacas_lognorm",
+         "20percent_semisupMetacells_SCT_supStacas_lognorm",
+         "50percent_semisupMetacells_SCT_supStacas_lognorm",
+         "5percent_semisupMetacells_SCT_supStacas_lognorm",
+         "singlecells_SCT_seuratRPCA_SCT",
+         "supMetacells_SCT_supStacas_lognorm",
+         "unsupMetacells_SCT_seuratRPCA_SCT")
+info[rns,"mc_mode"] <- c("unsup","sup","sup","sup",NA,"sup","unsup")
+info[rns,"input"] <- c("Metacells","Metacells","Metacells","Metacells","Single_cells","Metacells","Metacells")
+info[rns,"method"] <- c("STACAS","supSTACAS","supSTACAS","supSTACAS","SeuratRPCA","supSTACAS","SeuratRPCA")
+info[rns,"pct_known"] <- c(0,80,50,95,NA,100,0)
+info[rns,"integration_norm"] <- c("lognorm","lognorm","lognorm","lognorm","SCT","lognorm","SCT")
+
+
+# info[!grepl(x= info, pattern = "percent")] <- paste0("NA_",info[!grepl(x= info, pattern = "percent")])
+# all.info <- stringr::str_split_fixed(info,pattern = "_",n=5)
+# colnames(all.info) <- c("pct_unknown","input","preprocessing_norm","method","integration_norm")
+# all.info <- data.frame(all.info)
+# all.info$file <- files
+# all.info$pct_known <- c(80,50,95,0,100,0)
+
+cn <-c("orig.ident","nCount_RNA","nFeature_RNA","nCount_ADT","nFeature_ADT","nCount_SCT","nFeature_SCT",
+       "orig.ident_purity","lane","lane_purity","donor","donor_purity","celltype.l1","celltype.l1_purity",
+       "celltype.l2","celltype.l2_purity","celltype.l3","celltype.l3_purity","Phase","Phase_purity","Batch",
+       "Batch_purity","celltype.l1.5","celltype.l1.5_purity","size","integratedADT.weight","pct_known","input",
+       "method","integration_norm","mc_mode")
+
+meta.data.all <- data.frame()
+bench.integration <- data.frame()
+for (i in rownames(info[info$input == "Metacells",])) {
+  if(grepl(x= info[i,"input"],pattern = "Metacells")) {
+    mc.obj <- readRDS(info[i,"file"])
+    meta.data <- mc.obj@meta.data
+    meta.data$pct_known <- info[i,"pct_known"]
+
+    meta.data$input <- info[i,"input"]
+    meta.data$mc_mode <- info[i,"mc_mode"]
+
+    meta.data$method <- info[i,"method"]
+    meta.data$integration_norm <- info[i,"integration_norm"]
+    meta.data.all <- rbind(meta.data.all,meta.data[,cn])
+  }
+}
+
+meta.data.all$pct_known_str <- paste0(meta.data.all$pct_known,"%")
+meta.data.all$pct_known_str <- factor(meta.data.all$pct_known_str,levels = c("100%","95%","80%","50%","0%"))
+pl2 <- ggplot(meta.data.all[meta.data.all$method %in% c("STACAS","supSTACAS"),],aes(x= pct_known_str,y=celltype.l2_purity)) + geom_boxplot()
+pl1.5 <- ggplot(meta.data.all[meta.data.all$method %in% c("STACAS","supSTACAS"),],aes(x= pct_known_str,y=celltype.l1.5_purity)) + geom_boxplot()
+
+
+pl1.5+ pl2
+
+
+pl2.0.100 <- ggplot(meta.data.all[meta.data.all$method == "STACAS" | meta.data.all$pct_known == 100 ,],
+                    aes(x= mc_mode,fill = mc_mode,
+                        y=celltype.l2_purity)) + geom_boxplot()
+pl2.0.100
+```
+
+```{r}
+
+mc_obj <-readRDS( "../../output/pbmcCiteSeqAtlas//100percent_semisupMetacells_SCT_supStacas_lognorm/g20/seuratCombinedWNN.rds")
+```
+
+```{r}
+
+info$file_bench <- gsub(x=info$file,pattern = "seuratCombinedWNN.rds",replacement = "bench_res.rds")
+
+bench.integration.all <- data.frame()
+for (i in rownames(info)) {
+  if(grepl(x= info[i,"input"],pattern = "Metacells")) {
+    bench.integration <- readRDS(info[i,"file_bench"])
+    bench.integration$dimred <- rownames(bench.integration)
+    bench.integration$dimred[bench.integration$dimred == "pca1"] <- "pca"
+    bench.integration$dimred[bench.integration$dimred == "apca1"] <- "apca"
+    bench.integration$dimred[bench.integration$dimred == "unintegrated_pca1"] <- "unintegrated_pca"
+    bench.integration$dimred[bench.integration$dimred == "unintegrated_apca1"] <- "unintegrated_apca"
+
+    bench.integration$pct_known <- info[i,"pct_known"]
+    # print(bench.integration[i,"pct_known"])
+    # bench.integration$pct_unknown <- info[i,"pct_unknown"]
+
+    bench.integration$input <- info[i,"input"]
+    bench.integration$mc_mode <- info[i,"mc_mode"]
+    # bench.integration$preprocessing_norm <- info[i,"preprocessing_norm"]
+    bench.integration$method <- info[i,"method"]
+    bench.integration$integration_norm <- info[i,"integration_norm"]
+    bench.integration.all <- rbind(bench.integration.all,bench.integration)
+  }
+}
+
+bench.integration.all$pct_known_str <- paste0(bench.integration.all$pct_known,"%")
+bench.integration.all$pct_known_str <- factor(bench.integration.all$pct_known_str,levels = c("100%","95%","80%","50%","0%"))
+
+# bench.integration.all$method_integration -> bench.integration.all$method
+
+bench.integration.all$norm_method <-  paste0(bench.integration.all$integration_norm,
+                                             "_",
+                                             bench.integration.all$method)
+
+bench.integration.all$norm_method[bench.integration.all$dimred == "apca"] <- paste0("CLR_",bench.integration.all$method[bench.integration.all$dimred == "apca"])
+
+bench.integration.all$norm_method[grepl(x = bench.integration.all$dimred,pattern = "unintegrated_pca")] <- paste0(bench.integration.all$integration_norm[grepl(x = bench.integration.all$dimred,pattern = "unintegrated_pca")],"_pca")
+
+bench.integration.all$norm_method[grepl(x = bench.integration.all$dimred,pattern = "unintegrated_apca")] <- "CLR_pca"
+
+
+
+ggplot(bench.integration.all[bench.integration.all$input != "semisupMetacells",],aes(x= CiLISI,y=celltype_ASW,shape = mc_mode,color = norm_method)) + geom_point() + facet_grid(c("modality","label"))
+
+```
+```{r}
+color.method <- colorblind_pal()(7)[-5][2:6]
+color.method.rna <- color.method
+names(color.method.rna) <- unique(bench.integration.all[bench.integration.all$modality == "RNA",]$norm_method)
+
+color.method.adt <- color.method[c(1:3,5)]
+names(color.method.adt) <- c("CLR_pca","CLR_STACAS","CLR_supSTACAS","CLR_SeuratRPCA")
+color.method.adt
+color.method.rna
+
+main.bench.mc.prot <- ggplot(bench.integration.all[(bench.integration.all$pct_known %in% c(0,100) & bench.integration.all$label == "celltype.l2") & bench.integration.all$modality == "Protein",],aes(x= CiLISI,y=celltype_ASW,shape = mc_mode,color = norm_method)) + geom_point(size= 3) + facet_wrap(c("modality"),scales = "free") +
+  scale_color_manual(values = color.method.adt)
+
+main.bench.mc.rna <- ggplot(bench.integration.all[(bench.integration.all$pct_known %in% c(0,100) & bench.integration.all$label == "celltype.l2") & bench.integration.all$modality == "RNA",],aes(x= CiLISI,y=celltype_ASW,shape = mc_mode,color = norm_method)) + geom_point(size= 3) + facet_wrap(c("modality"),scales = "free") +
+  scale_color_manual(values = color.method.rna)
+
+
+main.bench.mc.prot
+main.bench.mc.rna
+```
+
+```{r}
+
+
+bench.ukw.rna.asw <- ggplot(bench.integration.all[bench.integration.all$modality == "RNA",],aes(x= pct_known_str,y=celltype_ASW,group = norm_method,
+                                                                                                color = norm_method)) + geom_point() +geom_line() + facet_grid(c("modality","label"))
+
+bench.ukw.rna.asw
+```
+
+```{r}
+bench.integration.all$pct_known_str <- factor(bench.integration.all$pct_known_str,levels = c("100%","95%","80%","50%","0%"))
+
+bench.ukw.prot.asw <- ggplot(bench.integration.all[bench.integration.all$modality == "Protein",],aes(x= pct_known_str,y=celltype_ASW,group = norm_method,
+                                                                                                     color = norm_method)) + geom_point() +geom_line() + facet_grid(c("modality","label"))
+
+bench.ukw.prot.asw
+```
+```{r}
+
+
+bench.scalability.sc <- read.table("../../benchmark/pbmcCiteSeqAtlas/singlecells_SCT_seuratRPCA_SCT/bench.txt",header = T)
+bench.scalability.sc$input <- "Single-cells"
+
+bench.scalability.unsup.mc <- read.table("../../benchmark/pbmcCiteSeqAtlas/unsupMetacells_SCT_seuratRPCA_SCT/g20/bench.txt",header = T)
+bench.scalability.unsup.mc$input <- "Unsup metacells"
+
+bench.scalability.sup.mc <- read.table("../../benchmark/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/bench.txt",header = T)
+bench.scalability.sup.mc$input <- "Sup metacells"
+
+bench.scalability <- rbind(bench.scalability.sc,
+                           bench.scalability.unsup.mc,
+                           bench.scalability.sup.mc)
+
+cpu.time <- ggplot(bench.scalability,aes(x= input,y=cpu_time/60,fill = input)) + geom_bar(stat = "identity") + ylab("CPU time (min)") + theme(axis.title.x = element_blank())  + scale_x_discrete(guide = guide_axis(angle = 45))
+
+run.time <- ggplot(bench.scalability,aes(x= input,y=s/60,fill = input)) + geom_bar(stat = "identity") + ylab("Running time (min)") + theme(axis.title.x = element_blank())  + scale_x_discrete(guide = guide_axis(angle = 45))
+
+
+
+memory <- ggplot(bench.scalability,aes(x= input,y=max_rss/1024,fill = input)) + geom_bar(stat = "identity") + ylab("Memory (Gb)") + theme(axis.title.x = element_blank())  + scale_x_discrete(guide = guide_axis(angle = 45))
+
+main.scalability <- cowplot::plot_grid(cpu.time + NoLegend(),
+                                       run.time + NoLegend(),
+                                       memory + NoLegend(),
+                                       get_legend(memory),ncol = 2)
+
+main.scalability
+```
+
+
+```{r fig.height=6.5,fig.width=9}
+pbmc.combined.mc <- readRDS("../../output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20//seuratCombinedWNN.rds")
+color_celltype <- colorblind_palette <- c(
+  "#E69F00", "#56B4E9", "#009E73", "#F0E442","#CCEBC5", "#D55E00", "#CC79A7",
+  "#999999", "#AD7FA8", "#F781BF", "#A6D854", "#FFD92F", "#66C2A5", "#FC8D62",
+  "#8DA0CB", "#E78AC3", "#A6CEE3", "#1F78B4", "#B2DF8A", "#33A02C", "#FB9A99",
+  "#E31A1C", "#FDBF6F", "#0072B2", "#CAB2D6", "#6A3D9A", "#B15928", "#BC80BD",
+  "#FF7F00"
+)
+
+
+
+
+
+DimPlot(pbmc.combined.mc,reduction = "wnn.umap",group.by = "celltype.l1.5",label = T)
+
+pbmc.combined.mc$cell_type <- as.vector(pbmc.combined.mc$celltype.l2)
+pbmc.combined.mc$cell_type[grepl(x = pbmc.combined.mc$celltype.l2,
+                                 pattern = "Proliferating")] <- "T/NK Prolif."
+names(color_celltype) <- unique(pbmc.combined.mc$cell_type)
+color_celltype_final <- color_celltype
+color_celltype_final[["CD14 Mono"]] <- color_celltype[["CD8 Naive"]]
+color_celltype_final[["CD8 Naive"]] <- color_celltype[["CD14 Mono"]]
+color_celltype_final[["CD4 TCM"]] <- color_celltype[["T/NK Prolif."]]
+color_celltype_final[["T/NK Prolif."]] <- color_celltype[["CD4 TCM"]]
+color_celltype_final[["Platelet"]] <- color_celltype[["cDC1"]]
+color_celltype_final[["cDC1"]] <- color_celltype[["Platelet"]]
+
+
+pbmc.combined.mc <- RunUMAP(pbmc.combined.mc, nn.name = "weighted.nn", reduction.name = "wnn.umap.2", reduction.key = "wnnUMAP_",seed.use = 2024,return.model = T)
+
+
+umap.sup.mc <- DimPlot(pbmc.combined.mc,reduction = "wnn.umap",group.by = "cell_type",label = T,repel = T,cols =(color_celltype_final))
+umap.sup.mc
+
+DimPlot(pbmc.combined.mc,reduction = "wnn.umap.2",group.by = "cell_type",label = T,repel = T,cols =(color_celltype_final))  +
+  guides(color = guide_legend(ncol = 1,override.aes = list(size = 3 ))) + xlab("wnnUMAP_1")  + ylab("wnnUMAP_2")
+
+```
+
+```{r}
+pbmc.combined.mc <- FindClusters(pbmc.combined.mc,algorithm = 3,graph.name = "wsnn",resolution = 0.5)
+DimPlot(pbmc.combined.mc,reduction = "wnn.umap.2",group.by = "seurat_clusters",label = T,repel = T) + NoLegend()
+```
+```{r}
+DimPlot(pbmc.combined.mc,reduction = "rna.umap",group.by = "cell_type")
+DimPlot(pbmc.combined.mc,reduction = "adt.umap",group.by = "cell_type")
+
+```
+
+
+
+
+```{r}
+FeaturePlot(pbmc.combined.mc,reduction = "wnn.umap.2",features = c("LY6E","IFIT1",
+                                                                   "ITGA2B","VWF"))
+```
+
+
+```{r fig.height=4,fig.width=4}
+pbmc.combined.unsup.mc <- readRDS("../../output/pbmcCiteSeqAtlas/unsupMetacells_SCT_seuratRPCA_SCT/g20//seuratCombinedWNN.rds")
+pbmc.combined.mc$method <- "Sup metacells"
+pbmc.combined.unsup.mc$method <- "Unsup metacells"
+
+
+metaAll <- pbmc.combined.mc@meta.data[,c("method","size","celltype.l1.5_purity","celltype.l2_purity")]
+metaAll <- rbind(metaAll,pbmc.combined.unsup.mc@meta.data[,c("method","size","celltype.l1.5_purity","celltype.l2_purity")] )
+
+l1.5_purity <- ggplot(metaAll,aes(x=method,y = celltype.l1.5_purity, fill = method)) + geom_boxplot() + scale_fill_manual(values = colorblind_pal()(5)[-1][c(2,1)]) + NoLegend() + scale_x_discrete(guide = guide_axis(angle = 45))
+l2_purity <- ggplot(metaAll,aes(x=method,y = celltype.l2_purity, fill = method)) + geom_boxplot() + scale_fill_manual(values = colorblind_pal()(5)[-1][c(2,1)]) + NoLegend() + scale_x_discrete(guide = guide_axis(angle = 45))
+
+size <- ggplot(metaAll,aes(x=method,y = size, fill = method)) + geom_boxplot() + scale_fill_manual(values = colorblind_pal()(5)[-1][c(2,1)]) + scale_x_discrete(guide = guide_axis(angle = 45))
+
+library(cowplot)
+library(patchwork)
+l1.5_purity + l2_purity  + plot_layout(nrow = 1)
+```
+```{r fig.height=5,fig.width=8}
+l2_purity <- ggplot(metaAll,aes(x=method,y = celltype.l2_purity, fill = method)) + geom_boxplot() + scale_fill_manual(values = scales::hue_pal()(3)[c(2,3)]) + NoLegend() + scale_x_discrete(guide = guide_axis(angle = 45)) + theme(axis.title.x = element_blank())
+
+main.scalability <- cowplot::plot_grid(l2_purity + NoLegend(),
+                                       cpu.time + NoLegend(),
+                                       memory + NoLegend(),
+
+                                       get_legend(memory),ncol = 2)
+
+main.bench <- cowplot::plot_grid(main.bench.mc.rna,main.bench.mc.prot + guides(shape = "none"),ncol = 1,align = "v")
+cowplot::plot_grid(main.bench,main.scalability,nrow = 1,rel_widths = c(3,2))
+```
+
+```{r}
+pbmc.combined.mc <- FindClusters(pbmc.combined.mc,algorithm = 3,graph.name = "wsnn",resolution = 0.5)
+
+```
+
+
+```{r}
+
+```
+```{r fig.height=8,fig.width=14}
+p.sup.size <- FeaturePlot(pbmc.combined.mc,features = "size",reduction ="wnn.umap.2")  +
+  scale_color_distiller(palette = "RdBu",trans = "log",breaks = c(1, 10, 50))  +xlab('wnnUMAP_1') +ylab('wnnUMAP_2')+ ggtitle("Metacell Size")
+
+p.wnn.cluster <- DimPlot(pbmc.combined.mc,reduction = "wnn.umap.2",group.by = "seurat_clusters",label = T,repel = T) + NoLegend() + xlab("wnnUMAP_1") + ylab("wnnUMAP_2")  + ggtitle("Metacell Clusters")
+
+p.wnn.guiding.label <- DimPlot(pbmc.combined.mc,reduction = "wnn.umap.2",group.by = "celltype.l1.5",label = T,repel = T) + NoLegend() + xlab("wnnUMAP_1") + ylab("wnnUMAP_2") + ggtitle("Cell labels")
+
+p.rna.celltype <- DimPlot(pbmc.combined.mc,reduction = "rna.umap",group.by = "celltype.l2",label = T,repel = T,cols =(color_celltype_final)) + NoLegend() + xlab("UMAP_1") + ylab("UMAP_2")  + ggtitle("RNA")
+
+p.adt.celltype <- DimPlot(pbmc.combined.mc,reduction = "adt.umap",group.by = "celltype.l2",label = T,repel = T,cols =(color_celltype_final)) + xlab("UMAP_1") + ylab("UMAP_2") + ggtitle("Protein") + theme(legend.position = "right")
+
+plot_grid(p.wnn.guiding.label,p.wnn.cluster,p.sup.size,p.rna.celltype+ NoLegend(),p.adt.celltype+ NoLegend(),plot_grid(element_blank(),get_legend(p.adt.celltype),rel_widths = c(1,2.5)))
+```
+
+
+```{r }
+#library(ggthemes)
+
+colsl3 <- c("#000000","#E69F00","#56B4E9","#009E73","#F0E442","#0072B2","#D55E00","#CC79A7") #colorblind_pal()(8)
+
+cols <-  c("#E69F00", "#56B4E9" ,"#009E73" ,"#F0E442", "#0072B2" ,"#D55E00", "#CC79A7","grey")
+
+monoDC <- subset(pbmc.combined.mc,idents = c(c(0,7,17,21,13)))
+
+monoDC$metacell_cluster <- pbmc.combined.mc$wsnn_res.0.5
+
+monoDC$metacell_cluster <- plyr::mapvalues(monoDC$wsnn_res.0.5,from = c(0,7,17,21,13),
+                                           to = c("CD14 Mono","CD16 Mono", "CD14 Mono Ifn", "CD14 Mono/Platelet","cDC"))
+
+monoDC$metacell_cluster <- factor(monoDC$metacell_cluster,levels =c("CD14 Mono","CD16 Mono", "CD14 Mono Ifn", "CD14 Mono/Platelet","cDC"))
+
+Idents(monoDC) <-"celltype.l1"
+monoDC <- subset(monoDC,idents = c("Mono","DC"))
+
+DimPlot.SuperCell(monoDC,reduction = "wnn.umap.2", group.by = 'celltype.l1')
+monoDC_l2 <- DimPlot(monoDC,reduction = "wnn.umap.2", group.by = 'celltype.l2',label = F,
+                     cols = c("#56B4E9","#E69F00", "#0072B2" ,"#D55E00", "#CC79A7","grey"))
+monoDC_l3 <-
+  DimPlot.SuperCell(monoDC,reduction = "wnn.umap.2", group.by = 'celltype.l3',cols = cols)
+
+monoDC_metacells <- DimPlot.SuperCell(monoDC,reduction = "wnn.umap.2",group.by = "metacell_cluster",cols =c("#56B4E9","#E69F00" ,"#009E73" ,"#0072B2" ,"#D55E00", "#CC79A7","grey") ) + ggtitle("metacell clusters") + xlab("wnnUMAP_1") + ylab("wnnUMAP_2")
+
+
+
+monoDC_metacells_no_size <- DimPlot(monoDC,reduction = "wnn.umap.2",group.by = "metacell_cluster",cols =c("#56B4E9","#E69F00" ,"#009E73" ,"#0072B2" ,"#D55E00", "#CC79A7","grey") ) + ggtitle("metacell clusters")+ xlab("wnnUMAP_1") + ylab("wnnUMAP_2") + theme(legend.position =c(0.65,0.2))+ xlim(c(-8,2.5)) + ylim(-2,12)
+monoDC_metacells_no_size
+
+
+
+colfinale <- c("#56B4E9","#E69F00" ,"#009E73" ,"#0072B2" ,"#D55E00", "#CC79A7","grey")
+names(colfinale) <- c("CD14 Mono","CD16 Mono", "CD14 Mono Ifn", "CD14 Mono/Platelet","cDC")
+monoDC_metacells
+```
+
+
+
+
+```{r fig.height=5,fig.width=9}
+Idents(monoDC) <- "metacell_cluster"
+
+vln.prot <- VlnPlot.SuperCell(monoDC, features = c("CD14","CD16","CD1c","CD55"),assay = "ADT",slot = "data",ncol = 2,cols = colfinale,stack = T,fill.by = "ident",flip=T) + NoLegend() + theme(axis.title.x = element_blank() ) + ylab("Prot. exp.")
+
+vln.rna <- VlnPlot.SuperCell(monoDC, features = c("ITGA2B","LY6E","ISG15","IFIT1","STAT1"),assay = "RNA",slot = "data",ncol = 2,cols = colfinale,stack = T,fill.by = "ident",flip=T) + NoLegend()  + theme(axis.title.x = element_blank(),axis.text.x = element_blank()) + ylab("RNA exp.")
+
+library(patchwork)
+library(cowplot)
+plot_grid(monoDC_metacells_no_size,wrap_plots(vln.rna,vln.prot,ncol = 1,guides = "collect"),rel_widths = c(2,1))
+
+# VlnPlot.SuperCell(monoDC, features = c("rna_IFIT1","rna_IFIT2","adt_CD169","rna_SIGLEC1"),slot = "data",ncol = 2,cols = colfinale)
+
+```
+
+
+
+```{r}
+Idents(monoDC) <- "metacell_cluster"
+monoDcClustersPurity <- VlnPlot(monoDC,
+                                features = c("celltype.l2_purity"),
+                                cols = colfinale,group.by = "metacell_cluster",
+                                pt.size = 0.5)
+
+monoDcClustersPurity + NoLegend()
+
+```
+```{r fig.height=4,fig.width=3}
+library(reshape2)
+mono <-  monoDC[,monoDC$metacell_cluster %in% c("CD14 Mono","CD16 Mono","CD14 Mono Ifn")]
+# pbmc.combined.sup.mc@meta.data[colnames(monoDC[,monoDC$metacell_clusters == "CD14 Mono_3"]),"refined_celltype"] <- "CD14_Mono_ifn"
+
+
+
+mono$time <- stringr::str_split_fixed(mono$orig.ident,pattern = "_",2)[,2]
+
+typeCounts <- aggregate(mono$size, by=list(clusters = mono$metacell_cluster,sample = mono$orig.ident), FUN=sum,drop = T)
+
+typeCounts$clusters <- factor(typeCounts$clusters,levels = unique(typeCounts$clusters))
+
+contingencyTable <- xtabs(x ~ clusters+sample,data = typeCounts)
+colSums(contingencyTable)
+
+freqMatrix <- apply(contingencyTable,1,FUN = function(x){x/colSums(contingencyTable)})
+# res <- chisq.test(contingencyTable)
+# Roe <- res$observed/res$expected
+
+freqMatrix_df <- melt(freqMatrix)
+
+freqMatrix_df$donor = stringr::str_split_fixed(freqMatrix_df$sample,"_",2)[,1]
+freqMatrix_df$time = stringr::str_split_fixed(freqMatrix_df$sample,"_",2)[,2]
+
+ggplot(freqMatrix_df[freqMatrix_df$clusters == "CD14 Mono Ifn", ],aes(x = time,y=value,color=clusters,group = clusters)) + geom_point() + geom_line() + facet_wrap("~donor")
+
+# ggplot(freqMatrix_df[freqMatrix_df$clusters %in% c("CD14_Mono_ifn","CD14_Mono_platelet"),],aes(x = time,y=value,color=donor,group = clusters)) + geom_point() + geom_line() + facet_wrap("~donor") + scale_color_manual(values = colsClusters[c(5,4)]) + facet_wrap(c("clusters","donor")) + ylab("frequence in donor PBMCs")
+
+# freqMatrix_df$clusters <- factor(freqMatrix_df$clusters,levels =  c("ASDC","B intermediate","B memory", "B naive" , "CD14_Mono_ifn" ,"CD14_Mono_main", "CD16 Mono"     ,     "CD4 CTL"          ,  "CD4 Naive"    ,      "CD4 Proliferating" , "CD4 TCM" , "CD4 TEM" , "CD8 Naive" ,"CD8 Proliferating",  "CD8 TCM",  "CD8 TEM" ,"cDC1" ,  "cDC2" ,  "dnT"   , "Eryth"  ,  "gdT"  ,"HSPC"  ,"ILC" , "MAIT","NK"   ,  "NK Proliferating" ,"NK_CD56bright", "pDC", "Plasmablast", "Platelet" , "Treg"  ))
+
+freqMatrix_df$time[freqMatrix_df$time == 2] <- 3
+
+mono.pro <- ggplot(freqMatrix_df,aes(x = time,y=value,group = donor,color = donor)) + geom_point() + geom_line() + facet_wrap("~clusters",scales = "free_y",ncol = 1) + ylab("% in Monocytes") + xlab("day") +scale_y_continuous(labels = scales::percent)
+
+mono.pro
+```
+```{r  fig.height=6,fig.width=12}
+wrap_plots(monoDC_metacells_no_size + theme(
+  axis.title.x = element_text( margin = margin(t = -65)) # Shifts the title up
+),wrap_plots(vln.rna,vln.prot,ncol = 1,guides = "keep"),mono.pro + theme(
+  axis.title.x = element_text(size = 12, margin = margin(t = -65)) # Shifts the title up
+),widths = c(3,1,1),nrow = 1,guides = "keep")
+```
+
+```{r fig.height=6,fig.width=12}
+monoDC$time <- stringr::str_split_fixed(monoDC$orig.ident,pattern = "_",2)[,2]
+vln.prot <- VlnPlot.SuperCell(monoDC, features = rev(c("CD14","CD16","CD169","CD55")),assay = "ADT",slot = "data",ncol = 2,stack = T,fill.by = "ident",flip=T,split.by = "time") + NoLegend() + theme(axis.title.x = element_blank() ) + ylab("Prot. exp.")
+vln.prot
+
+vln.rna <- VlnPlot.SuperCell(monoDC, features = rev(c("SIGLEC1","LY6E","IFIT1","ISG15")),assay = "RNA",slot = "data",ncol = 2,stack = T,fill.by = "ident",flip=T,split.by = "time")  + theme(axis.title.x = element_blank(),axis.text.x = element_blank()) + ylab("RNA exp.")
+
+vln.rna
+wrap_plots(vln.rna,vln.prot,ncol = 1,guides = "keep")
+
+
+```
+
+
+
+## Mapping
+
+```{r}
+pbmc.multiome.g10 <- readRDS("../../output/pbmcMultiome/SuperCellMulti/g10/seurat.multiome.mc.activities.rds")
+```
+
+```{r fig.height=10,fig.width=10}
+color_celltype_final.2 <- c(color_celltype_final,"black")
+names(color_celltype_final.2) <- c(names(color_celltype_final.2)[1:28],"CD14 Mono/Platelet","CD14 Mono ifn")
+pbmc.combined.mc$refined_celltype <- pbmc.combined.mc$celltype.l2
+pbmc.combined.mc$refined_celltype[pbmc.combined.mc$wsnn_res.0.5 == 17] <- "CD14 Mono Ifn"
+pbmc.combined.mc$refined_celltype[pbmc.combined.mc$wsnn_res.0.5 == 21] <- "CD14 Mono/Platelet"
+
+DimPlot(pbmc.combined.mc,group.by = "refined_celltype",label = T,cols =color_celltype_final.2)
+
+DimPlot(pbmc.combined.mc,group.by = "refined_celltype",label = T,cols =color_celltype_final.2,reduction = "wnn.umap.2")
+
+```
+
+```{r fig.height=5,fig.width=5}
+pbmc.combined.mc$time <- stringr::str_split_fixed(pbmc.combined.mc$orig.ident,pattern = "_",2)[,2]
+vln.prot <- VlnPlot.SuperCell(pbmc.combined.mc[,pbmc.combined.mc$celltype.l1 %in% c('B',"Mono")], features = rev(c("CD14","CD16","CD169","CD55")),group.by = "refined_celltype",assay = "ADT",slot = "data",ncol = 2,stack = T,fill.by = "ident",flip=T,split.by = "time") + NoLegend() + theme(axis.title.x = element_blank() ) + ylab("Prot. exp.")
+vln.prot
+
+vln.rna <- VlnPlot.SuperCell(pbmc.combined.mc[,pbmc.combined.mc$celltype.l1 %in% c('B',"Mono")], features = rev(c("SIGLEC1","LY6E","IFIT1","ISG15")),group.by = "refined_celltype",assay = "RNA",slot = "data",ncol = 2,stack = T,fill.by = "ident",flip=T,split.by = "time")  + theme(axis.title.x = element_blank(),axis.text.x = element_blank()) + ylab("RNA exp.")
+
+vln.rna
+wrap_plots(vln.rna,vln.prot,ncol = 1,guides = "keep")
+```
+```{r fig.height=5,fig.width=10}
+pbmc.combined.mc$time <- stringr::str_split_fixed(pbmc.combined.mc$orig.ident,pattern = "_",2)[,2]
+vln.prot <- VlnPlot.SuperCell(pbmc.combined.mc, features = rev(c("CD14","CD16","CD169","CD55")),group.by = "refined_celltype",assay = "ADT",slot = "data",ncol = 2,stack = T,fill.by = "ident",flip=T,split.by = "time") + NoLegend() + theme(axis.title.x = element_blank() ) + ylab("Prot. exp.")
+vln.prot
+
+vln.rna <- VlnPlot.SuperCell(pbmc.combined.mc, features = rev(c("SIGLEC1","LY6E","IFIT1","ISG15")),group.by = "refined_celltype",assay = "RNA",slot = "data",ncol = 2,stack = T,fill.by = "ident",flip=T,split.by = "time")  + theme(axis.title.x = element_blank(),axis.text.x = element_blank()) + ylab("RNA exp.")
+
+vln.rna
+wrap_plots(vln.rna,vln.prot,ncol = 1,guides = "keep")
+```
+
+```{r}
+VlnPlot.SuperCell(pbmc.combined.mc[,pbmc.combined.mc$celltype.l2 == c("CD14 Mono","CD16 Mono")],assay = "RNA",features = c("LY6E","SIGLEC1"),group.by = "celltype.l2")
+
+
+VlnPlot(pbmc.combined.mc[,pbmc.combined.mc$celltype.l2 == c("CD14 Mono","CD16 Mono")],assay = "RNA",features = c("LY6E","SIGLEC1"),group.by = "celltype.l2")
+```
+```{r}
+pbmc.combined.mc[,pbmc.combined.mc$celltype.l1 == c("Mono")]
+
+FeatureScatter.SuperCell(pbmc.combined.mc[,pbmc.combined.mc$celltype.l1 == c("Mono")],
+                         feature1 = "SIGLEC1",feature2 = "LY6E",group.by =  = "refined_celltype")
+```
+
+```{r}
+pbmc.combined.mc <- ScaleData(pbmc.combined.mc, assay = 'RNA')
+pbmc.combined.mc <- RunSPCA(pbmc.combined.mc, assay = 'RNA', graph = 'wsnn',features = VariableFeatures(pbmc.combined.mc[["integratedRNA"]]))
+```
+
+```{r}
+pbmc.combined.mc <- FindNeighbors(
+  object = pbmc.combined.mc,
+  reduction = "spca",
+  dims = 1:40,
+  graph.name = "spca.annoy.neighbors",
+  k.param = 50,
+  cache.index = TRUE,
+  return.neighbor = TRUE,
+  l2.norm = TRUE
+)
+```
+
+
+
+
+
+```{r}
+library(SuperCell)
+DefaultAssay(pbmc.multiome.g10) <- "RNA"
+pbmc.multiome.g10 <- NormalizeData(pbmc.multiome.g10)
+
+anchors <- FindTransferAnchors(
+  reference = pbmc.combined.mc,
+  query = pbmc.multiome.g10,
+  #k.filter = NA,
+  normalization.method = "LogNormalize",
+  reference.reduction = "spca",
+  reference.neighbors = "spca.annoy.neighbors",
+  dims = 1:40,
+  # k.score = 20,
+  features = VariableFeatures(pbmc.combined.mc[["integratedRNA"]])
+)
+
+
+
+pbmc.multiome.g10 <- MapQuery(
+  anchorset = anchors,
+  query = pbmc.multiome.g10,
+  reference = pbmc.combined.mc,
+  refdata = list(
+    celltype = "wsnn_res.0.5",
+    predicted_ADT = "ADT"),
+  reference.reduction = "spca",
+  transferdata.args = list(k.weight = 15),
+  reduction.model = "wnn.umap.2"
+)
+
+
+
+```
+
+
+```{r fig.height=4,fig.width=6}
+color.celltypes  <- c('#E5D2DD', '#53A85F', '#F1BB72', '#F3B1A0', '#D6E7A3', '#57C3F3', '#476D87',
+                      '#E95C59', '#E59CC4', '#AB3282', '#23452F', '#BD956A', '#8C549C', '#585658',
+                      '#9FA3A8', '#E0D4CA', '#5F3D69', '#58A4C3', "#b20000",'#E4C755', '#F7F398',
+                      '#AA9A59', '#E63863', '#E39A35', '#C1E6F3', '#6778AE', '#91D0BE', '#B53E2B',
+                      '#712820', '#DCC1DD', '#CCE0F5', '#CCC9E6', '#625D9E', '#68A180', '#3A6963',
+                      '#968175')
+
+pbmc.multiome.g10$predicted_metacell_clusters <- as.numeric(pbmc.multiome.g10$predicted.celltype)
+p1 <- DimPlot(pbmc.multiome.g10, reduction = 'ref.umap', group.by = c("predicted_metacell_clusters"), label.size = 3,label = T)
+p1
+
+
+
+```
+```{r}
+DimPlot(pbmc.multiome.g10[,pbmc.multiome.g10$predicted.celltype %in% c(0,7,17,21,13)], reduction = 'ref.umap', group.by = c('predicted.celltype',"seurat_annotations"), label.size = 3,cols = color.celltypes,ncol = 2)
+```
+```{r}
+monoDC.multiome <- pbmc.multiome.g10[,pbmc.multiome.g10$predicted.celltype %in% c(0,7,17,21,13) &
+                                       pbmc.multiome.g10$seurat_annotations %in% c("CD14 Mono",
+                                                                                   "CD16 Mono","cDC")]
+Idents(monoDC.multiome) <- "predicted.celltype"
+monoDC.multiome <- RenameIdents(monoDC.multiome,c("7" = "CD16 Mono",
+                                                  "0" = "CD14 Mono",
+                                                  "13" = "cDC",
+                                                  "17" = "CD14 Mono Ifn"))
+
+
+monoDC.multiome$predicted_subtype  <- factor(Idents(monoDC.multiome),levels = c("CD14 Mono",
+                                                                                "CD16 Mono",
+                                                                                "CD14 Mono Ifn",
+                                                                                "cDC"))
+
+
+Idents(monoDC.multiome) <- "predicted_subtype"
+
+
+monoDC_metacells_multiome <- DimPlot(monoDC.multiome, reduction = 'ref.umap', label.size = 3,ncol = 2,cols = colfinale) + theme(legend.position = c(0.6,0.2) )
+
+monoDC_metacells_multiome
+
+```
+```{r}
+vln.prot <- VlnPlot.SuperCell(monoDC.multiome,
+                              features = c("CD14","CD16","CD1c","CD55"),
+                              assay = "predicted_ADT",
+                              slot = "data",
+                              ncol = 2,
+                              cols = colfinale,
+                              stack = T,fill.by = "ident",flip=T) + NoLegend() + theme(axis.title.x = element_blank() ) + ylab("Pred. Prot. exp.")
+
+vln.rna <- VlnPlot.SuperCell(monoDC.multiome, features = c("CGAS","LY6E","ISG15","IFIT1","STAT1"),assay = "RNA",slot = "data",ncol = 2,cols = colfinale,stack = T,fill.by = "ident",flip=T) + NoLegend()  + theme(axis.title.x = element_blank(),axis.text.x = element_blank()) + ylab("RNA exp.")
+
+library(patchwork)
+library(cowplot)
+plot_grid(monoDC_metacells_multiome,wrap_plots(vln.rna,vln.prot,ncol = 1,guides = "collect"),rel_widths = c(2,1))
+```
+
+
+```{r}
+monoDC.multiome
+
+markers.vs.all.myelo.sc <- FindMarkers(monoDC.multiome,ident.1 = "CD14 Mono Ifn",ident.2 = "CD14 Mono")
+markers.vs.all.myelo.sc <- markers.vs.all.myelo.sc[markers.vs.all.myelo.sc$avg_log2FC>0&markers.vs.all.myelo.sc$p_val_adj<0.05,]
+markers.vs.all.myelo.sc["AC239802.2",]
+
+sum(monoDC.multiome$size)
+markers.vs.all.myelo <- FindMarkers.SuperCell(monoDC.multiome,ident.1 = "CD14 Mono Ifn",ident.2 = "CD14 Mono")
+
+d2 <- log((sum(expm1(monoDC.multiome[["RNA"]]$data["AC239802.2",monoDC.multiome$predicted_subtype != "CD14 Mono Ifn"])*monoDC.multiome$size[monoDC.multiome$predicted_subtype != "CD14 Mono Ifn"])+1)/sum(monoDC.multiome$size[monoDC.multiome$predicted_subtype != "CD14 Mono Ifn"]),base = 2)
+
+d2.1 <- log1p((sum(expm1(monoDC.multiome[["RNA"]]$data["AC239802.2",monoDC.multiome$predicted_subtype != "CD14 Mono Ifn"])*monoDC.multiome$size[monoDC.multiome$predicted_subtype != "CD14 Mono Ifn"])+1)-1)/log(x = 2)
+
+data.1 <- monoDC.multiome[["RNA"]]$data["AC239802.2",monoDC.multiome$predicted_subtype == "CD14 Mono Ifn"]
+
+size.1 <- monoDC.multiome$size[monoDC.multiome$predicted_subtype == "CD14 Mono Ifn"]
+size.1_1 <- rep(1,length(size.1))
+
+d1 <- log((sum(expm1(data.1)*size.1)+1)/sum(size.1),base = 2)
+
+d1_1 <- log((sum(expm1(data.1)*size.1_1)+1)/sum(size.1_1),base = 2)
+d1_1
+
+data.2 <- monoDC.multiome[["RNA"]]$data["AC239802.2",monoDC.multiome$predicted_subtype != "CD14 Mono Ifn"]
+size.2 <- monoDC.multiome$size[monoDC.multiome$predicted_subtype != "CD14 Mono Ifn"]
+size.2_1 <- rep(1,length(size.2))
+
+d2 <- log((sum(expm1(data.2)*size.2)+1)/sum(size.2),base = 2)
+
+d2_1 <- log((sum(expm1(data.2)*size.2_1)+1)/sum(size.2_1),base = 2)
+d2_1
+
+
+d1.1 <- log1p((sum(expm1(monoDC.multiome[["RNA"]]$data["AC239802.2",monoDC.multiome$predicted_subtype == "CD14 Mono Ifn"])*monoDC.multiome$size[monoDC.multiome$predicted_subtype == "CD14 Mono Ifn"])+1)-1)/log(x = 2)
+
+d1 -d2
+
+
+markers.vs.all.myelo["AC239802.2",]
+markers.vs.all.myelo <- markers.vs.all.myelo[markers.vs.all.myelo$avg_log2FC>0 & markers.vs.all.myelo$p_val_adj<0.05,]
+markers.vs.all.myelo[""]
+
+markers.vs.all.myelo[order(markers.vs.all.myelo$avg_log2FC,decreasing = T),]
+```
+
+
+
+
+
+
+```{r}
+monoDC.multiome
+DefaultAssay(monoDC.multiome) <-"chromvar"
+
+# monoDC.multiome <- ScaleData(monoDC.multiome)
+library(Signac)
+source("../../R/functions/topTF_functions.r")
+top.tf.mc <- get.topTFs.mc(seurat.obj = monoDC.multiome,group_by = "predicted_subtype", weighted = T)
+top.tf.mc$topTFs[top.tf.mc$topTFs$RNA.group == "CD14 Mono Ifn",]
+
+top.tf.mc$markersMotifs[top.tf.mc$markersMotifs$motif.group == "CD14 Mono Ifn",]
+top.tf.mc$markersRNA[top.tf.mc$markersRNA$RNA.group == "CD14 Mono Ifn",]
+
+dim( top.tf.mc$topTFs)
+
+top.tf.mc$topTFs
+
+tf.multiome <- top.tf.mc$topTFs[top.tf.mc$topTFs$RNA.group == "CD14 Mono Ifn","gene"]
+tf.multiome
+
+motif.multiome <- top.tf.mc$topTFs[top.tf.mc$topTFs$RNA.group == "CD14 Mono Ifn","motif.motif"]
+motif.multiome
+```
+
+```{r fig.height=7,fig.width=4}
+
+vln.rna <- VlnPlot.SuperCell(monoDC.multiome,
+                              features = tf.multiome,
+                              assay = "RNA",
+                              slot = "data",
+                              ncol = 2,
+                              cols = colfinale,
+                              stack = T,fill.by = "ident",flip=T) + NoLegend() + theme(axis.title.x = element_blank() ) + ylab("RNA exp.")
+
+vln.chromvar <- VlnPlot.SuperCell(monoDC.multiome, features = motif.multiome,assay = "chromvar",slot = "data",ncol = 2,cols = colfinale,stack = T,fill.by = "ident",flip=T) + NoLegend()  + theme(axis.title.x = element_blank(),axis.text.x = element_blank()) + ylab("Motif Access.")
+
+
+wrap_plots(vln.chromvar,vln.rna,ncol = 1,guides = "collect")
+```
+
+```{r}
+markers_rna_monoMultiome <- FindAllMarkers.supercell(ge = GetAssayData(monoDC.multiome, assay = "RNA"),
+                                           clusters = monoDC.multiome@meta.data[, "predicted_subtype"],
+                                           base = 2,
+                                           min.pct = 0.01,
+                                           only.pos = T,
+                                           logfc.threshold = 0.1,
+                                           mean.fxn = "rowExpMean",
+                                           supercell_size = monoDC.multiome$size)
+markers_rna_monoMultiome$`CD14 Mono Ifn`
+
+markers_rna_monoDC <- FindAllMarkers.supercell(ge = GetAssayData(monoDC, assay = "RNA"),
+                                           clusters = monoDC@meta.data[, "metacell_cluster"],
+                                           base = 2,
+                                           min.pct = 0.01,
+                                           only.pos = T,
+                                           logfc.threshold = 0.1,
+                                           mean.fxn = "rowExpMean",
+                                           supercell_size = monoDC$size)
+
+tf.nucleus.cyto.motif <- tf.multiome[tf.multiome %in% rownames(markers_rna_monoDC$`CD14 Mono Ifn`[markers_rna_monoDC$`CD14 Mono Ifn`$adj.p.value < 0.05,])]
+
+tf.nucleus.cyto.motif
+
+markers_motif_monoDC <- FindAllMarkers.supercell(ge = GetAssayData(monoDC.multiome, assay = "chromvar"),
+                                             clusters = monoDC.multiome@meta.data[, "predicted_subtype"], base = base,
+                                             min.pct = 0.01,
+                                             only.pos = T,
+                                             logfc.threshold = 0.1, mean.fxn = "rowMean",
+                                             supercell_size = monoDC.multiome$size)
+
+markers_rna_monoDC$`CD14 Mono Ifn`
+markers_motif_monoDC$`CD14 Mono Ifn`
+
+get.topTFs.sc(seurat.obj = monoDC.multiome,
+              markers_rna = markers_rna_monoDC$`CD14 Mono Ifn`,
+              markers_motifs = markers_motif_monoDC$`CD14 Mono Ifn`)
+```
+
+
+```{r}
+library(reshape2)
+
+pbmc.combined.mc$refined_celltype <- pbmc.combined.mc$celltype.l2
+
+pbmc.combined.mc@meta.data[colnames(monoDC[,monoDC$metacell_cluster == "CD14 Mono Ifn"]),"refined_celltype"] <- "CD14_Mono_ifn"
+pbmc.combined.mc@meta.data[colnames(monoDC[,monoDC$metacell_cluster == "CD14 Mono/Platelet"]),"refined_celltype"] <- "CD14_Mono_Platelet"
+
+pbmc.combined.mc@meta.data[colnames(monoDC[,monoDC$wsnn_res.0.5 == 0]),"refined_celltype"] <- "CD14_Mono_main"
+# pbmc.combined.sup.mc@meta.data[colnames(monoDC[,monoDC$metacell_clusters == "CD14 Mono_3"]),"refined_celltype"] <- "CD14_Mono_ifn"
+
+
+
+pbmc.combined.mc$time <- stringr::str_split_fixed(pbmc.combined.mc$orig.ident,pattern = "_",2)[,2]
+
+typeCounts <- aggregate(pbmc.combined.mc$size, by=list(clusters = pbmc.combined.mc$refined_celltype,sample = pbmc.combined.mc$orig.ident), FUN=sum)
+typeCounts$clusters <- droplevels(typeCounts$clusters)
+
+contingencyTable <- xtabs(x ~ clusters+sample,data = typeCounts)
+colSums(contingencyTable)
+
+freqMatrix <- apply(contingencyTable,1,FUN = function(x){x/colSums(contingencyTable)})
+# res <- chisq.test(contingencyTable)
+# Roe <- res$observed/res$expected
+
+freqMatrix_df <- melt(freqMatrix)
+
+freqMatrix_df$donor = stringr::str_split_fixed(freqMatrix_df$sample,"_",2)[,1]
+freqMatrix_df$time = stringr::str_split_fixed(freqMatrix_df$sample,"_",2)[,2]
+
+ggplot(freqMatrix_df[freqMatrix_df$clusters == "CD14_Mono_ifn", ],aes(x = time,y=value,color=clusters,group = clusters)) + geom_point() + geom_line() + facet_wrap("~donor")
+
+# ggplot(freqMatrix_df[freqMatrix_df$clusters %in% c("CD14_Mono_ifn","CD14_Mono_platelet"),],aes(x = time,y=value,color=donor,group = clusters)) + geom_point() + geom_line() + facet_wrap("~donor") + scale_color_manual(values = colsClusters[c(5,4)]) + facet_wrap(c("clusters","donor")) + ylab("frequence in donor PBMCs")
+
+# freqMatrix_df$clusters <- factor(freqMatrix_df$clusters,levels =  c("ASDC","B intermediate","B memory", "B naive" , "CD14_Mono_ifn" ,"CD14_Mono_main", "CD16 Mono"     ,     "CD4 CTL"          ,  "CD4 Naive"    ,      "CD4 Proliferating" , "CD4 TCM" , "CD4 TEM" , "CD8 Naive" ,"CD8 Proliferating",  "CD8 TCM",  "CD8 TEM" ,"cDC1" ,  "cDC2" ,  "dnT"   , "Eryth"  ,  "gdT"  ,"HSPC"  ,"ILC" , "MAIT","NK"   ,  "NK Proliferating" ,"NK_CD56bright", "pDC", "Plasmablast", "Platelet" , "Treg"  ))
+
+freqMatrix_df$time[freqMatrix_df$time == 2] <- 3
+
+ggplot(freqMatrix_df[freqMatrix_df$clusters %in%  c("CD14_Mono_main","CD14_Mono_ifn"),],aes(x = time,y=value,color=clusters,group = donor)) + geom_point() + geom_line() +  scale_color_manual(values = colfinale[c(1,4)]) + facet_wrap("~clusters",ncol = 1,scales = "free_y") + ylab("Frequence in Monocytes") + NoLegend() + xlab("day")
+```
+
+```{r fig.height=10,fig.width=14}
+ggplot(freqMatrix_df,aes(x = time,y=value,color=donor,group = donor)) + geom_point() + geom_line()  + facet_wrap("~clusters",ncol = 8,scales = "free_y") + ylab("Frequence in PBMCs")  + xlab("day")
+```
+
+
+
+
+```{r fig.height=4,fig.width=4}
+# metacell_clusters_to_single_cells <- list()
+# names(pbmc.combined.sup.mc@misc$membership) <- stringr::str_split_fixed(names(pbmc.combined.sup.mc@misc$membership),"\\.",2)[,2]
+# metacell_clusters_to_single_cells$CD14_main <- names(monoDC@misc$membership)[pbmc.combined.sup.mc@misc$membership %in% colnames(pbmc.combined.sup.mc)[which(pbmc.combined.sup.mc$wsnn_res.0.3 == 0)]]
+# metacell_clusters_to_single_cells$CD14_ifn <-names(pbmc.combined.sup.mc@misc$membership)[pbmc.combined.sup.mc@misc$membership %in% colnames(pbmc.combined.sup.mc)[which(pbmc.combined.sup.mc$wsnn_res.0.3 == 18)]]
+# # metacell_clusters_to_single_cells$CD14_metacell_cluster0 <-names(monoDC@misc$membership)[monoDC@misc$membership %in% colnames(monoDC)[which(monoDC$wsnn_res.0.1 == 0)]]
+# #saveRDS(metacell_clusters_to_single_cells,"metacell_clusters_to_single_cells.rds")
+#
+#
+# Mono.CD14 <- readRDS("../../output/pbmcCiteSeqAtlas/pbmcCiteSeqAtlas_single_cells_MonoCD14/seuratCombinedWNN.rds")
+# gc()
+#
+# DefaultAssay(Mono.CD14) <- "RNA"
+# Mono.CD14 <- NormalizeData(Mono.CD14)
+#
+# FeaturePlot(Mono.CD14,features = c("rna_IFIT1","rna_IFIT2","rna_STAT1","rna_SIGLEC1"))
+```
+```{r}
+# Mono.CD14$metacell_cluster <- "CD14_Mono_main"
+# Mono.CD14@meta.data[metacell_clusters_to_single_cells$CD14_ifn,"metacell_cluster"] <- "CD14_Mono_ifn"
+#
+# DimPlot(Mono.CD14,group.by = "metacell_cluster")
+```
+```{r fig.height=4,fig.width=2.5}
+# Mono.CD14 <- FindClusters(Mono.CD14,graph.name = "wknn",resolution = 0.125)
+# DimPlot(Mono.CD14,group.by = "metacell_cluster") + DimPlot(Mono.CD14,group.by = "wknn_res.0.2") + plot_layout(ncol = 1)
+
+```
+
+```{r}
+
+
+
+# FeatureFeaturePlot.SuperCell(pbmc.combined.sup.mc[,pbmc.combined.sup.mc$refined_celltype %in% c("CD14_Mono_main","CD14_Mono_ifn")],
+#                                     feature.x  = c("SIGLEC1","SIGLEC1"),
+#                                     feature.y = c("IFIT1","STAT1"),
+#                                     assays = c("RNA","RNA"),is.normalized = T,
+#                                     cluster = "refined_celltype")
+#
+# FeatureFeaturePlot.SuperCell(Mono.CD14,use.size = F,
+#                                     feature.x  = c("SIGLEC1","SIGLEC1"),
+#                                     feature.y = c("IFIT1","STAT1"),
+#                                     assays = c("RNA","RNA"),is.normalized = T,
+#                                     cluster = "metacell_cluster")
+
+```
+
+
+```{r fig.height=5,fig.width=7}
+ggplot(freqMatrix_df,aes(x = time,y=value,color=donor,group = donor)) + geom_point() + geom_line()  + ylab("Frequence in PBMCs")  + xlab("day") + facet_wrap("~clusters",scales = "free_y")
+```
+
+
+
+```{r fig.width= 4,fig.height=2}
+# monoDC <- FindMultiModalNeighbors(
+#   monoDC, reduction.list = list("pca", "apca"),
+#   dims.list = list(1:40, 1:50), modality.weight.name = "RNA.weight"
+# )
+# monoDC <- FindClusters(monoDC, graph.name = "wsnn", algorithm = 3, resolution = 0.1, verbose = FALSE)
+#
+# monoDC$metacell_clusters <- plyr::mapvalues(x= monoDC$wsnn_res.0.1,
+#                                             from = c(0:4),
+#                                             to = c("CD14 Mono_1", "CD16 Mono","DC","CD14 Mono_2", "CD14 Mono_3"))
+#
+# colsClusters <- cols[c(2,3,5,6,7)]
+#
+# monoDC_clusters <- DimPlot(monoDC,reduction = "wnn.umap", group.by = 'metacell_clusters',label = F,cols = colsClusters) +  theme(legend.position = c(0.1,0.5))  + ggtitle("Metacell clusters")
+# monoDC_clusters
+#
+# monoDC_l2 + monoDC_clusters
+
+```
+
+
+
+
+
+```{r fig.height=2.5,fig.width=2.5}
+#VlnPlot(monoDC,features = c("CD14","CD55","CD16", "CD1c"),assay = "ADT",cols = colsClusters,pt.size = 0,ncol = 2)
+```
+
+
+```{r fig.height=2.5,fig.width=2.5}
+#VlnPlot(monoDC,features = c( "adt_CD41","adt_CLEC2","sct_ITGA2B","sct_CLEC1B"),cols = colsClusters,pt.size = 0,ncol = 2)
+```
+
+```{r fig.height=2.5,fig.width=2.5}
+#VlnPlot(monoDC, features = c("IFIT1","IFIT2","STAT1","STAT2"),assay = "SCT",pt.size = 0,slot = "data",ncol = 2,cols = colsClusters)
+
+```
+
+```{r fig.height=2.5,fig.width=2.5}
+# VlnPlot(monoDC, features = c("sct_SIGLEC1","adt_CD169","IFIT1","IFIT2"),assay = "SCT",pt.size = 0,slot = "data",ncol = 2,cols = colsClusters)
+
+```
+```{r fig.height=1.25,fig.width=2.5}
+# p1 <- VlnPlot(monoDC, features = "SIGLEC1",assay = "SCT",pt.size = 0,slot = "data",ncol = 2,cols = colsClusters) + NoLegend() + ggtitle("rna_CD169")
+# p2 <- VlnPlot(monoDC, features = "CD169",assay = "ADT",pt.size = 0,slot = "data",ncol = 2,cols = colsClusters) + NoLegend() + ggtitle("protein_CD169")
+#
+# p1+p2
+# cowplot::plot_grid(p1,p2,ncol = 2)
+#
+# dualPLot <- VlnPlot(monoDC, features = c("sct_SIGLEC1","adt_CD169"),assay = "SCT",pt.size = 0,slot = "data",ncol = 2,cols = colsClusters)
+# dualPLot
+```
+
+
+```{r fig.height=2.5,fig.width=2.5}
+# markersMonoDcADT <- FindAllMarkers(monoDC,assay = "ADT",only.pos = T)
+# markersMonoDcADT <- markersMonoDcADT[markersMonoDcADT$p_val_adj < 0.05,]
+# markersMonoDcADT[markersMonoDcADT$cluster == "CD14 Mono_1",]
+# markersMonoDcADT[markersMonoDcADT$cluster == "CD14 Mono_1",]
+# markersMonoDcADT[markersMonoDcADT$cluster == "CD14 Mono_1",]
+
+
+```
+
+```{r}
+# DefaultAssay(monoDC) <- "ADT"
+# FeaturePlot(monoDC,features = c("CD14","CD16","CD1c"))
+```
+```{r}
+# markers.cluster.CD14_2.adt <- FindMarkers(monoDC,ident.1 = "CD14 Mono_2",ident.2 = "CD14 Mono_1",assay = "ADT")
+# markers.cluster.CD14_2.adt <- markers.cluster.CD14_2.adt[markers.cluster.CD14_2.adt$p_val_adj < 0.05,]
+# markers.cluster.CD14_2.adt
+```
+
+```{r}
+
+# markers.cluster.CD14_3.adt <- FindMarkers(monoDC,ident.1 = "CD14 Mono_3",ident.2 = "CD14 Mono_1",assay = "ADT")
+# markers.cluster.CD14_3.adt <- markers.cluster.CD14_3.adt[markers.cluster.CD14_3.adt$p_val_adj < 0.05,]
+# markers.cluster.CD14_3.adt
+```
+```{r}
+# monoDC <- PrepSCTFindMarkers(monoDC,assay = "SCT")
+#
+# markers.cluster.CD14_2.sct <- FindMarkers(monoDC,ident.1 = "CD14 Mono_2",ident.2 = "CD14 Mono_1",assay = "SCT")
+# markers.cluster.CD14_2.sct <- markers.cluster.CD14_2.sct[markers.cluster.CD14_2.sct$p_val_adj < 0.05,]
+# markers.cluster.CD14_2.sct
+```
+```{r}
+# markers.cluster.CD14_3.sct <- FindMarkers(monoDC,ident.1 = "CD14 Mono_3",ident.2 = "CD14 Mono_1",assay = "SCT")
+# markers.cluster.CD14_3.sct <- markers.cluster.CD14_3.sct[markers.cluster.CD14_3.sct$p_val_adj < 0.05,]
+# markers.cluster.CD14_3.sct
+```
+
+```{r}
+
+# write.csv(markers.cluster.CD14_3.sct,"CD15_ifn_vs_CD14_main.csv")
+# "SIGLEC1" %in% rownames(markers.cluster.CD14_3.sct)
+```
+
+
+```{r}
+# metacell_clusters_to_single_cells <- list()
+# names(monoDC@misc$membership) <- stringr::str_split_fixed(names(monoDC@misc$membership),"\\.",2)[,2]
+# metacell_clusters_to_single_cells$CD14_metacell_cluster3 <- names(monoDC@misc$membership)[monoDC@misc$membership %in% colnames(monoDC)[which(monoDC$wsnn_res.0.1 == 3)]]
+# metacell_clusters_to_single_cells$CD14_metacell_cluster4 <-names(monoDC@misc$membership)[monoDC@misc$membership %in% colnames(monoDC)[which(monoDC$wsnn_res.0.1 == 4)]]
+# metacell_clusters_to_single_cells$CD14_metacell_cluster0 <-names(monoDC@misc$membership)[monoDC@misc$membership %in% colnames(monoDC)[which(monoDC$wsnn_res.0.1 == 0)]]
+# #saveRDS(metacell_clusters_to_single_cells,"metacell_clusters_to_single_cells.rds")
+#
+#
+# Mono.CD14 <- readRDS("../../output/pbmcCiteSeqAtlas/pbmc_cite_seq_atlas_filtered.rds")
+# Mono.CD14 <- Mono.CD14[,Mono.CD14$celltype.l2 == "CD14 Mono"]
+# gc()
+
+
+
+```
+
+
+```{r}
+Mono.CD14$orig.ident <- paste0(Mono.CD14$donor,"_",Mono.CD14$time)
+Mono.CD14 <- Mono.CD14[,Mono.CD14$celltype.l2 != "Doublet"]
+#pbmc <- pbmc[,pbmc$time == 0]  # first test on reference samples
+
+gc()
+
+Mono.CD14.list <- SplitObject(Mono.CD14, split.by = "orig.ident")
+
+# integration of ADT data
+
+Mono.CD14.list <- lapply(X = Mono.CD14.list, FUN = function(x) {
+  DefaultAssay(x) <- "ADT"
+  VariableFeatures(x) <- rownames(x[["ADT"]])
+  x <- NormalizeData(x, normalization.method = 'CLR', margin = 2) %>% ScaleData(features = rownames(x)) %>% RunPCA(reduction.name = 'pca')
+  return(x)})
+
+# select features that are repeatedly variable across datasets for integration run PCA on each
+# dataset using these features
+features <- SelectIntegrationFeatures(object.list = Mono.CD14.list)
+reference <- which(endsWith(names(Mono.CD14.list),suffix = "_0"))
+
+print(reference)
+
+Mono.CD14.anchors <- FindIntegrationAnchors(object.list = Mono.CD14.list,
+                                            anchor.features = features,
+                                            reference = reference,
+                                            reduction = "rpca",
+                                            dims = c(1:50))
+
+Mono.CD14.combined <- IntegrateData(anchorset = Mono.CD14.anchors,new.assay.name = "integratedADT")
+
+Assays(Mono.CD14.combined)
+
+
+## Integration of SCT data
+
+library(sctransform)
+rnaAssay = "SCT"
+Mono.CD14.list <- lapply(X = Mono.CD14.list, FUN = function(x) { DefaultAssay(x) <- "RNA";x <- SCTransform(x, verbose = FALSE); return(x)})
+features <- SelectIntegrationFeatures(object.list = Mono.CD14.list)
+Mono.CD14.list <- lapply(X = Mono.CD14.list, FUN = function(x) {
+  x <- RunPCA(x, features = features, verbose = FALSE)
+})
+
+Mono.CD14.list <- PrepSCTIntegration(object.list = Mono.CD14.list, anchor.features = features)
+
+
+
+# select features that are repeatedly variable across datasets for integration run PCA on each
+# dataset using these features
+
+
+Mono.CD14.anchors <- FindIntegrationAnchors(object.list = Mono.CD14.list,
+                                            anchor.features = features,
+                                            reduction = "rpca",
+                                            reference = reference,
+                                            normalization.method = opt$RNAnormalization,
+                                            dims = opt$RNAcomp)
+
+Mono.CD14.combined.2 <- IntegrateData(anchorset = Mono.CD14.anchors,normalization.method = opt$RNAnormalization,new.assay.name = paste0("integrated",rnaAssay))
+
+
+Mono.CD14.combined[["SCT"]] <- Mono.CD14.combined.2[["SCT"]]
+
+Mono.CD14.combined[["integratedSCT"]] <- Mono.CD14.combined.2[["integratedSCT"]]
+
+remove(Mono.CD14.combined.2)
+gc()
+
+Assays(Mono.CD14.combined)
+#saveRDS(Mono.CD14.combined, paste0(opt$outdir,"/seuratCombined.rds"))
+
+# WNN integration on integrated assay
+
+DefaultAssay(Mono.CD14.combined) <- 'integratedADT'
+# we will use all ADT features for dimensional reduction
+# we set a dimensional reduction name to avoid overwriting the
+VariableFeatures(Mono.CD14.combined) <- rownames(Mono.CD14.combined[["integratedADT"]])
+Mono.CD14.combined <- ScaleData(Mono.CD14.combined)
+Mono.CD14.combined <- RunPCA(Mono.CD14.combined,reduction.name = "apca")
+
+
+
+DefaultAssay(Mono.CD14.combined) <- paste0("integrated",rnaAssay)
+Mono.CD14.combined <- RunPCA(Mono.CD14.combined) # integrated SCT slot can be used as scaled normalized counts
+
+
+
+
+Mono.CD14.combined <- FindMultiModalNeighbors(
+  Mono.CD14.combined,
+  reduction.list = list("pca", "apca"),
+  dims.list = list(opt$RNAcomp, opt$ADTcomp),
+  modality.weight.name = "RNA.weight",
+  return.intermediate = T
+)
+Mono.CD14.combined <- RunUMAP(Mono.CD14.combined, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_")
+```
+
+```{r}
+#metacell_clusters_to_single_cells <- readRDS("reports/CITE_atlas/metacell_clusters_to_single_cells.rds")
+
+Mono.CD14 <- subset(Mono.CD14,cells= c(metacell_clusters_to_single_cells$CD14_metacell_cluster3,
+                                       metacell_clusters_to_single_cells$CD14_metacell_cluster4,
+                                       metacell_clusters_to_single_cells$CD14_metacell_cluster0))
+
+#saveRDS(Mono.CD14,"reports/CITE_atlas/Mono.CD14.rds")
+
+
+#Mono.CD14 <- readRDS("Mono.CD14.rds")
+Mono.CD14$metacell_clusters <- "CD14 Mono_1"
+Mono.CD14@meta.data[metacell_clusters_to_single_cells$CD14_metacell_cluster3,"metacell_clusters"] <- "CD14 Mono_2"
+Mono.CD14@meta.data[metacell_clusters_to_single_cells$CD14_metacell_cluster4,"metacell_clusters"] <- "CD14 Mono_3"
+
+
+DimPlot(Mono.CD14,reduction = "wnn.umap",group.by = "celltype.l2")
+single_cells_mc_clusters <- DimPlot(Mono.CD14,reduction = "wnn.umap",group.by = "metacell_clusters",cols = colsClusters[c(1,4,5)])
+```
+
+
+```{r}
+DefaultAssay(Mono.CD14) <- "RNA"
+Mono.CD14 <- NormalizeData(Mono.CD14)
+
+CD14_41_prot <- FeatureScatter(Mono.CD14,
+                               feature1 = "adt_CD14",
+                               feature2 = "adt_CD41",
+                               group.by = "metacell_clusters",
+                               pt.size = 0.01,
+                               cols = colsClusters[c(1,4,5)])
+
+CD14_41_rna  <- FeatureScatter(Mono.CD14,
+                               feature1 = "rna_CD14",feature2 = "rna_ITGA2B",
+                               group.by = "metacell_clusters",
+                               pt.size = 0.1,
+                               cols = colsClusters[c(1,4,5)])
+
+CD14_ifn_rna  <- FeatureScatter(Mono.CD14,
+                                feature1 = "rna_CD14",
+                                feature2 = "rna_IFIT1",
+                                group.by = "metacell_clusters",
+                                pt.size = 0.1,
+                                cols = colsClusters[c(1,4,5)])
+
+CD14_ifn_rna_2  <- FeatureScatter(Mono.CD14,
+                                  feature1 = "rna_CD14",
+                                  feature2 = "rna_IFIT2",
+                                  group.by = "metacell_clusters",
+                                  pt.size = 0.1,
+                                  cols = colsClusters[c(1,4,5)])
+
+```
+```{r  fig.width= 4,fig.height=2}
+cowplot::plot_grid(single_cells_mc_clusters,cowplot::plot_grid(CD14_41_rna+ NoLegend() + ggtitle("RNA") ,CD14_41_prot + NoLegend() + ggtitle("Protein"),ncol = 1),rel_widths = c(1.4,0.6))
+```
+
+```{r  fig.width= 4,fig.height=2}
+cowplot::plot_grid(single_cells_mc_clusters,cowplot::plot_grid(CD14_ifn_rna+ NoLegend() + ggtitle("RNA") ,CD14_ifn_rna_2 + NoLegend() + ggtitle("RNA"),ncol = 1),rel_widths = c(1.4,0.6))
+```
+
+
+```{r}
+DefaultAssay(monoDC) <- "RNA"
+monoDC <- NormalizeData(monoDC)
+
+FeatureScatter(monoDC[,monoDC$metacell_clusters %in% c("CD14 Mono_1","CD14 Mono_2","CD14 Mono_3")],feature1 = "rna_CD14",feature2 = "rna_ITGA2B",group.by = "metacell_clusters",cols = colsClusters[c(1,4,5)])
+FeatureScatter(monoDC[,monoDC$metacell_clusters %in% c("CD14 Mono_1","CD14 Mono_2","CD14 Mono_3")],feature1 = "rna_CD14",feature2 = "rna_IFIT1",group.by = "metacell_clusters",cols = colsClusters[c(1,4,5)])
+```
+#Quick cell type abundance analyses
+
+```{r}
+pbmc.combined.sup.mc
+```
+
+```{r fig.width=1.25,fig.height=1.5}
+library(reshape2)
+
+pbmc.combined.sup.mc$refined_celltype <- pbmc.combined.sup.mc$celltype.l2
+
+pbmc.combined.sup.mc@meta.data[colnames(monoDC[,monoDC$metacell_clusters == "CD14 Mono_1"]),"refined_celltype"] <- "CD14_Mono_main"
+pbmc.combined.sup.mc@meta.data[colnames(monoDC[,monoDC$metacell_clusters == "CD14 Mono_2"]),"refined_celltype"] <- "CD14_Mono_platelet"
+pbmc.combined.sup.mc@meta.data[colnames(monoDC[,monoDC$metacell_clusters == "CD14 Mono_3"]),"refined_celltype"] <- "CD14_Mono_ifn"
+
+pbmc.combined.sup.mc$time <- stringr::str_split_fixed(pbmc.combined.sup.mc$orig.ident,pattern = "_",2)[,2]
+
+typeCounts <- aggregate(pbmc.combined.sup.mc$size, by=list(clusters = pbmc.combined.sup.mc$refined_celltype,sample = pbmc.combined.sup.mc$orig.ident), FUN=sum)
+
+contingencyTable <- xtabs(x ~ clusters+sample,data = typeCounts)
+colSums(contingencyTable)
+
+freqMatrix <- apply(contingencyTable,1,FUN = function(x){x/colSums(contingencyTable)})
+# res <- chisq.test(contingencyTable)
+# Roe <- res$observed/res$expected
+
+freqMatrix_df <- melt(freqMatrix)
+
+freqMatrix_df$donor = stringr::str_split_fixed(freqMatrix_df$sample,"_",2)[,1]
+freqMatrix_df$time = stringr::str_split_fixed(freqMatrix_df$sample,"_",2)[,2]
+
+ggplot(freqMatrix_df[freqMatrix_df$clusters == "CD14_Mono_ifn", ],aes(x = time,y=value,color=clusters,group = clusters)) + geom_point() + geom_line() + facet_wrap("~donor")
+
+# ggplot(freqMatrix_df[freqMatrix_df$clusters %in% c("CD14_Mono_ifn","CD14_Mono_platelet"),],aes(x = time,y=value,color=donor,group = clusters)) + geom_point() + geom_line() + facet_wrap("~donor") + scale_color_manual(values = colsClusters[c(5,4)]) + facet_wrap(c("clusters","donor")) + ylab("frequence in donor PBMCs")
+
+freqMatrix_df$clusters <- factor(freqMatrix_df$clusters,levels =  c("ASDC","B intermediate","B memory", "B naive" ,"CD14 Mono" , "CD14_Mono_platelet", "CD14_Mono_ifn" ,"CD14_Mono_main", "CD16 Mono"     ,     "CD4 CTL"          ,  "CD4 Naive"    ,      "CD4 Proliferating" , "CD4 TCM" , "CD4 TEM" , "CD8 Naive" ,"CD8 Proliferating",  "CD8 TCM",  "CD8 TEM" ,"cDC1" ,  "cDC2" ,  "dnT"   , "Eryth"  ,  "gdT"  ,"HSPC"  ,"ILC" , "MAIT","NK"   ,  "NK Proliferating" ,"NK_CD56bright", "pDC", "Plasmablast", "Platelet" , "Treg"  ))
+
+freqMatrix_df$time[freqMatrix_df$time == 2] <- 3
+
+ggplot(freqMatrix_df[freqMatrix_df$clusters %in%  c("CD14_Mono_platelet","CD14_Mono_ifn"),],aes(x = time,y=value,color=clusters,group = donor)) + geom_point() + geom_line() +  scale_color_manual(values = colsClusters[c(4,5)]) + facet_wrap("~clusters",ncol = 1) + ylab("Frequence in PBMCs") + NoLegend() + xlab("day")
+```
+
+
+
+```{r fig.height=5,fig.width=7}
+ggplot(freqMatrix_df,aes(x = time,y=value,color=donor,group = donor)) + geom_point() + geom_line()  + ylab("Frequence in PBMCs")  + xlab("day") + facet_wrap("~clusters",scales = "free_y")
+```
+
+```{r fig.height=2,fig.width=1.5}
+ggplot(freqMatrix_df[freqMatrix_df$clusters %in%  c("CD14_Mono_ifn","CD14_Mono_platelet","CD14_Mono_main"),],aes(x = time,y=value,color=donor,group = donor)) + geom_point() + geom_line()  + ylab("Frequence in PBMCs")  + xlab("day") + facet_wrap("~clusters",scales = "free_y",ncol=1)
+```
+
+
+
+```{r}
+freqMatrix_df_ag <- aggregate(value ~clusters +  time, freqMatrix_df, function(x){mean = mean(x)})
+freqMatrix_df_ag$sd <- aggregate(value ~clusters +  time, freqMatrix_df, function(x){mean = sd(x)})$value
+
+
+ggplot(freqMatrix_df_ag[freqMatrix_df_ag$clusters %in% c("CD14_Mono_ifn","CD14_Mono_platelet"),],aes(x = time,y=value,color=clusters,group = clusters)) + geom_point() + geom_line()  + scale_color_manual(values = colsClusters[c(5,4)]) +
+  geom_errorbar(aes(ymin=value-sd, ymax=value+sd), width=.2) + facet_wrap("~clusters") + ylab("frequence in sample")
+```
