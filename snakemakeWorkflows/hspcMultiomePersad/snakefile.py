@@ -21,7 +21,7 @@ rule singlecells_rna_pca_analysis_hspc_multiome:
   input:
     adata = "input/hspcMultiomePersad/cd34_multiome_rna.h5ad"
   output: "output/hspcMultiomePersad/singlecells_analysis/seurat.RNA.h5ad"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   benchmark: "benchmark/hspcMultiomePersad/singlecells_analysis/seurat.RNA.txt"
   shell: "Rscript snakemakeWorkflows/hspcMultiomePersad/R/RNA_pca_hspcMultiomeCL.R -i {input.adata} \
           -o output/hspcMultiomePersad/singlecells_analysis"
@@ -34,7 +34,7 @@ rule preprocessing_supercell_hspc_multiome:
          atac = "input/hspcMultiomePersad/cd34_multiome_atac.h5ad",
          rna = "input/hspcMultiomePersad/cd34_multiome_rna.h5ad"
   output: "output/hspcMultiomePersad/singlecells_analysis/seurat_multimodal.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   benchmark: "benchmark/hspcMultiomePersad/singlecells_analysis/seurat_multimodal.txt"
   shell: "Rscript snakemakeWorkflows/hspcMultiomePersad/R/preprocessing_seurat_for_SuperCell_hspcMultiomeCL.R -i {input.rna}\
           -j {input.atac} -f {input.fragment_rep1}+{input.fragment_rep2} \
@@ -48,7 +48,7 @@ rule wnn_single_cell_hspc_multiome:
          atac = "input/hspcMultiomePersad/cd34_multiome_atac.h5ad",
          rna = "input/hspcMultiomePersad/cd34_multiome_rna.h5ad"
   output: "output/hspcMultiomePersad/singlecells_analysis/seuratWNN.rds","output/hspcMultiomePersad/singlecells_analysis/selectedGenes.txt"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   benchmark: "benchmark/hspcMultiomePersad/singlecells_analysis/seuratWNN.txt"
   resources:
         mem_mb = 100000
@@ -61,7 +61,7 @@ rule metacell_identification_hspc_multiome:
   input:
         singlecells = "output/hspcMultiomePersad/singlecells_analysis/seurat_multimodal.rds"
   output: "output/hspcMultiomePersad/SuperCellMulti/g{gamma}/SuperCellMemberships.csv"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: workdir = wdir
   benchmark :  "benchmark/hspcMultiomePersad/SuperCellMulti/g{gamma}/seurat.multiome.mc.txt"
   resources:
@@ -76,7 +76,7 @@ rule data_aggregation_hspc_SuperCellMulti:
         singlecells = "output/hspcMultiomePersad/singlecells_analysis/seuratWNN.rds",
         memberships = "output/hspcMultiomePersad/SuperCellMulti/g{gamma}/SuperCellMemberships.csv"
   output: "output/hspcMultiomePersad/SuperCellMulti/g{gamma}/seurat.multiome.mc.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: workdir = wdir
   resources:
         mem_mb = 100000
@@ -89,7 +89,7 @@ rule random_metacell_hspc_multiome:
   input:
         singlecells = "output/hspcMultiomePersad/singlecells_analysis/seuratWNN.rds"
   output: "output/hspcMultiomePersad/randomMetacells/g{gamma}/seurat.multiome.mc.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: workdir = wdir
   shell: "export PATH={params.workdir}/config/bin/htslib-1.16/bin:$PATH;\
           Rscript R/SCimplify10xMultiome_v5_CL.R -i {input.singlecells} -d TRUE \
@@ -101,7 +101,7 @@ rule GA_computation_sc_hspc:
         singlecells = "output/hspcMultiomePersad/singlecells_analysis/seuratWNN.rds",
         motifs =  "input/H13CORE_human_pfm.rds"
   output: "output/hspcMultiomePersad/singlecells_analysis/seurat.multiome.activities.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: genome = config["hspcMultiomePersad"]["genome"]
   resources:
         mem_mb = 100000
@@ -114,7 +114,7 @@ rule GA_computation_mc_hspc:
         metacells = "output/hspcMultiomePersad/{inputMetacells}/g{gamma}/seurat.multiome.mc.rds",
         motifs =  "input/H13CORE_human_pfm.rds"
   output: "output/hspcMultiomePersad/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: genome = config["hspcMultiomePersad"]["genome"]
   resources:
         mem_mb = 100000
@@ -128,7 +128,7 @@ rule mc_metrics_computation_hspc:
         singlecells = "output/hspcMultiomePersad/singlecells_analysis/seurat.multiome.activities.rds",
         metacells = "output/hspcMultiomePersad/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds"
   output: "output/hspcMultiomePersad/{inputMetacells}/g{gamma}/seurat.multiome.mcMetrics.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params:
         outdir = "output/hspcMultiomePersad/{inputMetacells}/g{gamma}/",
         python = "/opt/conda/envs/MetacellAnalysisToolkit/bin/python"
@@ -155,7 +155,7 @@ rule atacRnaSinglecellAnalysis_hspc:
         python = "/opt/conda/envs/MetacellAnalysisToolkit/bin/python"
     resources:
         mem_mb = 256000
-    singularity: "config/supercell_multiomics.sif"
+    singularity: config["sif_file"]
     shell: "Rscript R/AtacRnaCorrAnalysis.R -i {input.singlecells} -o {params.outdir} -s {input.singlecells}"
 
 rule atacRnaMetacellAnalysis_hspc:
@@ -171,7 +171,7 @@ rule atacRnaMetacellAnalysis_hspc:
         genome = config["hspcMultiomePersad"]["genome"]
     resources:
         mem_mb = 100000
-    singularity: "config/supercell_multiomics.sif"
+    singularity: config["sif_file"]
     shell: "Rscript R/AtacRnaCorrAnalysis.R -i {input.metacells} -o {params.outdir} -s {input.singlecells}"
 
 ####################################################################################################################################
@@ -183,5 +183,5 @@ rule generate_figures_from_figureS4:
         "output/hspcMultiomePersad/singlecells_analysis/seurat.multiome.activities.rds",
         expand("output/hspcMultiomePersad/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti"])
   output: "figures/manuscript/figure_S4_intermodality.html"
-  singularity: "config/supercell_multiomics_v2.sif"
+  singularity: config["sif_file"]
   shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"
