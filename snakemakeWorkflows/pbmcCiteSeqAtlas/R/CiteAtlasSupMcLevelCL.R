@@ -1,7 +1,7 @@
 library(Seurat)
 library(dplyr)
 library(getopt)
-library(SuperCellMultiomics)
+library(SuperCell)
 
 
 # MetacellExpression <- function(object, pb.method = "aggregate", assays = NULL, features = NULL,
@@ -156,14 +156,14 @@ spec = matrix(c(
   "unsupIntegration", "u", 0, "logical", "unsupervised integration with STACAS (metacells identificaiton stays supervised)",
   "unsupMetacells", "v", 0, "logical", "unsupervised metacells with SuperCell (integration stays supervised)",
   "sampleName",  "s", 1, "character", "sample name",
-  "hide", "e", 1, "numeric", "hide a e proportion of the labels", 
+  "hide", "e", 1, "numeric", "hide a e proportion of the labels",
   "dataMetacells", "d", 1, "character", "how to get metacell normalized data: sum_norm (default) or logMean",
   "RNAcomp", "p", 1, "character", "range of components to consider for wnn analysis (eg 1:40 for RNA pca)",
   "ADTcomp", "q", 1, "character", "range of components to consider for wnn analysis (eg 1:50 for ADT pca)",
   "RNAnormalization", "r", 1, "character", "RNA normalisation method for integration  (only 'LogNormalize' at the moment)",
   "RNAmetacells", "m", 1, "character", "RNA normalisation method for metacells identification (default 'LogNormalize' or 'SCT' for SCTransform)",
   "SaveH5adFiles", "f", 1, "logical", "Save H5ad files for the different modalities"
-  
+
 ), byrow=TRUE, ncol=5)
 
 opt <- list()
@@ -192,18 +192,18 @@ if(is.null(opt$RNAmetacells)) {
 
 if(is.null(opt$SaveH5adFiles)) {
   opt$SaveH5adFiles <- FALSE
-  
+
 }
 
 
 if(is.null(opt$unsupIntegration)) {
   opt$unsupIntegration <- FALSE
-  
+
 }
 
 if(is.null(opt$unsupMetacells)) {
   opt$unsupMetacells <- FALSE
-  
+
 }
 
 
@@ -245,7 +245,7 @@ pbmc$celltype.l1.5[pbmc$celltype.l1 == "other"] <- pbmc$celltype.l2[pbmc$celltyp
 pbmc$celltype.l1.5[pbmc$celltype.l1 == "other T"] <- pbmc$celltype.l2[pbmc$celltype.l1 == "other T"]
 pbmc$label_metacell <- pbmc$celltype.l1.5
 if (! is.null(opt$hide)) {
-  
+
   hide.cells <- sample(Cells(pbmc),size = opt$hide*ncol(pbmc))
   pbmc@meta.data[hide.cells,"label_metacell"] <- NA
   if(opt$hide == 1) {
@@ -257,11 +257,11 @@ gc()
 
 
 #Per sample metacell identification
-# 
+#
 # sampleNames <- c("P1_0","P2_0","P3_0","P4_0","P5_0","P6_0","P7_0","P8_0",
 #                   "P1_2","P2_2","P3_2","P4_2","P5_2","P6_2","P7_2","P8_2",
 #                   "P1_7","P2_7","P3_7","P4_7","P5_7","P6_7","P7_7","P8_7")
-# 
+#
 # samplePaths = paste0("output/correlationAnalyzis/CITEseq/",sampleNames,"/singlecells_analysis/seuratWNN.rds")
 
 pbmc$orig.ident <- paste0(pbmc$donor,"_",pbmc$time)
@@ -288,19 +288,19 @@ for (sampleName in sampleNames) {
   pbmc.smp <- pbmc[,pbmc$orig.ident == sampleName & pbmc$celltype.l2 != "Doublet"]
   DefaultAssay(pbmc.smp) <- 'ADT'
   # we will use all ADT features for dimensional reduction
-  # we set a dimensional reduction name to avoid overwriting the 
+  # we set a dimensional reduction name to avoid overwriting the
   VariableFeatures(pbmc.smp) <- rownames(pbmc.smp[["ADT"]])
-  pbmc.smp <- NormalizeData(pbmc.smp, normalization.method = 'CLR', margin = 2) %>% 
+  pbmc.smp <- NormalizeData(pbmc.smp, normalization.method = 'CLR', margin = 2) %>%
     ScaleData() %>% RunPCA(reduction.name = 'apca')
-  
+
   DefaultAssay(pbmc.smp) <- "RNA"
-  
+
   if (opt$RNAmetacells == "LogNormalize") {
     pbmc.smp <- NormalizeData(pbmc.smp,normalization.method = "LogNormalize",assay = "RNA") %>% FindVariableFeatures() %>% ScaleData() %>% RunPCA()
-    
+
     pbmcMC <- SCimplify_for_Seurat_v5(seurat = pbmc.smp,
                                       assay = c('RNA','ADT'),
-                                      reduction = list("pca", "apca"), 
+                                      reduction = list("pca", "apca"),
                                       dims = list(opt$RNAcomp, opt$ADTcomp),
                                       graph.name = "knn",
                                       label = "label_metacell",
@@ -309,48 +309,48 @@ for (sampleName in sampleNames) {
     if (opt$unsupMetacells) {
       pbmcMC <- SCimplify_for_Seurat_v5(seurat = pbmc.smp,
                                         assay = c('RNA','ADT'),
-                                        reduction = list("pca", "apca"), 
+                                        reduction = list("pca", "apca"),
                                         dims = list(opt$RNAcomp, opt$ADTcomp),
                                         graph.name = "knn",
                                         kernel = T,
                                         gamma = opt$gamma)
     }
-    
+
     if (opt$dataMetacell == "logMean") {
       pbmc.smp <- AddMetaData(pbmc.smp,metadata = pbmcMC@misc$membership[Cells(pbmc.smp)],col.name =  paste0("metacell_g", opt$gamma))
-      pbmcMC[["RNA"]]$data <- MetacellExpression(pbmc.smp, 
+      pbmcMC[["RNA"]]$data <- MetacellExpression(pbmc.smp,
                                                     assays = "RNA", pb.method = "average",
-                                                    group.by = paste0("metacell_g", opt$gamma), 
-                                                    layer = "data", 
+                                                    group.by = paste0("metacell_g", opt$gamma),
+                                                    layer = "data",
                                                     return.seurat = F)$RNA
-      
-      pbmcMC[["ADT"]]$data <- MetacellExpression(pbmc.smp, 
+
+      pbmcMC[["ADT"]]$data <- MetacellExpression(pbmc.smp,
                                                     assays = "ADT", pb.method = "average",
-                                                    group.by = paste0("metacell_g", opt$gamma), 
-                                                    layer = "data", 
+                                                    group.by = paste0("metacell_g", opt$gamma),
+                                                    layer = "data",
                                                     return.seurat = F)$RNA
-      
+
       if (opt$unsupMetacells) {
         pbmcMC <- SCimplify_for_Seurat_v5(seurat = pbmc.smp,
                                           assay = c('RNA','ADT'),
-                                          reduction = list("pca", "apca"), 
+                                          reduction = list("pca", "apca"),
                                           dims = list(opt$RNAcomp, opt$ADTcomp),
                                           graph.name = "knn",
                                           kernel = T,
                                           gamma = opt$gamma)
       }
     }
-    
-    
-    
-    
+
+
+
+
   } else {
     pbmc.smp <-  SCTransform(pbmc.smp, verbose = FALSE,conserve.memory = TRUE) %>%
       RunPCA(verbose = FALSE)
-    
+
     pbmcMC <- SCimplify_for_Seurat_v5(seurat = pbmc.smp,
                                       assay = c('SCT','ADT'),
-                                      reduction = list("pca", "apca"), 
+                                      reduction = list("pca", "apca"),
                                       dims = list(opt$RNAcomp, opt$ADTcomp),
                                       graph.name = "knn",
                                       label = "label_metacell",
@@ -359,7 +359,7 @@ for (sampleName in sampleNames) {
     if (opt$unsupMetacells) {
       pbmcMC <- SCimplify_for_Seurat_v5(seurat = pbmc.smp,
                                         assay = c('RNA','ADT'),
-                                        reduction = list("pca", "apca"), 
+                                        reduction = list("pca", "apca"),
                                         dims = list(opt$RNAcomp, opt$ADTcomp),
                                         graph.name = "knn",
                                         kernel = T,
@@ -369,31 +369,31 @@ for (sampleName in sampleNames) {
       DefaultAssay(pbmc.smp) <- "RNA"
       pbmc.smp <- NormalizeData(pbmc.smp)
       pbmc.smp <- AddMetaData(pbmc.smp,metadata = pbmcMC@misc$membership[Cells(pbmc.smp)],col.name =  paste0("metacell_g", opt$gamma))
-      pbmcMC[["RNA"]]$data <- MetacellExpression(pbmc.smp, 
+      pbmcMC[["RNA"]]$data <- MetacellExpression(pbmc.smp,
                                                     assays = "RNA", pb.method = "average",
-                                                    group.by = paste0("metacell_g", opt$gamma), 
-                                                    layer = "data", 
+                                                    group.by = paste0("metacell_g", opt$gamma),
+                                                    layer = "data",
                                                     return.seurat = F)$RNA
-      
-      pbmcMC[["ADT"]]$data <- MetacellExpression(pbmc.smp, 
+
+      pbmcMC[["ADT"]]$data <- MetacellExpression(pbmc.smp,
                                                     assays = "ADT", pb.method = "average",
-                                                    group.by = paste0("metacell_g", opt$gamma), 
-                                                    layer = "data", 
+                                                    group.by = paste0("metacell_g", opt$gamma),
+                                                    layer = "data",
                                                     return.seurat = F)$ADT
     }
   }
-  
-  
+
+
   remove(pbmc.smp)
   if (length(unique(pbmc$orig.ident)) > 1) {
     pbmc <- pbmc[,pbmc$orig.ident != sampleName]
   }
-  gc() 
-  
+  gc()
+
   pbmcMC_supL1.5.list[[sampleName]] <- pbmcMC
-  
-  
-  
+
+
+
 }
 
 
@@ -428,7 +428,7 @@ pbmcMC_supL1.5.list <- lapply(X = pbmcMC_supL1.5.list, FUN = function(x) {
   names(x@misc$new.membership) <- names(x@misc$membership)
   if (opt$dataMetacells == "logMean") {
     x <- ScaleData(x,features = rownames(x)) %>% RunPCA(reduction.name = 'pca')
-    
+
   } else {
     x <- NormalizeData(x, normalization.method = 'CLR', margin = 2) %>% ScaleData(features = rownames(x)) %>% RunPCA(reduction.name = 'pca')
   }
@@ -442,7 +442,7 @@ reference <- which(endsWith(names(pbmcMC_supL1.5.list),suffix = "_0"))
 
 print(reference)
 
-pbmc.anchors <- FindAnchors.STACAS(object.list = pbmcMC_supL1.5.list, 
+pbmc.anchors <- FindAnchors.STACAS(object.list = pbmcMC_supL1.5.list,
                                    anchor.features = features,
                                    scale.data = T,
                                    cell.labels = "label_integration",
@@ -460,7 +460,7 @@ Assays(pbmc.combined)
 
 
 rnaAssay = "RNA"
-pbmcMC_supL1.5.list <- lapply(X = pbmcMC_supL1.5.list, FUN = function(x) { 
+pbmcMC_supL1.5.list <- lapply(X = pbmcMC_supL1.5.list, FUN = function(x) {
   if (opt$dataMetacells == "logMean") {
     DefaultAssay(x) <- "RNA"
   } else {
@@ -482,7 +482,7 @@ pbmcMC_supL1.5.list <- lapply(X = pbmcMC_supL1.5.list, FUN = function(x) {
 
 
 
-pbmc.anchors <- FindAnchors.STACAS(object.list = pbmcMC_supL1.5.list, 
+pbmc.anchors <- FindAnchors.STACAS(object.list = pbmcMC_supL1.5.list,
                                    anchor.features = features,
                                    cell.labels = "label_integration",
                                    reference = reference,
@@ -505,8 +505,8 @@ Assays(pbmc.combined)
 
 DefaultAssay(pbmc.combined) <- 'integratedADT'
 # we will use all ADT features for dimensional reduction
-# we set a dimensional reduction name to avoid overwriting the 
-VariableFeatures(pbmc.combined) <- rownames(pbmc.combined[["integratedADT"]]) 
+# we set a dimensional reduction name to avoid overwriting the
+VariableFeatures(pbmc.combined) <- rownames(pbmc.combined[["integratedADT"]])
 pbmc.combined <- ScaleData(pbmc.combined)
 pbmc.combined <- RunPCA(pbmc.combined,reduction.name = "apca")
 
@@ -523,9 +523,9 @@ DimPlot(pbmc.combined,reduction = "adt.umap",group.by = "celltype.l1.5")
 
 
 pbmc.combined <- FindMultiModalNeighbors(
-  pbmc.combined, 
-  reduction.list = list("pca", "apca"), 
-  dims.list = list(opt$RNAcomp, opt$ADTcomp), 
+  pbmc.combined,
+  reduction.list = list("pca", "apca"),
+  dims.list = list(opt$RNAcomp, opt$ADTcomp),
   modality.weight.name = "RNA.weight",
   return.intermediate = T
 )
@@ -533,23 +533,3 @@ pbmc.combined <- RunUMAP(pbmc.combined, nn.name = "weighted.nn", reduction.name 
 pbmc.combined <- FindClusters(pbmc.combined, resolution = c(c(5:15)/10), graph.name = "wsnn", algorithm = 3)
 
 saveRDS(pbmc.combined, paste0(opt$outdir,"/seuratCombinedWNN.rds"))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

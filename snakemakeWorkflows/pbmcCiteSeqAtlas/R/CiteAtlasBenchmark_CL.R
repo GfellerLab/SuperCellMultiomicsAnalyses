@@ -1,7 +1,7 @@
 library(Seurat)
 library(dplyr)
 library(parallel)
-library(SuperCellMultiomics)
+library(SuperCell)
 library(scIntegrationMetrics)
 library(getopt)
 
@@ -18,7 +18,7 @@ spec = matrix(c(
 
 # opt <- list()
 #  setwd("../../../SuperCellMultiomicsAnalyses/")
-# 
+#
 # opt$inputSeurat <- "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm_mean//g20/seuratCombinedWNN.rds"
 # opt$inputSingleCells <- "output/pbmcCiteSeqAtlas/pbmc_cite_seq_atlas_filtered.rds"
 # opt$RNAnormalization <- "RNA"
@@ -37,7 +37,7 @@ if(is.null(opt$RNAmetacells)) {
 
 if(is.null(opt$SaveH5adFiles)) {
   opt$SaveH5adFiles <- FALSE
-  
+
 }
 
 
@@ -86,21 +86,21 @@ options(future.globals.maxSize = 50 * 1024 ^ 3) # for 50 Gb RAM
 
 
 if (opt$RNAnormalization != "SCT") {
-  
+
   DefaultAssay(pbmc) <- "RNA"
   if (class(pbmc[["RNA"]]) == "Assay5") {
     pbmc[["RNA"]] <- JoinLayers(pbmc[["RNA"]])
-  } 
-  
+  }
+
   VariableFeatures(pbmc) <- VariableFeatures(pbmc[[paste0('integrated',rna.assay)]])
-  pbmc <- ScaleData(pbmc) %>% 
-    RunPCA(reduction.name = "unintegrated_pca") %>% 
+  pbmc <- ScaleData(pbmc) %>%
+    RunPCA(reduction.name = "unintegrated_pca") %>%
     RunUMAP(reduction = "unintegrated_pca",dims = opt$RNAcomp,
             reduction.name = "unintegrated_rna.umap")
 } else {
   DefaultAssay(pbmc) <- "SCT"
   VariableFeatures(pbmc) <- VariableFeatures(pbmc[[paste0('integrated',rna.assay)]])
-  pbmc <- RunPCA(pbmc, verbose = F, reduction.name = "unintegrated_pca")  %>% 
+  pbmc <- RunPCA(pbmc, verbose = F, reduction.name = "unintegrated_pca")  %>%
     RunUMAP(reduction = "unintegrated_pca",dims = opt$RNAcomp,
             reduction.name = "unintegrated_rna.umap")
 }
@@ -108,7 +108,7 @@ if (opt$RNAnormalization != "SCT") {
 DefaultAssay(pbmc) <- "ADT"
 VariableFeatures(pbmc) <- VariableFeatures(pbmc[[paste0('integratedADT')]])
 pbmc <- ScaleData(pbmc)
-pbmc <- RunPCA(pbmc,reduction.name = "unintegrated_apca") %>% 
+pbmc <- RunPCA(pbmc,reduction.name = "unintegrated_apca") %>%
   RunUMAP(reduction = "unintegrated_apca",dims = opt$ADTcomp,
           reduction.name = "unintegrated_adt.umap")
 
@@ -144,14 +144,14 @@ metrics.celltype.l1.5 <-  parSapply(cl,c(names(dim.reds)),
                                                    pbmc,
                                                    dim.reds,
                                                    meta.data.sc.all){
-                                      
+
                                       library(scIntegrationMetrics)
                                       library(Seurat)
-                                      library(SuperCellMultiomics)
-                                      
+                                      library(SuperCell)
+
                                       #temporary fix on supercell_silhouette
                                       # source("config/SuperCellMultiomics/R/MetacellASW.R")
-                                      metrics <- SuperCellMultiomics:::getIntegrationMetricsMetacells(sobj.mc = pbmc,
+                                      metrics <- SuperCell:::getIntegrationMetricsMetacells(sobj.mc = pbmc,
                                                                                 bio.label.col = "celltype.l1.5",
                                                                                 batch.label.col = "orig.ident",
                                                                                 dims = dim.reds[[x]],
@@ -172,13 +172,13 @@ metrics.celltype.l2 <- parSapply(cl,c(names(dim.reds)),
                                                 pbmc,
                                                 dim.reds,
                                                 meta.data.sc.all){
-                                   
+
                                    library(scIntegrationMetrics)
                                    library(Seurat)
-                                   library(SuperCellMultiomics)
+                                   library(SuperCell)
                                    # source("config/SuperCellMultiomics/R/MetacellASW.R")
-                                   
-                                   metrics <- SuperCellMultiomics:::getIntegrationMetricsMetacells(sobj.mc = pbmc,
+
+                                   metrics <- SuperCell:::getIntegrationMetricsMetacells(sobj.mc = pbmc,
                                                                              bio.label.col = "celltype.l2",
                                                                              batch.label.col = "orig.ident",
                                                                              dims = dim.reds[[x]],
@@ -217,4 +217,3 @@ res.df$norm_cLISI <- unlist(res.df$norm_cLISI)
 res.all.sc <- rbind(metrics.celltype.l1.5,res.df)
 
 saveRDS(res.all.sc,paste0(opt$outdir,"/bench_res.rds"))
-

@@ -1,7 +1,7 @@
 library(Seurat)
 library(dplyr)
 library(getopt)
-library(SuperCellMultiomics)
+library(SuperCell)
 
 spec = matrix(c(
   'help',        'h', 0, "logical",   "Help about the program",
@@ -14,7 +14,7 @@ spec = matrix(c(
   "RNAnormalization", "r", 1, "character", "RNA normalisation method for integration  (default 'LogNormalize' or 'SCT' for SCTransform)",
   "RNAmetacells", "m", 1, "character", "RNA normalisation method for metacells identification (default 'LogNormalize' or 'SCT' for SCTransform)",
   "SaveH5adFiles", "f", 1, "logical", "Save H5ad files for the different modalities"
-  
+
 ), byrow=TRUE, ncol=5)
 
 # opt <- list()
@@ -83,11 +83,11 @@ gc()
 
 
 #Per sample metacell identification
-# 
+#
 # sampleNames <- c("P1_0","P2_0","P3_0","P4_0","P5_0","P6_0","P7_0","P8_0",
 #                   "P1_2","P2_2","P3_2","P4_2","P5_2","P6_2","P7_2","P8_2",
 #                   "P1_7","P2_7","P3_7","P4_7","P5_7","P6_7","P7_7","P8_7")
-# 
+#
 # samplePaths = paste0("output/correlationAnalyzis/CITEseq/",sampleNames,"/singlecells_analysis/seuratWNN.rds")
 
 pbmc$orig.ident <- paste0(pbmc$donor,"_",pbmc$time)
@@ -104,48 +104,48 @@ for (sampleName in sampleNames) {
   pbmc.smp <- pbmc[,pbmc$orig.ident == sampleName & pbmc$celltype.l2 != "Doublet"]
   DefaultAssay(pbmc.smp) <- 'ADT'
   # we will use all ADT features for dimensional reduction
-  # we set a dimensional reduction name to avoid overwriting the 
+  # we set a dimensional reduction name to avoid overwriting the
   VariableFeatures(pbmc.smp) <- rownames(pbmc.smp[["ADT"]])
-  pbmc.smp <- NormalizeData(pbmc.smp, normalization.method = 'CLR', margin = 2) %>% 
+  pbmc.smp <- NormalizeData(pbmc.smp, normalization.method = 'CLR', margin = 2) %>%
     ScaleData() %>% RunPCA(reduction.name = 'apca')
 
   DefaultAssay(pbmc.smp) <- "RNA"
-  
+
   if (opt$RNAmetacells == "LogNormalize") {
   pbmc.smp <- NormalizeData(pbmc.smp,normalization.method = "LogNormalize",assay = "RNA") %>% FindVariableFeatures() %>% ScaleData() %>% RunPCA()
 
   pbmcMC <- SCimplify_for_Seurat_v5(seurat = pbmc.smp,
                                  assay = c('RNA','ADT'),
-                                 reduction = list("pca", "apca"), 
+                                 reduction = list("pca", "apca"),
                                  dims = list(1:40, 1:50),
                                  graph.name = "knn",
                                  kernel = T,
                                  gamma = opt$gamma)
-  
+
   } else {
     pbmc.smp <-  SCTransform(pbmc.smp, verbose = FALSE,conserve.memory = TRUE) %>%
       RunPCA(verbose = FALSE)
-    
+
     pbmcMC <- SCimplify_for_Seurat_v5(seurat = pbmc.smp,
                                    assay = c('SCT','ADT'),
-                                   reduction = list("pca", "apca"), 
+                                   reduction = list("pca", "apca"),
                                    dims = list(1:40, 1:50),
                                    graph.name = "knn",
                                    kernel = T,
                                    gamma = opt$gamma)
   }
-  
-  
+
+
   remove(pbmc.smp)
   if (length(unique(pbmc$orig.ident)) > 1) {
     pbmc <- pbmc[,pbmc$orig.ident != sampleName]
   }
-  gc() 
-  
+  gc()
+
   pbmc.list[[sampleName]] <- pbmcMC
-  
-  
-  
+
+
+
 }
 
 # integration of ADT data
@@ -168,8 +168,8 @@ reference <- which(endsWith(names(pbmc.list),suffix = "_0"))
 print(reference)
 
 
-pbmc.anchors <- FindIntegrationAnchors(object.list = pbmc.list, 
-                                       anchor.features = features, 
+pbmc.anchors <- FindIntegrationAnchors(object.list = pbmc.list,
+                                       anchor.features = features,
                                        reduction = "rpca",
                                        reference = reference,
                                        dims = opt$ADTcomp)
@@ -200,9 +200,9 @@ if (opt$RNAnormalization != "SCT") {
   pbmc.list <- lapply(X = pbmc.list, FUN = function(x) {
     x <- RunPCA(x, features = features, verbose = FALSE)
   })
-  
+
   pbmc.list <- PrepSCTIntegration(object.list = pbmc.list, anchor.features = features)
-  
+
 }
 
 # select features that are repeatedly variable across datasets for integration run PCA on each
@@ -210,8 +210,8 @@ if (opt$RNAnormalization != "SCT") {
 
 
 
-pbmc.anchors <- FindIntegrationAnchors(object.list = pbmc.list, 
-                                       anchor.features = features, 
+pbmc.anchors <- FindIntegrationAnchors(object.list = pbmc.list,
+                                       anchor.features = features,
                                        reduction = "rpca",
                                        reference = reference,
                                        normalization.method = opt$RNAnormalization,
@@ -234,8 +234,8 @@ Assays(pbmc.combined)
 
 DefaultAssay(pbmc.combined) <- 'integratedADT'
 # we will use all ADT features for dimensional reduction
-# we set a dimensional reduction name to avoid overwriting the 
-VariableFeatures(pbmc.combined) <- rownames(pbmc.combined[["integratedADT"]]) 
+# we set a dimensional reduction name to avoid overwriting the
+VariableFeatures(pbmc.combined) <- rownames(pbmc.combined[["integratedADT"]])
 pbmc.combined <- ScaleData(pbmc.combined)
 pbmc.combined <- RunPCA(pbmc.combined,reduction.name = "apca")
 
@@ -257,9 +257,9 @@ if (opt$RNAnormalization == "SCT") {
 # }
 
 pbmc.combined <- FindMultiModalNeighbors(
-  pbmc.combined, 
-  reduction.list = list("pca", "apca"), 
-  dims.list = list(opt$RNAcomp, opt$ADTcomp), 
+  pbmc.combined,
+  reduction.list = list("pca", "apca"),
+  dims.list = list(opt$RNAcomp, opt$ADTcomp),
   modality.weight.name = "RNA.weight",
   return.intermediate = T
 )
@@ -270,4 +270,3 @@ pbmc.combined <- FindClusters(pbmc.combined, resolution = c(c(5:15)/10), graph.n
 
 
 saveRDS(pbmc.combined, paste0(opt$outdir,"/seuratCombinedWNN.rds"))
-

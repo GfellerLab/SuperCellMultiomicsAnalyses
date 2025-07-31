@@ -25,7 +25,7 @@ opt = getopt(spec)
 # opt$fragmentFile <- "~/Documents/multiomicsMetacells/multiome_PBMC_data/fragments_files/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
 # opt$inputSeurat <- "pbmcMultiome"
 # opt$outdir <- "output/correlationAnalyzis/pbmcMultiome/singlecell_analysis"
-# frag.file <- opt$fragmentFile 
+# frag.file <- opt$fragmentFile
 # opt$RNAcomp <- "1:50"
 # opt$ATACcomp <- "2:50"
 # opt$minCutOff <- "q0"
@@ -33,12 +33,12 @@ opt = getopt(spec)
 
 if(is.null(opt$diffMap)) {
   opt$diffMap <- F
-  
+
 }
 
 if(is.null(opt$RNAnormalization)) {
   opt$RNAnormalization <- "logNormalize"
-  
+
 }
 
 
@@ -65,7 +65,7 @@ if (is.null(opt$outdir)) {
 print(opt)
 
 dir.create(opt$outdir,recursive = T,showWarnings = F)
-
+options(future.globals.maxSize = 2000 * 1024^2) 
 
 pbmc <- readRDS(opt$inputSeurat)
 pbmc$orig.ident <- paste0(pbmc$donor,"_",pbmc$time)
@@ -81,18 +81,18 @@ gc()
 
 DefaultAssay(pbmc) <- 'ADT'
 # we will use all ADT features for dimensional reduction
-# we set a dimensional reduction name to avoid overwriting the 
+# we set a dimensional reduction name to avoid overwriting the
 VariableFeatures(pbmc) <- rownames(pbmc[["ADT"]])
-pbmc <- NormalizeData(pbmc, normalization.method = 'CLR', margin = 2) %>% 
+pbmc <- NormalizeData(pbmc, normalization.method = 'CLR', margin = 2) %>%
   ScaleData() %>% RunPCA(reduction.name = 'apca')
 
 # DefaultAssay(pbmc) <- 'RNA'
-# 
+#
 
 DefaultAssay(pbmc) <- "RNA"
 if (opt$RNAnormalization == "SCT") {
   rnaAssay = "SCT"
-  pbmc <- SCTransform(pbmc, verbose = FALSE) %>% RunPCA() 
+  pbmc <- SCTransform(pbmc, verbose = FALSE) %>% RunPCA()
 } else {
   rnaAssay = "RNA"
   pbmc <- NormalizeData(pbmc,normalization.method = "LogNormalize",assay = "RNA") %>% FindVariableFeatures() %>% ScaleData() %>% RunPCA()
@@ -108,15 +108,15 @@ if (opt$RNAnormalization == "SCT") {
 # system(command = paste0("rm -f ",paste0(opt$outdir,"/seurat.h5Seurat")))
 
 pbmc <- FindMultiModalNeighbors(
-  pbmc, 
-  reduction.list = list("pca", "apca"), 
-  dims.list = list(opt$RNAcomp, opt$ADTcomp), 
+  pbmc,
+  reduction.list = list("pca", "apca"),
+  dims.list = list(opt$RNAcomp, opt$ADTcomp),
   modality.weight.name = "RNA.weight",
   return.intermediate = T
 )
 pbmc <- RunUMAP(pbmc, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_")
 
-pdf(file = paste0(opt$outdir,"/pbmc_Cite_wnn_umap.pdf")) 
+pdf(file = paste0(opt$outdir,"/pbmc_Cite_wnn_umap.pdf"))
 DimPlot(pbmc,reduction = "wnn.umap", group.by = 'celltype.l1')
 DimPlot(pbmc,reduction = "wnn.umap", group.by = 'celltype.l2')
 dev.off()
@@ -130,13 +130,12 @@ if(opt$diffMap) {
   pca_diffusion_comp <- get_diffusion_comp(sc.obj = pbmc, dims = opt$RNAcomp)
   colnames(pca_diffusion_comp) <- c(1:ncol(pca_diffusion_comp))
   pca_diffusion_comp <-  as.matrix(pca_diffusion_comp)
-  pbmc[["pca_diffusion"]] <- CreateDimReducObject(embeddings = pca_diffusion_comp,assay = "RNA",key = "DM_") 
-  
+  pbmc[["pca_diffusion"]] <- CreateDimReducObject(embeddings = pca_diffusion_comp,assay = "RNA",key = "DM_")
+
   apca_diffusion_comp <- get_diffusion_comp(sc.obj = pbmc, dims = opt$ADTcomp,sc.reduction = "apca")
   colnames(apca_diffusion_comp) <- c(1:ncol(apca_diffusion_comp))
   apca_diffusion_comp <-  as.matrix(apca_diffusion_comp)
-  pbmc[["apca_diffusion"]] <- CreateDimReducObject(embeddings = apca_diffusion_comp,assay = "ADT",key = "ADM_") 
+  pbmc[["apca_diffusion"]] <- CreateDimReducObject(embeddings = apca_diffusion_comp,assay = "ADT",key = "ADM_")
 }
 
 saveRDS(pbmc, paste0(opt$outdir,"/seuratWNN.rds"))
-
