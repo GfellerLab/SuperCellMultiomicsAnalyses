@@ -15,7 +15,7 @@
     mem : "64000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-  
+
   create_jaspar_2024_human_pfm:
     cpus-per-task : "4"
     N : "1"
@@ -26,7 +26,7 @@
     mem : "16000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-  
+
   singlecells_macs2_peak_calling_pbmc_multiome:
     cpus-per-task : "4"
     N : "1"
@@ -37,7 +37,7 @@
     mem : "16000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   install_seurat_pbmcmultiome:
     cpus-per-task : "4"
     N : "1"
@@ -48,7 +48,7 @@
     mem : "16000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   cite_atlas_singlecells_SCT_seuratRPCA_SCT:
     cpus-per-task : "20"
     N : "1"
@@ -59,7 +59,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   bench_cite_atlas_singlecells_SCT_seuratRPCA_SCT:
     cpus-per-task : "16"
     N : "1"
@@ -70,7 +70,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-  
+
   cite_atlas_integrated_wnn_analyzis:
     cpus-per-task : "20"
     N : "1"
@@ -81,7 +81,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   atacRnaCorrMetacellAnalysis:
     cpus-per-task : "18"
     N : "1"
@@ -92,7 +92,7 @@
     mem : "200000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   benchmark_and_correlations:
     cpus-per-task : "18"
     N : "1"
@@ -103,7 +103,7 @@
     mem : "200000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   atacRnaCorrRandomMetacellAnalysis:
     cpus-per-task : "18"
     N : "1"
@@ -114,8 +114,8 @@
     mem : "200000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
-    
+
+
   atacRnaCorrSingleCellAnalysis_hspc:
     cpus-per-task : "18"
     N : "1"
@@ -126,7 +126,7 @@
     mem : "128000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-  
+
   atacRnaCorrSingleCellAnalysis:
     cpus-per-task : "18"
     N : "1"
@@ -137,7 +137,7 @@
     mem : "128000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   rarePopDetectionGamma_mixology:
     cpus-per-task : "24"
     N : "1"
@@ -148,7 +148,7 @@
     mem : "256000"
     output : "cluster/snakemake/{wildcards.cellType}_{rule}.output"
     error : "cluster/snakemake/{wildcards.cellType}_{rule}.error"
-  
+
   rarePopDetectionSize_mixology:
     cpus-per-task : "24"
     N : "1"
@@ -159,7 +159,7 @@
     mem : "256000"
     output : "cluster/snakemake/{wildcards.cellType}_{rule}.output"
     error : "cluster/snakemake/{wildcards.cellType}_{rule}.error"
-    
+
   rarePopDetectionSize_mixology_k5:
     cpus-per-task : "24"
     N : "1"
@@ -170,7 +170,7 @@
     mem : "256000"
     output : "cluster/snakemake/{wildcards.cellType}_{rule}.output"
     error : "cluster/snakemake/{wildcards.cellType}_{rule}.error"
-    
+
   rarePopDetectionSize_bm_cite_seq:
     cpus-per-task : "24"
     N : "1"
@@ -181,7 +181,7 @@
     mem : "256000"
     output : "cluster/snakemake/{wildcards.BMcellType}_{rule}.output"
     error : "cluster/snakemake/{wildcards.BMcellType}_{rule}.error"
-    
+
   rarePopDetectionGamma_bm_cite_seq:
     cpus-per-task : "24"
     N : "1"
@@ -192,7 +192,7 @@
     mem : "256000"
     output : "cluster/snakemake/{wildcards.BMcellType}_{rule}.output"
     error : "cluster/snakemake/{wildcards.BMcellType}_{rule}.error"
-    
+
   rarePopDetectionSize_pbmc_multiome:
     cpus-per-task : "24"
     N : "1"
@@ -203,7 +203,7 @@
     mem : "256000"
     output : "cluster/snakemake/{wildcards.PBMCcellType}_{rule}.output"
     error : "cluster/snakemake/{wildcards.PBMCcellType}_{rule}.error"
-    
+
   rarePopDetectionGamma_pbmc_multiome:
     cpus-per-task : "24"
     N : "1"
@@ -224,7 +224,7 @@
     account : "dgfeller_scrnaseq"
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
-    error : "cluster/snakemake/{rule}.error"    
+    error : "cluster/snakemake/{rule}.error"
 
   seuratRPCA_SC:
     cpus-per-task : "20"
@@ -236,7 +236,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   seuratTreeRPCA_SC:
     cpus-per-task : "20"
     N : "1"
@@ -258,7 +258,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   seuratTreeCCA_SC:
     cpus-per-task : "20"
     N : "1"
@@ -269,7 +269,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   seuratTreeCCA_subsc:
     cpus-per-task : "20"
     N : "1"
@@ -291,7 +291,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-  
+
   superCellOnConditionStack:
     cpus-per-task : "20"
     N : "1"
@@ -324,7 +324,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   integrationTree_conditionStackSC:
     cpus-per-task : "10"
     N : "1"
@@ -357,7 +357,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   seuratTreeRPCA_sc:
     cpus-per-task : "20"
     N : "1"
@@ -367,7 +367,7 @@
     account : "dgfeller_scrnaseq"
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
-    error : "cluster/snakemake/{rule}.error"  
+    error : "cluster/snakemake/{rule}.error"
 
   STACAS_sc:
     cpus-per-task : "20"
@@ -379,7 +379,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   treeSTACAS_sc:
     cpus-per-task : "20"
     N : "1"
@@ -390,7 +390,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   STACAS_subsc:
     cpus-per-task : "20"
     N : "1"
@@ -401,7 +401,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   treeSTACAS_subsc:
     cpus-per-task : "20"
     N : "1"
@@ -423,7 +423,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   seuratTreeRPCA_subsc:
     cpus-per-task : "20"
     N : "1"
@@ -445,7 +445,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   seuratTreeRPCA_subsc:
     cpus-per-task : "20"
     N : "1"
@@ -467,7 +467,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   treeSTACAS_SC:
     cpus-per-task : "20"
     N : "1"
@@ -524,7 +524,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   controle_cluster_stackTree:
     cpus-per-task : "20"
     N : "1"
@@ -535,7 +535,7 @@
     mem : "500000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   download_raw_data_velocity_humanBrain:
     cpus-per-task : "1"
     N : "1"
@@ -546,7 +546,7 @@
     mem : "8000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   download_raw_data_velocity_humanHSPC:
     cpus-per-task : "1"
     N : "1"
@@ -557,7 +557,7 @@
     mem : "16000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   accelerated_multivelo:
     cpus-per-task : "24"
     N : "1"
@@ -568,7 +568,7 @@
     mem : "64000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   singleCell_multivelo:
     cpus-per-task : "24"
     N : "1"
@@ -579,7 +579,7 @@
     mem : "64000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   RNA_object_construction:
     cpus-per-task : "24"
     N : "1"
@@ -590,7 +590,7 @@
     mem : "128000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-  
+
   ATAC_object_construction:
     cpus-per-task : "24"
     N : "1"
@@ -601,7 +601,7 @@
     mem : "256000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   ATAC_RNA_integration:
     cpus-per-task : "24"
     N : "1"
@@ -612,7 +612,7 @@
     mem : "256000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-  
+
   Integrating_metacells_RNA_ATAC_prostateCancer:
     cpus-per-task : "24"
     N : "1"
@@ -623,7 +623,7 @@
     mem : "256000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   Integrating_metacells_RNA_ATAC_prostateCancer_macs2_peak_set:
     cpus-per-task : "24"
     N : "1"
@@ -634,7 +634,7 @@
     mem : "256000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   Integrating_metacells_RNA_ATAC_prostateCancer_gamma_5:
     cpus-per-task : "24"
     N : "1"
@@ -645,7 +645,7 @@
     mem : "256000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   Integrating_metacells_RNA_ATAC_prostateCancer_SCT:
     cpus-per-task : "24"
     N : "1"
@@ -667,7 +667,7 @@
     mem : "64000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   metacell_identification_bm_seacellsRNA:
     cpus-per-task : "12"
     N : "1"
@@ -678,7 +678,7 @@
     mem : "64000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   metacellPerSample_macs2_peak_set:
     cpus-per-task : "24"
     N : "1"
@@ -689,7 +689,7 @@
     mem : "128000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   seurat_integration_sup_metacells_covid_Ren:
     cpus-per-task : "24"
     N : "1"
@@ -700,7 +700,7 @@
     mem : "256000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   stacas_integration_sup_metacells_covid_Ren:
     cpus-per-task : "24"
     N : "1"
@@ -711,7 +711,7 @@
     mem : "256000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   peak_calling_all_major_type:
     cpus-per-task : "12"
     N : "1"
@@ -733,7 +733,7 @@
     mem : "256000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   grnboost_rna:
     cpus-per-task : "16"
     N : "1"
@@ -743,8 +743,8 @@
     account : "dgfeller_scrnaseq"
     mem : "200000"
     output : "cluster/snakemake/{rule}.output"
-    error : "cluster/snakemake/{rule}.error"    
-    
+    error : "cluster/snakemake/{rule}.error"
+
   prune_modules_with_cis_target_rna:
     cpus-per-task : "16"
     N : "1"
@@ -754,8 +754,8 @@
     account : "dgfeller_scrnaseq"
     mem : "200000"
     output : "cluster/snakemake/{rule}.output"
-    error : "cluster/snakemake/{rule}.error"    
-  
+    error : "cluster/snakemake/{rule}.error"
+
   prune_modules_with_cis_target_rna_sc:
     cpus-per-task : "16"
     N : "1"
@@ -765,8 +765,8 @@
     account : "dgfeller_scrnaseq"
     mem : "200000"
     output : "cluster/snakemake/{rule}.output"
-    error : "cluster/snakemake/{rule}.error"    
-    
+    error : "cluster/snakemake/{rule}.error"
+
   linger_global_grn_original:
     cpus-per-task : "12"
     N : "1"
@@ -777,8 +777,8 @@
     mem : "64000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
-    
+
+
   linger_global_grn_supercell_sup:
     cpus-per-task : "12"
     N : "1"
@@ -789,7 +789,7 @@
     mem : "64000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   linger_global_grn_supercell_unsup:
     cpus-per-task : "12"
     N : "1"
@@ -800,7 +800,7 @@
     mem : "64000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   linger_global_grn_supercell_adaptiveSqrtGamma_sup:
     cpus-per-task : "12"
     N : "1"
@@ -811,7 +811,7 @@
     mem : "64000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   linger_global_grn_unsup_linger_metacell:
     cpus-per-task : "12"
     N : "1"
@@ -822,7 +822,7 @@
     mem : "64000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   linger_global_grn_supercellAvg_unsup:
     cpus-per-task : "12"
     N : "1"
@@ -833,7 +833,7 @@
     mem : "64000"
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
-    
+
   linger_global_grn_supercellAvg_adaptiveSqrtGamma_sup:
     cpus-per-task : "12"
     N : "1"
@@ -845,3 +845,201 @@
     output : "cluster/snakemake/{rule}.output"
     error : "cluster/snakemake/{rule}.error"
 
+  GA_computation_mc:
+    cpus-per-task : "10"
+    N : "1"
+    time : "10:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 200000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+
+  GA_computation_sc:
+    cpus-per-task : "10"
+    N : "1"
+    time : "10:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 200000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+
+  GA_computation_mc_hspc:
+    cpus-per-task : "10"
+    N : "1"
+    time : "10:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 200000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+
+  GA_computation_sc_hspc:
+    cpus-per-task : "10"
+    N : "1"
+    time : "10:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 200000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+
+  GA_computation_randomMC_hspc:
+    cpus-per-task : "10"
+    N : "1"
+    time : "10:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 200000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+
+  GA_computation_randomMC_pbmc_multiome:
+    cpus-per-task : "10"
+    N : "1"
+    time : "10:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 200000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+
+  atacRnaSinglecellAnalysis:
+    cpus-per-task : "10"
+    N : "1"
+    time : "10:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 200000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+
+  atacRnaMetacellAnalysis:
+    cpus-per-task : "10"
+    N : "1"
+    time : "5:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 200000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+
+
+  atacRnaMetacellAnalysis_random:
+    cpus-per-task : "10"
+    N : "1"
+    time : "5:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 200000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+
+
+  atacRnaSinglecellAnalysis_hspc:
+    cpus-per-task : "10"
+    N : "1"
+    time : "10:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 200000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+
+  atacRnaMetacellAnalysis_hspc:
+    cpus-per-task : "10"
+    N : "1"
+    time : "5:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 200000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+
+  data_aggregation_hspc_SuperCellMulti:
+    cpus-per-task : "10"
+    N : "1"
+    time : "7:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 200000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+
+  metacell_identification_hspc_multiome:
+    cpus-per-task : "10"
+    N : "1"
+    time : "5:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 64000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+
+  mc_metrics_computation:
+    cpus-per-task : "1"
+    N : "1"
+    time : "1:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 30000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+  mc_metrics_computation_hspc:
+    cpus-per-task : "1"
+    N : "1"
+    time : "1:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 30000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+
+  pando_sc_hspc:
+    cpus-per-task : "10"
+    N : "1"
+    time : "5:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 64000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+
+  pando_sc_pbmc:
+    cpus-per-task : "10"
+    N : "1"
+    time : "5:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 64000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
+
+  pando_mc_pbmc:
+    cpus-per-task : "10"
+    N : "1"
+    time : "5:00:00"
+    name : "{rule}"
+    partition : "cpu"
+    account : "dgfeller_scrnaseq"
+    mem : 64000
+    output : "cluster/snakemake/{rule}.output"
+    error : "cluster/snakemake/{rule}.error"
