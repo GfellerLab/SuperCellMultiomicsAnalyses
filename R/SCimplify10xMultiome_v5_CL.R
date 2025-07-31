@@ -1,8 +1,10 @@
+library(reticulate)
+use_python("/opt/conda/envs/MetacellAnalysisToolkit/bin/python", required = TRUE)
 library(SeuratData)
 library(Seurat)
 library(Signac)
 library(dplyr)
-library(EnsDb.Hsapiens.v86)
+# library(EnsDb.Hsapiens.v86)
 library(BSgenome.Hsapiens.UCSC.hg38)
 library(SuperCell)
 library(getopt)
@@ -30,24 +32,6 @@ spec = matrix(c(
 
 opt = getopt(spec)
 
-
-# if help was asked, print a friendly message
-# and exit with a non-zero error code
-# test
-# opt <- list()
-# opt$aggregateFragmentfile <-T
-# opt$inputSeurat <- "output/correlationAnalyzis/pbmcMultiome/singlecells_analysis/seuratWNN.rds"
-# opt$outdir <- "output/correlationAnalyzis/pbmcMultiome/randomMetacells/"
-# opt$RNAcomp <- "1:50"
-# opt$ATACcomp <- "2:50"
-# opt$kernel <- TRUE
-# opt$aggregateFragmentfile <- TRUE
-# opt$gamma <- 50
-# opt$k.wnn <- 30
-# opt$randomMetacells = T
-#outputDirMcFragment <- "~/work/SuperCellMultiomicsAnalyses/input/pbmcMultiome/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
-#fragmentFiles <- list()
-#fragmentFiles[["ATAC"]] <- "~/work/SuperCellMultiomicsAnalyses/input/pbmcMultiome/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
 
 if(is.null(opt$returnMembership)) {
   return.seurat <- T
@@ -146,7 +130,13 @@ if (is.null(opt$inputSeuratMetacell)) {
     randomMemberships <-sample(c(randomMC, sample(randomMC, ncol(seurat)-length(randomMC), replace=TRUE)))
     names(randomMemberships) <- colnames(seurat)
     randomMemberships.v5 <- paste0("Metacell_",randomMemberships)
-    names(randomMemberships.v5) <- names(randomMemberships)
+
+    if(opt$aggregateFragmentfile) {
+      cell.names.fragments <- Fragments(seurat)[[1]]@cells
+      names(randomMemberships.v5) <- cell.names.fragments[names(randomMemberships)]
+    } else {
+      names(randomMemberships.v5) <- names(randomMemberships)
+    }
 
     seurat.mc.multi <- SCimplify_for_Seurat_v5(seurat = seurat,
                                                membership=randomMemberships)
@@ -185,7 +175,13 @@ if (is.null(opt$inputSeuratMetacell)) {
 
 
     memberships.v5 <- paste0("Metacell_",memberships)
-    names(memberships.v5) <- names(memberships)
+
+    if(opt$aggregateFragmentfile) {
+      cell.names.fragments <- Fragments(seurat)[[1]]@cells
+      names(memberships.v5) <- cell.names.fragments[names(memberships)]
+    } else {
+      names(memberships.v5) <- names(memberships)
+    }
 
     mc.frag.path <- AggregateFragmentFile(input_file = fragmentFiles[["ATAC"]],
                                           tmp_path =paste0(opt$outdir,"/tmp/"),
