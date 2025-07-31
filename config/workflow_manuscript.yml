@@ -1,0 +1,40 @@
+description: |
+  This config file works with the Snakefile_final workflow 10X data
+
+author: "Leonard Herault"
+
+sif_file: "/scratch/agabrie4/supercell_v2/manuscript_results/SuperCellMultiomicsAnalyses/config/supercell_multiomics_v2.sif"
+singularity_prefix: "/scratch/agabrie4/supercell_v2/manuscript_results/SuperCellMultiomicsAnalyses/"
+
+seuratDatasets : ["bmcite","pbmcMultiome"]
+
+GAMMA : ["10","20","50","75","100","200"]
+pando_method_mc : ["aggregate", "LSI1_norm", "LSI1_norm_svy", "LSI2_norm", "LSI2_norm_svy", "meanSC_norm", "meanSC_norm_svy"]
+pando_method_sc : ["sc"]
+
+
+pbmcCiteSeqAtlas:
+  GAMMA : ["20"]
+  samples : ["P1_0","P2_0","P3_0","P4_0","P5_0","P6_0","P7_0","P8_0"]
+  #samples : ["P1_0"]
+  # methods : ["SuperCellMulti","SuperCellRNA", "SuperCellADT", "seacellsRNA", "seacellsADT","MetaCellRNA","randomMetacells"]
+  methods : ["SuperCellMulti","randomMetacells"]
+
+dir:
+  base: "/scratch/lheraul1/SuperCellMultiomicsAnalyses"
+  inputData: "/work/FAC/FBM/LLB/dgfeller/scrnaseq/lherault/SuperCellMultiomicsAnalyses" #Modify to dir path with results form workflow of herault et al, 2021
+
+pbmcMultiome:
+  fragmentFile: "https://cf.10xgenomics.com/samples/cell-arc/2.0.0/pbmc_granulocyte_sorted_10k/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
+  genome: "hg38"
+
+hspcMultiomePersad:
+  genome: "hg38"
+
+urlHspcMultiomePersad:
+  urlFragmentFileRep1: "https://zenodo.org/records/6383269/files/BM_CD34_Rep1_atac_fragments.tsv.gz"
+  urlFraglentFileIndexRep1: "https://zenodo.org/records/6383269/files/BM_CD34_Rep1_atac_fragments.tsv.gz.tbi"
+  urlFragmentFileRep2: "https://zenodo.org/records/6383269/files/BM_CD34_Rep2_atac_fragments.tsv.gz"
+  urlFraglentFileIndexRep2: "https://zenodo.org/records/6383269/files/BM_CD34_Rep2_atac_fragments.tsv.gz.tbi?"
+  urlAnndataATAC: "https://zenodo.org/records/6383269/files/cd34_multiome_atac.h5ad"
+  urlAnndataRNA: "https://zenodo.org/records/6383269/files/cd34_multiome_rna.h5ad"
