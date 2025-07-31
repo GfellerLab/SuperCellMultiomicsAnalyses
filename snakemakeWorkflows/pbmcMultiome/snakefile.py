@@ -17,7 +17,7 @@ rule download_fragment_file_pbmc_multiome:
 rule install_seurat_pbmcmultiome:
   input : frags =  "input/pbmcMultiome/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"
   output: "input/pbmcMultiome/pbmcMultiome_broad_peaks.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   shell: "Rscript -e 'library(Seurat);\
                       library(Seurat);library(Signac);\
                       library(dplyr);library(EnsDb.Hsapiens.v86);\
@@ -49,7 +49,7 @@ rule install_seurat_pbmcmultiome:
 rule singlecells_macs2_peak_calling_pbmc_multiome:
   input: "input/pbmcMultiome/pbmcMultiome_broad_peaks.rds"
   output: "input/pbmcMultiome/pbmcMultiome.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   shell: """
          Rscript snakemakeWorkflows/pbmcMultiome/R/macs2PeakCallingCL.R \
           -i {input} \
@@ -59,7 +59,7 @@ rule singlecells_macs2_peak_calling_pbmc_multiome:
 rule singlecells_rna_pca_analysis_pbmc_multiome:
   input:  dataset=  "input/pbmcMultiome/pbmcMultiome.rds"
   output: "output/pbmcMultiome/singlecells_analysis/seurat.RNA.h5ad"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   benchmark: "benchmark/pbmcMultiome/singlecells_analysis/seurat.RNA.txt"
   shell: "Rscript R/RNA_pca_analysis10xMultiomeCL.R -i {input.dataset}  \
           -o output/pbmcMultiome/singlecells_analysis \
@@ -70,7 +70,7 @@ rule singlecells_atac_lsi_analysis_pbmc_multiome:
          index = "input/pbmcMultiome/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz.tbi",
          dataset=  "input/pbmcMultiome/pbmcMultiome.rds"
   output: "output/pbmcMultiome/singlecells_analysis/seurat.ATAC.h5ad",
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   benchmark: "benchmark/pbmcMultiome/singlecells_analysis/seurat.ATAC.txt"
   shell: "Rscript R/ATAC_lsi_analysis10xMultiomeCL.R -i {input.dataset}\
           -f {input.fragment} \
@@ -81,7 +81,7 @@ rule preprocessing_supercell_pbmc_multiome:
         index = "input/pbmcMultiome/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz.tbi",
         dataset=  "input/pbmcMultiome/pbmcMultiome.rds"
   output: "output/pbmcMultiome/singlecells_analysis/seurat_multimodal.rds",
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   benchmark: "benchmark/pbmcMultiome/singlecells_analysis/seurat_multimodal.txt"
   shell: "Rscript R/preprocessing_seurat_for_SuperCell_10xMultiomeCL.R -i {input.dataset} -f {input.fragment} \
           -o output/pbmcMultiome/singlecells_analysis \
@@ -92,7 +92,7 @@ rule wnn_single_cell_pbmc_multiome:
         index = "input/pbmcMultiome/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz.tbi",
         dataset=  "input/pbmcMultiome/pbmcMultiome.rds"
   output: "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds",
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: python = "/opt/conda/envs/MetacellAnalysisToolkit/bin/python3.9"
   benchmark: "benchmark/pbmcMultiome/singlecells_analysis/seuratWNN.txt"
   shell: "Rscript R/wnnAnalysis10xMultiomeCL.R -i {input.dataset} -f {input.fragment} \
@@ -105,7 +105,7 @@ rule metacell_identification_pbmc_multiome:
   input:
         singlecells = "output/pbmcMultiome/singlecells_analysis/seurat_multimodal.rds"
   output: "output/pbmcMultiome/SuperCellMulti/g{gamma}/SuperCellMemberships.csv"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: workdir = wdir
   benchmark :  "benchmark/pbmcMultiome/SuperCellMulti/g{gamma}/seurat.multiome.mc.txt"
   shell: "export PATH={params.workdir}/config/bin/htslib-1.16/bin:$PATH;\
@@ -118,7 +118,7 @@ rule data_aggregation_pbmc_SuperCellMulti:
         singlecells = "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds",
         memberships = "output/pbmcMultiome/SuperCellMulti/g{gamma}/SuperCellMemberships.csv"
   output: "output/pbmcMultiome/SuperCellMulti/g{gamma}/seurat.multiome.mc.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: workdir = wdir
   shell: "export PATH={params.workdir}/config/bin/htslib-1.16/bin:$PATH;\
           Rscript R/SCimplify10xMultiome_v5_CL.R -i {input.singlecells} -c {input.memberships} \
@@ -129,7 +129,7 @@ rule metacell_identification_pbmc_RNA:
   input:
         singlecells = "output/pbmcMultiome/singlecells_analysis/seurat.RNA.h5ad"
   output: "output/pbmcMultiome/SuperCellRNA/g{gamma}/SuperCellMemberships.csv"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: workdir = wdir
   benchmark : "benchmark/pbmcMultiome/SuperCellRNA/g{gamma}/seurat.multiome.mc.txt"
   shell: "export PATH={params.workdir}/config/bin/htslib-1.16/bin:$PATH;\
@@ -142,7 +142,7 @@ rule data_aggregation_pbmc_SuperCellRNA:
         singlecells = "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds",
         memberships = "output/pbmcMultiome/SuperCellRNA/g{gamma}/SuperCellMemberships.csv"
   output: "output/pbmcMultiome/SuperCellRNA/g{gamma}/seurat.multiome.mc.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: workdir = wdir
   shell: "export PATH={params.workdir}/config/bin/htslib-1.16/bin:$PATH;\
           Rscript R/SCimplify10xMultiome_v5_CL.R -i {input.singlecells} -c {input.memberships} \
@@ -153,7 +153,7 @@ rule metacell_identification_pbmc_ATAC:
   input:
         singlecells = "output/pbmcMultiome/singlecells_analysis/seurat.ATAC.h5ad"
   output: "output/pbmcMultiome/SuperCellATAC/g{gamma}/SuperCellMemberships.csv"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: workdir = wdir
   benchmark : "benchmark/pbmcMultiome/SuperCellATAC/g{gamma}/seurat.multiome.mc.txt"
   shell: "export PATH={params.workdir}/config/bin/htslib-1.16/bin:$PATH;\
@@ -166,7 +166,7 @@ rule data_aggregation_pbmc_SuperCellATAC:
         singlecells = "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds",
         memberships = "output/pbmcMultiome/SuperCellATAC/g{gamma}/SuperCellMemberships.csv"
   output: "output/pbmcMultiome/SuperCellATAC/g{gamma}/seurat.multiome.mc.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: workdir = wdir
   shell: "export PATH={params.workdir}/config/bin/htslib-1.16/bin:$PATH;\
           Rscript R/SCimplify10xMultiome_v5_CL.R -i {input.singlecells} -c {input.memberships} \
@@ -177,7 +177,7 @@ rule metacell_identification_pbmc_seacellsRNA:
   input:
         singlecells = "output/pbmcMultiome/singlecells_analysis/seurat.RNA.h5ad"
   output: "output/pbmcMultiome/seacellsRNA/g{gamma}/seacellMemberships.csv"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   benchmark:"benchmark/pbmcMultiome/seacellsRNA/g{gamma}/seacellMemberships.txt"
   shell: "python3 python/SEACellsCL.py -i {input.singlecells} \
           -o output/pbmcMultiome/seacellsRNA/g{wildcards.gamma}/ \
@@ -188,7 +188,7 @@ rule data_aggregation_pbmc_seacellsRNA:
         singlecells = "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds",
         memberships = "output/pbmcMultiome/seacellsRNA/g{gamma}/seacellMemberships.csv"
   output: "output/pbmcMultiome/seacellsRNA/g{gamma}/seurat.multiome.mc.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: workdir = wdir
   shell: "export PATH={params.workdir}/config/bin/htslib-1.16/bin:$PATH;\
           Rscript R/SCimplify10xMultiome_v5_CL.R -i {input.singlecells} -c {input.memberships} \
@@ -201,7 +201,7 @@ rule metacell_identification_pbmc_MetaCellRNA:
         singlecells = "output/pbmcMultiome/singlecells_analysis/seurat.RNA.h5ad"
   output: "output/pbmcMultiome/MetaCellRNA/g{gamma}/MetaCellMemberships.csv"
   benchmark: "benchmark/pbmcMultiome/MetaCellRNA/g{gamma}/MetaCellMemberships.txt"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   shell: "python3 python/MATK_MetaCell2CL.py -i {input.singlecells} \
           -o output/pbmcMultiome/MetaCellRNA/g{wildcards.gamma}/ \
           -g {wildcards.gamma}"
@@ -211,7 +211,7 @@ rule data_aggregation_pbmc_MetaCellRNA:
         singlecells = "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds",
         memberships = "output/pbmcMultiome/MetaCellRNA/g{gamma}/MetaCellMemberships.csv"
   output: "output/pbmcMultiome/MetaCellRNA/g{gamma}/seurat.multiome.mc.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: workdir = wdir
   shell: "export PATH={params.workdir}/config/bin/htslib-1.16/bin:$PATH;\
           Rscript R/SCimplify10xMultiome_v5_CL.R -i {input.singlecells} -c {input.memberships} \
@@ -223,7 +223,7 @@ rule metacell_identification_pbmc_seacellsATAC:
   input:
         singlecells = "output/pbmcMultiome/singlecells_analysis/seurat.ATAC.h5ad",
   output: "output/pbmcMultiome/seacellsATAC/g{gamma}/seacellMemberships.csv"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   benchmark:"benchmark/pbmcMultiome/seacellsATAC/g{gamma}/seacellMemberships.txt"
   shell: "python3 python/SEACellsCL.py -i {input.singlecells} \
           -o output/pbmcMultiome/seacellsATAC/g{wildcards.gamma}/ \
@@ -234,7 +234,7 @@ rule data_aggregation_pbmc_seacellsATAC:
         singlecells = "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds",
         memberships = "output/pbmcMultiome/seacellsATAC/g{gamma}/seacellMemberships.csv"
   output: "output/pbmcMultiome/seacellsATAC/g{gamma}/seurat.multiome.mc.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: workdir = wdir
   shell: "export PATH={params.workdir}/config/bin/htslib-1.16/bin:$PATH;\
           Rscript R/SCimplify10xMultiome_v5_CL.R -i {input.singlecells} -c {input.memberships} \
@@ -245,7 +245,7 @@ rule random_metacell_pbmc_multiome:
   input:
         singlecells = "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds"
   output: "output/pbmcMultiome/randomMetacells/g{gamma}/seurat.multiome.mc.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: workdir = wdir
   shell: "export PATH={params.workdir}/config/bin/htslib-1.16/bin:$PATH;\
           Rscript R/SCimplify10xMultiome_v5_CL.R -i {input.singlecells} -d TRUE \
@@ -255,7 +255,7 @@ rule random_metacell_pbmc_multiome:
 rule gene_selection_for_correlation:
   input: "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds"
   output: "output/pbmcMultiome/selectedGenes.txt"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   shell: "Rscript -e 'seurat.sc <- readRDS(\"{input}\");\
           selectedGenes <- rownames(seurat.sc[[\"RNA\"]]@counts)[rowSums(seurat.sc[[\"RNA\"]]@counts)> ncol(seurat.sc)*0.005];\
           write.table(selectedGenes,\"{output}\")'"
@@ -265,7 +265,7 @@ rule GA_computation_sc:
         singlecells = "output/pbmcMultiome/singlecells_analysis/seurat_multimodal.rds",
         motifs =  "input/H13CORE_human_pfm.rds"
   output: "output/pbmcMultiome/singlecells_analysis/seurat.multiome.activities.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: genome = config["pbmcMultiome"]["genome"]
   shell: "Rscript R/compute_activities.R -i {input.singlecells} \
           -o output/pbmcMultiome/singlecells_analysis/ \
@@ -276,7 +276,7 @@ rule GA_computation_mc:
         metacells = "output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.mc.rds",
         motifs =  "input/H13CORE_human_pfm.rds"
   output: "output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: genome = config["pbmcMultiome"]["genome"]
   shell: "Rscript R/compute_activities.R -i {input.metacells} \
           -o output/pbmcMultiome/{wildcards.inputMetacells}/g{wildcards.gamma}/ \
@@ -287,7 +287,7 @@ rule mc_metrics_computation:
         singlecells = "output/pbmcMultiome/singlecells_analysis/seurat.multiome.activities.rds",
         metacells = "output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds"
   output: "output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.mcMetrics.rds"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params:
         outdir = "output/pbmcMultiome/{inputMetacells}/g{gamma}/",
         python = "/opt/conda/envs/MetacellAnalysisToolkit/bin/python"
@@ -304,7 +304,7 @@ rule Semi_sup_test_pbmc_multiome:
   input:
         singlecells = "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds"
   output: "output/pbmcMultiome/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv"
-  singularity: "config/supercell_multiomics.sif"
+  singularity: config["sif_file"]
   params: workdir = wdir
   # benchmark :  "benchmark/pbmcMultiome/SuperCellMulti/g{graining}/seurat.multiome.mc.txt"
   shell: "Rscript R/SCimplify_test_semi_sup_CL.R -i {input.singlecells} \
@@ -331,7 +331,7 @@ rule atacRnaSinglecellAnalysis:
         python = "/opt/conda/envs/MetacellAnalysisToolkit/bin/python"
     resources:
         mem_mb = 256000
-    singularity: "config/supercell_multiomics.sif"
+    singularity: config["sif_file"]
     shell: "Rscript R/AtacRnaCorrAnalysis.R -i {input.singlecells} -o {params.outdir} -s {input.singlecells}"
 
 rule atacRnaMetacellAnalysis:
@@ -347,7 +347,7 @@ rule atacRnaMetacellAnalysis:
         genome = config["pbmcMultiome"]["genome"]
     resources:
         mem_mb = 100000
-    singularity: "config/supercell_multiomics.sif"
+    singularity: config["sif_file"]
     shell: "Rscript R/AtacRnaCorrAnalysis.R -i {input.metacells} -o {params.outdir} -s {input.singlecells}"
 
 rule MultimodalMarkers_mainCelltypes_sc:
@@ -364,7 +364,7 @@ rule MultimodalMarkers_mainCelltypes_sc:
         genome = config["pbmcMultiome"]["genome"]
     resources:
         mem_mb = 100000
-    singularity: "config/supercell_multiomics.sif"
+    singularity: config["sif_file"]
     shell: "Rscript R/AtacRnaCorrAnalysis_mainCellTypes.R -i {input.singlecells} -o {params.outdir} -s {input.singlecells}"
 
 
@@ -379,7 +379,7 @@ rule MultimodalMarkers_mainCelltypes_sc:
 #         genome = config["pbmcMultiome"]["genome"]
 #     resources:
 #         mem_mb = 100000
-#     singularity: "config/supercell_multiomics.sif"
+#     singularity: config["sif_file"]
 #     shell: "Rscript R/AtacRnaCorrAnalysis_mainCellTypes.R -i {input.metacells} -o {params.outdir} -s {input.singlecells}"
 
 rule pando_sc_pbmc:
@@ -392,7 +392,7 @@ rule pando_sc_pbmc:
     benchmark: "benchmark/pbmcMultiome/singlecells_analysis/pando_{pandoSC}_pbmc.txt"
     resources:
         mem_mb = 64000
-    singularity: "config/supercell_multiomics.sif"
+    singularity: config["sif_file"]
     shell: "Rscript R/pando_analysis.r -s {input.singlecells} -m {input.singlecells} -o {params.outdir} -w {threads} -x {wildcards.pandoSC}"
 
 rule pando_mc_pbmc:
@@ -407,7 +407,7 @@ rule pando_mc_pbmc:
     benchmark: "benchmark/pbmcMultiome/{inputMetacells}/pando_mc_{pandoMC}_g{gamma}_pbmc.txt"
     resources:
         mem_mb = 64000
-    singularity: "config/supercell_multiomics.sif"
+    singularity: config["sif_file"]
     shell: "Rscript R/pando_analysis.r -s {input.singlecells} -m {input.metacells} -b {input.membership} -o {params.outdir} -w {threads} -x {wildcards.pandoMC}"
 
 rule gather_pando_pbmc:
@@ -420,7 +420,7 @@ rule gather_pando_pbmc:
         outdir = "output/pbmcMultiome/SuperCellMulti/"
     resources:
         mem_mb = 64000
-    singularity: "config/supercell_multiomics.sif"
+    singularity: config["sif_file"]
     shell: "Rscript R/gather_pando_results.r -i 'output/pbmcMultiome/' -p 0.1 -o {params.outdir}"
 
 rule gather_pando_pbmc2:
@@ -433,7 +433,7 @@ rule gather_pando_pbmc2:
         outdir = "output/pbmcMultiome/SuperCellMulti/"
     resources:
         mem_mb = 64000
-    singularity: "config/supercell_multiomics.sif"
+    singularity: config["sif_file"]
     shell: "Rscript R/gather_pando_results.r -i 'output/pbmcMultiome/' -p 0.05 -o {params.outdir}"
 
 ####################################################################################################################################
@@ -441,12 +441,14 @@ rule gather_pando_pbmc2:
 ####################################################################################################################################
 
 rule generate_figures_from_figure2:
-  input: "figures/manuscript/Figure2_pbmcMultiome_bench_v2.Rmd",
-        "output/pbmcMultiome/singlecells_analysis/seurat.multiome.activities.rds",
-        expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsRNA","seacellsATAC","MetaCellRNA"]),
-        expand("output/pbmcMultiome/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
+  input:
+    "figures/manuscript/Figure2_pbmcMultiome_bench_v2.Rmd",
+    "output/pbmcMultiome/singlecells_analysis/seurat.multiome.activities.rds",
+    expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.mcMetrics.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsRNA","seacellsATAC","MetaCellRNA"]),
+    expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsRNA","seacellsATAC","MetaCellRNA"]),
+    expand("output/pbmcMultiome/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
   output: "figures/manuscript/Figure2_pbmcMultiome_bench_v2.html"
-  singularity: "config/supercell_multiomics_v2.sif"
+  singularity: config["sif_file"]
   shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"
 
 rule generate_figures_from_figure3:
@@ -455,7 +457,7 @@ rule generate_figures_from_figure3:
         expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsRNA","seacellsATAC","MetaCellRNA"]),
         expand("output/pbmcMultiome/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
   output: "figures/manuscript/figure_3_intermodality_v2.html"
-  singularity: "config/supercell_multiomics_v2.sif"
+  singularity: config["sif_file"]
   shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"
 
 # rule report_all_bench_corr:
@@ -464,5 +466,5 @@ rule generate_figures_from_figure3:
 #         expand("output/pbmcMultiome/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
 #         expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/corrTablePearson.csv",gamma = GAMMA,inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsRNA","seacellsATAC","MetaCellRNA"])
 #   output: "reports/pbmcMultiome/pbmcMultiome.html"
-#   singularity: "config/matk_multiomics.sif"
+#   container: "config/matk_multiomics.sif"
 #   shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"
