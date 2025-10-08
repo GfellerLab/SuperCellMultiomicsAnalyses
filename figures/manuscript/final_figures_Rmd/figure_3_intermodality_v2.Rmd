@@ -2,7 +2,7 @@
 ```{r}
 library(Seurat)
 library(Signac)
-library(SuperCellMultiomics)
+library(SuperCell)
 # library(getopt)
 library(ggplot2)
 library(ggpubr)
@@ -22,14 +22,13 @@ library("stringr")
 library(decoupleR)
 library(cowplot)
 
-opt <- list()
-opt$resdir <- "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/manuscript_version/output/"
-opt$outdir <- "figure_3"
-dir.create(opt$outdir)
 ```
 ```{r}
 library(Cairo)
 options(bitmapType = "cairo")
+
+# dir.create("../../../output/plots/plots_Intermodality/",recursive = T, showWarnings = F)
+dir.create("../../../output/tables/",recursive = T, showWarnings = F)
 ```
 
 # Set up BM Cite
@@ -49,16 +48,16 @@ addCellType <- function(bm) {
   bm$celltype[bm$celltype == "Memory B"] <- "B Mem"
   bm$celltype[bm$celltype == "CD4 Memory"] <- "CD4 Mem"
   bm$celltype[bm$celltype == "Plasmablast"] <- "Plasma"
-  
-  
+
+
   #bm$celltype[endsWith(bm$celltype,"Mono")] <- "Mono"
-  
+
   bm$celltype[startsWith(bm$celltype,"CD56 bright NK")] <- "NK"
   bm$celltype[startsWith(bm$celltype,"Prog_Mk")] <- "MEP"
   bm$celltype[startsWith(bm$celltype,"Prog_RBC")] <- "MEP"
-  bm$celltype.l2 <- factor(bm$celltype.l2) 
-  bm$celltype <- factor(bm$celltype) 
-  
+  bm$celltype.l2 <- factor(bm$celltype.l2)
+  bm$celltype <- factor(bm$celltype)
+
   return(bm)
 }
 
@@ -80,7 +79,7 @@ color.celltypes.bm  <- c("MEP" = '#D6E7A3',
                          "gdT" = '#E95C59',
                          "GMP" = '#476D87',
                          "LMPP" = '#3A6963',
-                         "Prog_DC" =  '#625D9E', 
+                         "Prog_DC" =  '#625D9E',
                          'Prog_B' = "#AA9A59",
                          "CD14 Mono" =  "#F1BB72",
                          "CD16 Mono" = "#53A85F",
@@ -109,7 +108,7 @@ color.celltypes.bm  <- c("MEP" = '#D6E7A3',
 all single cell corr
 
 ```{r}
-bm.cite.sc <- readRDS("../../output/bmCiteSeq/singlecells_analysis/seuratWNN.rds")
+bm.cite.sc <- readRDS("../../../output/bmCiteSeq/singlecells_analysis/seuratWNN.rds")
 bm.cite.sc <- addCellType(bm.cite.sc)
 DefaultAssay(bm.cite.sc) <- "RNA"
 bm.cite.sc<- NormalizeData(bm.cite.sc)
@@ -118,18 +117,19 @@ DefaultAssay(bm.cite.sc) <- "ADT"
 bm.cite.sc <- FindVariableFeatures(bm.cite.sc)
 bm.cite.sc<- NormalizeData(bm.cite.sc,normalization.method = "CLR",margin = 2)
 
-genes.to.prot <- read.csv("../../input/bmCiteSeq/gene_protein.csv",header = T)
+genes.to.prot <- read.csv("../../../input/bmCiteSeq/gene_protein.csv",header = T)
 genes.to.prot
 
 feature_x <- genes.to.prot$gene.name
 feature_y <- genes.to.prot$X.protein
 bm.cite.sc$size <- 1
-w.cor.pearson <- supercell_FeatureFeaturePlot_Seurat(seurat.mc = bm.cite.sc,
-                                                     feature_x = genes.to.prot$gene.name,
-                                                     feature_y = genes.to.prot$X.protein,method = "pearson",
-                                                     assays = c("RNA","ADT"), 
+w.cor.pearson <- FeatureFeaturePlot.SuperCell(seurat.obj = bm.cite.sc,
+                                                     feature.x = genes.to.prot$gene.name,
+                                                     feature.y = genes.to.prot$X.protein,
+                                                     assays = c("RNA","ADT"),
                                                      is.normalized = T,
                                                      plot = F)
+
 
 w.cor.pearson$input <- "Single-cells"
 w.cor.pearson$gamma <- 1
@@ -142,7 +142,7 @@ w.cor.pearson
 corTableAll <- w.cor.pearson
 for (g in c("20","50","75","100","200")){
   for (i in c('SuperCellMulti',"randomMetacells")){
-    file <- paste0("../../output/bmCiteSeq/",
+    file <- paste0("../../../output/bmCiteSeq/",
                    i,"/g",
                    g,
                    "/corrTablePearson.csv")
@@ -156,32 +156,33 @@ for (g in c("20","50","75","100","200")){
       corTableAll <- rbind(corTable,corTableAll)
     }
   }
-  
+
   ## subsampling
-  
-  
+
+
   sub.cells <- sample(colnames(bm.cite.sc),size = floor(ncol(bm.cite.sc)/as.numeric(g)),replace = F)
   bm.sub <- subset(bm.cite.sc,cells = sub.cells)
   bm.sub$size = 1
-  w.cor <- supercell_FeatureFeaturePlot_Seurat(seurat.mc = bm.sub,
-                                               feature_x = feature_x,
-                                               feature_y = feature_y,
-                                               assays = c("RNA","ADT"), #TODO: DEFINE a RNA slot an the beginning
-                                               is.normalized = F,method = "pearson",
+  w.cor <- FeatureFeaturePlot.SuperCell(seurat.obj = bm.sub,
+                                               feature.x = feature_x,
+                                               feature.y = feature_y,
+                                               assays = c("RNA","ADT"),
+                                               is.normalized = F,
                                                cluster = "celltype",
                                                plot = F)
-  
+
+
   w.cor$input <- "Down-sampling"
   w.cor$gamma <- g
   w.cor$origIdent <- bm.sub$orig.ident[1]
-  
+
   corTableAll <- rbind(corTableAll,w.cor)
-  
-  
+
+
 }
 
 
-corTableAll$gene <- stringr::str_split_fixed(corTableAll$features,pattern = "_",3)[,3]
+corTableAll$gene <- stringr::str_split_fixed(corTableAll$feature2,pattern = "_",2)[,2]
 corTableAll$gamma <- factor(corTableAll$gamma,level = c("1","20","50","75","100","200"))
 corTableAll$method <- factor(corTableAll$input,level = rev(c("Metacells","Random-grouping","Down-sampling","Single-cells")))
 
@@ -195,9 +196,9 @@ corTableAll[corTableAll$w.cor<0 & corTableAll$method == "Metacells",]
 When we don't have two cells expressing the feature in both modalities to compute a correlation we set pearson r to 0
 
 ```{r fig.height=3.5,fig.width=4}
-corTableAll.cite$w.cor[is.na(corTableAll.cite$w.cor)] <- 0 
-boxplot.corr.bm.cite <- ggplot(corTableAll.cite,aes(x=gamma,y=w.cor,fill = method)) + 
-  theme_bw() +  geom_boxplot(position = position_dodge2(preserve = "single")) + 
+corTableAll.cite$w.cor[is.na(corTableAll.cite$w.cor)] <- 0
+boxplot.corr.bm.cite <- ggplot(corTableAll.cite,aes(x=gamma,y=w.cor,fill = method)) +
+  theme_bw() +  geom_boxplot(position = position_dodge2(preserve = "single")) +
   ylab("Weighted pearson r") +xlab(paste0("Graining level (\u03B3)")) + scale_fill_manual(values = color.methods) + theme(legend.position = "bottom") +
   guides(fill=guide_legend(ncol =2)) + theme(legend.title = element_blank()) + ggtitle("RNA-Protein correlations")
 
@@ -207,7 +208,7 @@ boxplot.corr.bm.cite
 
 
 ```{r fig.height=6,fig.width=7.75}
-bm.cite.mc <- readRDS("../../output/bmCiteSeq/SuperCellMulti/g75/seurat.cite.mc.rds")
+bm.cite.mc <- readRDS("../../../output/bmCiteSeq/SuperCellMulti/g75/seurat.cite.mc.rds")
 bm.cite.mc <- addCellType(bm.cite.mc)
 DefaultAssay(bm.cite.mc) <- "RNA"
 bm.cite.mc<- NormalizeData(bm.cite.mc)
@@ -238,29 +239,29 @@ corr.CD14.mc <- FeatureScatter.SuperCell(bm.cite.mc,
 
 bm.cite.sc$size <- 1
 corr.CD8a.sc <- FeatureScatter(bm.cite.sc,
-                               "rna_CD8A","adt_CD8a",group.by = "celltype", cols = color.celltypes.bm) + 
+                               "rna_CD8A","adt_CD8a",group.by = "celltype", cols = color.celltypes.bm) +
   ggtitle("Single-cells",
           subtitle = paste0("pearson r = ",
                             round(corTableAll[(corTableAll$gamma == 1) & corTableAll$gene == "CD8a","w.cor"],
                                   digits = 2))) + xlab("RNA CD8A") +ylab("Protein CD8A")
 corr.CD14.sc <- FeatureScatter(bm.cite.sc,
-                               "rna_CD14","adt_CD14",group.by = "celltype", cols = color.celltypes.bm)   + 
+                               "rna_CD14","adt_CD14",group.by = "celltype", cols = color.celltypes.bm)   +
   ggtitle("Single-cells",
           subtitle = paste0("pearson r = ",
                             round(corTableAll[(corTableAll$gamma == 1) & corTableAll$gene == "CD14","w.cor"],
                                   digits = 2))) + xlab("RNA CD14") +ylab("Protein CD14")
 
-
+dir.create("../../../pdf_files/Fig3/", recursive = T, showWarnings = F)
+pdf(file = "../../../pdf_files/Fig3/fig3A.pdf",height = 6,width=7.75)
 plot_grid(wrap_plots(corr.CD8a.sc + NoLegend(),corr.CD8a.mc+ NoLegend(),corr.CD14.sc + NoLegend(),corr.CD14.mc + NoLegend(),nrow = 2,axis_titles = "collect"),
           get_legend(corr.CD8a.mc),rel_widths = c(4,2))
-
+dev.off()
 ```
 
 # PBMC multiome related figures
 
 ## Global parameters
 ```{r}
-data_path <- paste0(opt$resdir, "/pbmcMultiome/")
 color.celltypes.pbmc <- c("CD14 Mono" =  "#F1BB72",
                           "CD16 Mono" = "#53A85F",
                           "CD4 Mem" = '#91D0BE',
@@ -286,20 +287,20 @@ mytheme <-  theme(axis.title = element_text(size = axis.size),
                   axis.text.x = element_text(size = axis.size),
                   axis.text.y = element_text(size = axis.size),
                   legend.title = element_text(size = 15),
-                  legend.text = element_text(size=13)) 
+                  legend.text = element_text(size=13))
 
 
 
 addCellTypePBMC <- function(pbmc) {
   pbmc$celltype <- pbmc$seurat_annotations
-  
+
   pbmc$celltype[grepl(pattern = "CD8 TEM",x = pbmc$celltype)] <- "CD8 Mem"
-  
+
   pbmc$celltype[grepl(pattern = "CD4 TEM",x = pbmc$celltype)] <- "CD4 Mem"
   pbmc$celltype[grepl(pattern = "CD4 TCM",x = pbmc$celltype)] <- "CD4 Mem"
-  
+
   pbmc$celltype[grepl(pattern = "CD8 TEM",x = pbmc$celltype)] <- "CD8 Mem"
-  
+
   pbmc$celltype[grepl(pattern = "Intermediate B",x = pbmc$celltype)] <- "B Interm"
   pbmc$celltype[grepl(pattern = "Naive B",x = pbmc$celltype)] <- "B Naive"
   pbmc$celltype[grepl(pattern = "Memory B",x = pbmc$celltype)] <- "B Mem"
@@ -311,7 +312,7 @@ addCellTypePBMC <- function(pbmc) {
                                                     "gdT"  ,     "HSPC"  ,
                                                     "MAIT",      "NK" ,
                                                     "pDC" , "Plasma",     "Treg"  ))
-  
+
   Idents(pbmc) <- "celltype"
   return(pbmc)
 }
@@ -327,7 +328,7 @@ addCellTypePBMC <- function(pbmc) {
 all single cell corr
 
 ```{r}
-pbmc.sc <-  readRDS(paste0(data_path, "singlecells_analysis/seurat.multiome.activities.rds"))
+pbmc.sc <-  readRDS("../../../output/pbmcMultiome/singlecells_analysis/seurat.multiome.activities.rds")
 pbmc.sc <- addCellTypePBMC(pbmc.sc)
 DefaultAssay(pbmc.sc) <- "RNA"
 pbmc.sc<- NormalizeData(pbmc.sc)
@@ -340,7 +341,7 @@ features.ga.rna.pbmc <- rownames(hvg.info[hvg.info$ATAC == T,])[1:4000]
 
 
 DefaultAssay(pbmc.sc) <- "GA_Signac"
-w.cor.pearson <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/manuscript_version/output//pbmcMultiome/singlecells_analysis/CorrTables.rds")
+w.cor.pearson <- readRDS("../../../output/pbmcMultiome/singlecells_analysis/CorrTables.rds")
 
 w.cor.pearson <- w.cor.pearson$SignacGA.RNA
 w.cor.pearson$input <- "Single-cells"
@@ -352,11 +353,11 @@ w.cor.pearson
 
 
 ```{r}
-source("../fun_r/FeatureFeaturePlot.SuperCell.R")
+# source("../../../fun_r/FeatureFeaturePlot.SuperCell.R")
 corTableAll <- w.cor.pearson
 for (g in c("10","20","50","75","100","200")){
   for (i in c('SuperCellMulti',"randomMetacells")){
-    file <- paste0(data_path,
+    file <- paste0("../../../output/pbmcMultiome/",
                    i,"/g",
                    g,
                    "/CorrTables.rds")
@@ -369,33 +370,33 @@ for (g in c("10","20","50","75","100","200")){
       corTable$gamma <- g
       corTable$gene <- str_split_fixed(corTable$feature1,pattern = "_",n = 2)[,2]
       corTable <- corTable[corTable$gene %in% features.ga.rna.pbmc,]
-      
+
       corTableAll <- rbind(corTable,corTableAll)
     }
   }
-  
+
   ## subsampling
-  
-  
+
+
   sub.cells <- sample(colnames(pbmc.sc),size = floor(ncol(pbmc.sc)/as.numeric(g)),replace = F)
   pbmc.sub <- subset(pbmc.sc,cells = sub.cells)
   pbmc.sub$size = 1
   w.cor <- FeatureFeaturePlot.SuperCell(seurat.obj  = pbmc.sub,
                                         feature.x  = features.ga.rna.pbmc,
                                         feature.y  = features.ga.rna.pbmc,
-                                        assays = c("GA_Signac","RNA"), #TODO: DEFINE a RNA slot an the beginning
-                                        is.normalized = F,method = "pearson",
+                                        assays = c("GA_Signac","RNA"),
+                                        is.normalized = F,
                                         cluster = "celltype",
                                         plot = F)
-  
+
   w.cor$gene <- str_split_fixed(w.cor$feature1,pattern = "_",n = 2)[,2]
-  
+
   w.cor$input <- "Down-sampling"
   w.cor$gamma <- g
-  
+
   corTableAll <- rbind(corTableAll,w.cor)
-  
-  
+
+
 }
 
 
@@ -412,9 +413,9 @@ table(corTableAll[corTableAll$method == "Metacells" & corTableAll$gamma == 75,]$
 When we don't have two cells expressing the feature in both modalities to compute a correlation we set pearson r to 0
 
 ```{r fig.height=3.5,fig.width=4}
-corTableAll$w.cor[is.na(corTableAll$w.cor)] <- 0 
-boxplot.corr.rna.atac.pbmc <- ggplot(corTableAll,aes(x=gamma,y=w.cor,fill = method)) + 
-  theme_bw() +  geom_boxplot(position = position_dodge2(preserve = "single")) + 
+corTableAll$w.cor[is.na(corTableAll$w.cor)] <- 0
+boxplot.corr.rna.atac.pbmc <- ggplot(corTableAll,aes(x=gamma,y=w.cor,fill = method)) +
+  theme_bw() +  geom_boxplot(position = position_dodge2(preserve = "single")) +
   ylab("Weighted pearson r") +xlab(paste0("Graining level (\u03B3)")) + scale_fill_manual(values = color.methods) + theme(legend.position = "bottom") +
   guides(fill=guide_legend(ncol =2)) + theme(legend.title  = element_blank()) + ggtitle("ATAC-RNA correlations")
 
@@ -424,7 +425,7 @@ boxplot.corr.rna.atac.pbmc
 
 
 ```{r fig.height=6,fig.width=7.75}
-pbmc.mc <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/manuscript_version/output//pbmcMultiome/SuperCellMulti/g75/seurat.multiome.activities.rds")
+pbmc.mc <- readRDS("../../../output/pbmcMultiome/SuperCellMulti/g75/seurat.multiome.activities.rds")
 DefaultAssay(pbmc.mc) <- "RNA"
 pbmc.mc <- NormalizeData(pbmc.mc)
 pbmc.mc <- addCellTypePBMC(pbmc.mc)
@@ -452,24 +453,27 @@ corr.SPI1.mc <- FeatureScatter.SuperCell(pbmc.mc,
 
 
 
-bm.cite.sc$size <- 1
+pbmc.sc$size <- 1
 corr.TCF7.sc <- FeatureScatter(pbmc.sc,"gasignac_TCF7",
-                               "rna_TCF7",group.by = "celltype", cols = color.celltypes.bm) + 
+                               "rna_TCF7",group.by = "celltype", cols = color.celltypes.bm) +
   ggtitle("Single-cells",
           subtitle = paste0("pearson r = ",
                             round(corTableAll[(corTableAll$gamma == 1) & corTableAll$feature1 == "rna_TCF7","w.cor"],
                                   digits = 2))) + xlab("ATAC TCF7") +ylab("RNA TCF7")
 corr.SPI1.sc <- FeatureScatter(pbmc.sc,
-                               "gasignac_SPI1","rna_SPI1",group.by = "celltype", cols = color.celltypes.bm)   + 
+                               "gasignac_SPI1","rna_SPI1",group.by = "celltype", cols = color.celltypes.bm)   +
   ggtitle("Single-cells",
           subtitle = paste0("pearson r = ",
                             round(corTableAll[(corTableAll$gamma == 1) & corTableAll$feature1 == "rna_SPI1","w.cor"],
                                   digits = 2))) + xlab("ATAC SPI1") +ylab("RNA SPI1")
 
 
+
+
+pdf(file = "../../../pdf_files/Fig3/fig3C.pdf",height = 6,width=7.75)
 plot_grid(wrap_plots(corr.SPI1.sc + NoLegend(),corr.SPI1.mc + NoLegend(),corr.TCF7.sc + NoLegend(),corr.TCF7.mc+ NoLegend(),nrow = 2,axis_titles = "collect"),
           get_legend(corr.TCF7.mc),rel_widths = c(4,2))
-
+dev.off()
 ```
 ```{r}
 # library(gprofiler2)
@@ -479,13 +483,13 @@ plot_grid(wrap_plots(corr.SPI1.sc + NoLegend(),corr.SPI1.mc + NoLegend(),corr.TC
 # gres <- gprofiler2::gost(query = list("weighted r < 0, metacells (\u03B3 = 75)"=neg.cor.ga.rna),organism = "hsapiens",significant = T,custom_bg = all.genes,user_threshold = 0.05)
 # unique(gres$result$source)
 # gres$result[order(gres$result$p_value),]
-# 
+#
 # ggplot(gres$result,aes(x = term,y = -log10(p_value))) + geom_bar(stat = "identity") + coord_flip()
 
-saveRDS(corTableAll,"tables/fig4_corrtables_rna_atac_pbmc.rds")
+saveRDS(corTableAll,"../../../output/tables/fig4_corrtables_rna_atac_pbmc.rds")
 ```
 ```{r}
-atac.rna <- readRDS("tables/fig4_corrtables_rna_atac_pbmc.rds")
+atac.rna <- readRDS("../../../output/tables/fig4_corrtables_rna_atac_pbmc.rds")
 
 ```
 
@@ -494,30 +498,30 @@ atac.rna <- readRDS("tables/fig4_corrtables_rna_atac_pbmc.rds")
 
 
 ```{r}
-top.tf.single_cells <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/manuscript_version/output//pbmcMultiome/singlecells_analysis/multimodalMarkers_mainCellTypes_wilcoxonAUC.rds")
+top.tf.single_cells <-  readRDS("../../../output/pbmcMultiome/singlecells_analysis/multimodalMarkers_mainCellTypes_wilcoxonAUC.rds")
 max(top.tf.single_cells$RNA.padj)
 max(top.tf.single_cells$chromvar.padj)
 
 
-w.cor.pearson <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/SuperCellMultiomicsAnalyses/manuscript_version/output//pbmcMultiome/singlecells_analysis/CorrTables.rds")
+w.cor.pearson <- readRDS("../../../output/pbmcMultiome//singlecells_analysis/CorrTables.rds")
 
 w.cor.pearson <- w.cor.pearson$chromVar.RNA
 w.cor.pearson$input <- "Single-cells"
 w.cor.pearson$gamma <- 1
 
 head(w.cor.pearson)
-# 
+#
 # w.cor.pearson <- w.cor.pearson[w.cor.pearson$feature1 %in% paste0("rna_",top.tf.single_cells$gene),] # some TFs mark multiple cell types
 w.cor.pearson
 ```
 
 
 ```{r}
-source("../fun_r/FeatureFeaturePlot.SuperCell.R")
+#source("../../../fun_r/FeatureFeaturePlot.SuperCell.R")
 corTableAll <- w.cor.pearson
 for (g in c("10","20","50","75","100","200")){
   for (i in c('SuperCellMulti',"randomMetacells")){
-    file <- paste0(data_path,
+    file <- paste0("../../../output/pbmcMultiome/",
                    i,"/g",
                    g,
                    "/CorrTables.rds")
@@ -531,10 +535,10 @@ for (g in c("10","20","50","75","100","200")){
       corTableAll <- rbind(corTable,corTableAll)
     }
   }
-  
+
   # subsampling
-  
-  
+
+
   sub.cells <- sample(colnames(pbmc.sc),size = floor(ncol(pbmc.sc)/as.numeric(g)),replace = F)
   pbmc.sub <- subset(pbmc.sc,cells = sub.cells)
   pbmc.sub$size = 1
@@ -543,8 +547,8 @@ for (g in c("10","20","50","75","100","200")){
   w.cor <- FeatureFeaturePlot.SuperCell(seurat.obj  = pbmc.sub,
                                         feature.x  = stringr::str_split_fixed(w.cor.pearson$feature1,pattern = "_",2)[,2],
                                         feature.y  = stringr::str_split_fixed(w.cor.pearson$feature2,pattern = "_",2)[,2],
-                                        assays = c("RNA","chromvar"), #TODO: DEFINE a RNA slot an the beginning
-                                        is.normalized = T,method = "pearson",
+                                        assays = c("RNA","chromvar"),
+                                        is.normalized = T,
                                         cluster = "celltype",
                                         plot = F)
 
@@ -553,8 +557,8 @@ for (g in c("10","20","50","75","100","200")){
   w.cor$gamma <- g
 
   corTableAll <- rbind(corTableAll,w.cor)
-  
-  
+
+
 }
 
 
@@ -571,11 +575,11 @@ table(corTableAll$input,corTableAll$gamma)
 When we don't have two cells expressing the feature in both modalities to compute a correlation we set pearson r to 0
 
 ```{r fig.height=3.5,fig.width=4}
-corTableAll$w.cor[is.na(corTableAll$w.cor)] <- 0 
+corTableAll$w.cor[is.na(corTableAll$w.cor)] <- 0
 corTableAll$method <- factor(corTableAll$input,level = rev(c("Metacells","Random-grouping","Down-sampling","Single-cells")))
 
-boxplot.corr.rna.chromvar.pbmc <- ggplot(corTableAll,aes(x=gamma,y=w.cor,fill = method)) + 
-  theme_bw() +  geom_boxplot(position = position_dodge2(preserve = "single")) + 
+boxplot.corr.rna.chromvar.pbmc <- ggplot(corTableAll,aes(x=gamma,y=w.cor,fill = method)) +
+  theme_bw() +  geom_boxplot(position = position_dodge2(preserve = "single")) +
   guides(fill=guide_legend(ncol =1)) +
   ylab("Weighted pearson r") +xlab(paste0("Graining level (\u03B3)")) + scale_fill_manual(values = color.methods)+ theme(legend.position = "bottom") +
   guides(fill=guide_legend(ncol =2)) + theme(legend.title  = element_blank()) +
@@ -588,17 +592,16 @@ boxplot.corr.rna.chromvar.pbmc
 wrap_plots(boxplot.corr.bm.cite,
            boxplot.corr.rna.atac.pbmc,
            boxplot.corr.rna.chromvar.pbmc,ncol=1)
-
-pdf("fig3BDF.pdf", height=10,width=4)
+pdf("../../../pdf_files/Fig3/fig3BDF.pdf", height=10,width=4)
 wrap_plots(boxplot.corr.bm.cite,
            boxplot.corr.rna.atac.pbmc,
            boxplot.corr.rna.chromvar.pbmc,ncol=1)
 dev.off()
 ```
 
-## Motifs logo plots 
+## Motifs logo plots
 ```{r}
-TFs <- c("TCF7", "TCF7L2", "LEF1","SPI1") 
+TFs <- c("TCF7", "TCF7L2", "LEF1","SPI1")
 
 DefaultAssay(pbmc.sc) <- "ATAC"
 detectedMotifs <- rownames(pbmc.sc@assays$chromvar) #motif
@@ -611,16 +614,16 @@ motifs.p <- list()
 
 for(TF in TFs){
   m <- detectedMotifs[relatedTFs[relatedTFs %in% TF]]
-  motifs.p[[TF]] <- MotifPlot(pbmc.sc, motifs = m) 
-  
-  data.use <- GetMotifData(object = pbmc.sc, assay = "ATAC", 
+  motifs.p[[TF]] <- MotifPlot(pbmc.sc, motifs = m)
+
+  data.use <- GetMotifData(object = pbmc.sc, assay = "ATAC",
                            slot = "pwm")[m]
   TF_rev = data.use
   names(TF_rev) <- TF
   rownames(TF_rev[[TF]]) <- plyr::revalue(rownames(TF_rev[[TF]]), replace = c("A" = "T", "T"= "A", "C" = "G", "G" = "C"))
   TF_rev[[TF]] <- TF_rev[[TF]][,ncol(TF_rev[[TF]]):1]
-  motifs.p[[paste0(TF,"_rev")]] <- ggseqlogo::ggseqlogo(TF_rev) 
-  
+  motifs.p[[paste0(TF,"_rev")]] <- ggseqlogo::ggseqlogo(TF_rev)
+
 }
 
 ```
@@ -631,10 +634,10 @@ detectedMotifs[relatedTFs[relatedTFs %in% TF]]
 
 corr.SPI1.mc <- FeatureScatter.SuperCell(pbmc.mc,
                                          "rna_SPI1",detectedMotifs[relatedTFs[relatedTFs %in% "SPI1"]],
-                                         group.by = "celltype", cols = color.celltypes.pbmc)+ 
+                                         group.by = "celltype", cols = color.celltypes.pbmc)+
   ggtitle("Metacell",
           subtitle = paste0("weighted pearson r = ",
-                            round(corTableAll[(corTableAll$method == "Metacells" & corTableAll.motif.rna$gamma == 75) & corTableAll.motif.rna$feature1 == "rna_SPI1","w.cor"],
+                            round(corTableAll[(corTableAll$method == "Metacells" & corTableAll$gamma == 75) & corTableAll$feature1 == "rna_SPI1","w.cor"],
                                   digits = 2))) + xlab("RNA SPI1") + ylab("Motif SPI1")  +
   guides(fill=guide_legend(ncol =2,title = "Cell types",
                            override.aes = list(size=3)),
@@ -644,10 +647,10 @@ corr.SPI1.mc <- FeatureScatter.SuperCell(pbmc.mc,
 
 corr.TCF7.mc <- FeatureScatter.SuperCell(pbmc.mc,
                                          "rna_TCF7",detectedMotifs[relatedTFs[relatedTFs %in% "TCF7"]],
-                                         group.by = "celltype", cols = color.celltypes.pbmc)+ 
+                                         group.by = "celltype", cols = color.celltypes.pbmc)+
   ggtitle("Metacell",
           subtitle = paste0("weighted pearson r = ",
-                            round(corTableAll[(corTableAll$method == "Metacells" & corTableAll.motif.rna$gamma == 75) & corTableAll.motif.rna$feature1 == "rna_TCF7","w.cor"],
+                            round(corTableAll[(corTableAll$method == "Metacells" & corTableAll$gamma == 75) & corTableAll$feature1 == "rna_TCF7","w.cor"],
                                   digits = 2))) + xlab("RNA TCF7") + ylab("Motif TCF7")
 
 corr.TCF7L2.mc <- FeatureScatter.SuperCell(pbmc.mc,
@@ -655,286 +658,291 @@ corr.TCF7L2.mc <- FeatureScatter.SuperCell(pbmc.mc,
                                            group.by = "celltype", cols = color.celltypes.pbmc) +
   ggtitle("Metacell",
           subtitle = paste0("weighted pearson r = ",
-                            round(corTableAll[(corTableAll$method == "Metacells" & corTableAll.motif.rna$gamma == 75) & corTableAll.motif.rna$feature1 == "rna_TCF7L2","w.cor"],
+                            round(corTableAll[(corTableAll$method == "Metacells" & corTableAll$gamma == 75) & corTableAll$feature1 == "rna_TCF7L2","w.cor"],
                                   digits = 2))) + xlab("RNA TCF7L2") + ylab("Motif TCF7L2")
 
 
 
 
 
-bm.cite.sc$size <- 1
+pbmc.sc$size <- 1
 
 corr.SPI1.sc <- FeatureScatter(pbmc.sc,"rna_SPI1",
-                               detectedMotifs[relatedTFs[relatedTFs %in% "SPI1"]],group.by = "celltype", cols = color.celltypes.bm) + 
+                               detectedMotifs[relatedTFs[relatedTFs %in% "SPI1"]],group.by = "celltype", cols = color.celltypes.bm) +
   ggtitle("Single-cells",
           subtitle = paste0("pearson r = ",
-                            round(corTableAll[(corTableAll.motif.rna$gamma == 1) & corTableAll.motif.rna$feature1 == "rna_SPI1","w.cor"],
+                            round(corTableAll[(corTableAll$gamma == 1) & corTableAll$feature1 == "rna_SPI1","w.cor"],
                                   digits = 2)))+ xlab("RNA SPI1") + ylab("Motif SPI1")
 
 
 corr.TCF7.sc <- FeatureScatter(pbmc.sc,"rna_TCF7",
-                               detectedMotifs[relatedTFs[relatedTFs %in% "TCF7"]],group.by = "celltype", cols = color.celltypes.bm) + 
+                               detectedMotifs[relatedTFs[relatedTFs %in% "TCF7"]],group.by = "celltype", cols = color.celltypes.bm) +
   ggtitle("Single-cells",
           subtitle = paste0("pearson r = ",
-                            round(corTableAll[(corTableAll.motif.rna$gamma == 1) & corTableAll.motif.rna$feature1 == "rna_TCF7","w.cor"],
+                            round(corTableAll[(corTableAll$gamma == 1) & corTableAll$feature1 == "rna_TCF7","w.cor"],
                                   digits = 2)))+ xlab("RNA TCF7") + ylab("Motif TCF7")
 corr.TCF7L2.sc <- FeatureScatter(pbmc.sc,
-                                 "gasignac_SPI1","rna_SPI1",group.by = "celltype", cols = color.celltypes.bm)   + 
+                                 "gasignac_SPI1","rna_SPI1",group.by = "celltype", cols = color.celltypes.bm)   +
   ggtitle("Single-cells",
           subtitle = paste0("pearson r = ",
-                            round(corTableAll[(corTableAll.motif.rna$gamma == 1) & corTableAll.motif.rna$feature1 == "rna_TCF7L2","w.cor"],
+                            round(corTableAll[(corTableAll$gamma == 1) & corTableAll$feature1 == "rna_TCF7L2","w.cor"],
                                   digits = 2))) + xlab("RNA TCF7L2") + ylab("Motif TCF7L2")
 
-plot_grid(wrap_plots( 
+
+pdf(file = "../../../pdf_files/Fig3/fig3E_1.pdf",height = 6,width=7.75)
+plot_grid(wrap_plots(
           corr.SPI1.sc + NoLegend(),corr.SPI1.mc+ NoLegend(),
           corr.TCF7.sc + NoLegend(),corr.TCF7.mc + NoLegend(),
           nrow = 2,axis_titles = "collect"),
            element_grob(element_blank()),rel_widths =  c(4,2))
+dev.off()
 ```
 
 
 
 ```{r fig.height=6,fig.width=3}
+pdf(file = "../../../pdf_files/Fig3/fig3E_2.pdf",height = 6,width=3)
 wrap_plots( motifs.p$SPI1 + theme(plot.margin = unit(c(40,10,40,10),units = "pt"),
                                   axis.text = element_text(size = 7),
                                   strip.text =  element_text(size = 16)),
            motifs.p$TCF7+ theme(plot.margin = unit(c(40,10,40,10),units = "pt"),
                                   axis.text = element_text(size = 7),
                                   strip.text =  element_text(size = 16)),ncol = 1)
-```
-
-```{r fig.height=4,fig.width=11}
-plot_grid(wrap_plots( 
-            corr.TCF7L2.sc + NoLegend(),corr.TCF7L2.mc + NoLegend(),nrow = 1,axis_titles = "collect"),
-           get_legend(corr.TCF7L2.mc  + guides(fill = guide_legend(override.aes = list(size=3),ncol = 2))),rel_widths =  c(4,2))
-```
-
-```{r fig.height=3,fig.width=5}
-motifs.p$TCF7L2 + theme( strip.text =  element_text(size = 20))
-```
-
-
-```{r  fig.height=4,fig.width=10}
-corr.TCF7L2.TCF7.motif.mc <- FeatureScatter.SuperCell(pbmc.mc,
-                                                      detectedMotifs[relatedTFs[relatedTFs %in% "TCF7"]],detectedMotifs[relatedTFs[relatedTFs %in% "TCF7L2"]],
-                                                      group.by = "celltype", cols = color.celltypes.pbmc) +
-  ggtitle("Metacell") + xlab("Motif TCF7") + ylab("Motif TCF7L2")
-
-corr.TCF7L2.TCF7.motif.mc
-
-
-
-bm.cite.sc$size <- 1
-corr.TCF7L2.TCF7.motif.sc <- FeatureScatter(pbmc.sc,
-                                            detectedMotifs[relatedTFs[relatedTFs %in% "TCF7"]],detectedMotifs[relatedTFs[relatedTFs %in% "TCF7L2"]],
-                                            group.by = "celltype", cols = color.celltypes.bm) + 
-  ggtitle("Single-cells") + xlab("Motif TCF7") + ylab("Motif TCF7L2")
-
-plot_grid(wrap_plots( 
-            corr.TCF7L2.TCF7.motif.sc+ NoLegend(),corr.TCF7L2.TCF7.motif.mc + NoLegend(),nrow = 1,axis_titles = "collect"),
-           get_legend(corr.SPI1.mc),rel_widths =  c(4,2))
-
-```
-
-
-```{r fig.height=6,fig.width=5}
-
-pdf("figS5B_right.pdf",height=6,width=5)
-wrap_plots(motifs.p$TCF7 + theme( strip.text =  element_text(size = 20)),
-motifs.p$TCF7L2_rev + theme( strip.text =  element_text(size = 20)),ncol = 1)
-dev.off()
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-```{r}
-# Load single-cell seurat object
-seurat.sc = readRDS(paste0(data_path, "singlecells_analysis/seurat.multiome.activities.rds"))
-seraut.sc <- addCellTypePBMC(seurat.sc)
-seurat.sc$celltype_main <- seraut.sc$celltype
-
-seurat.sc <- DietSeurat(seurat.sc, assays = c("RNA", "ATAC", "SCT", "GA_Signac", "chromvar"))
-DefaultAssay(seurat.sc) <- "RNA"
-seurat.sc <- NormalizeData(seurat.sc)
-seurat.sc <- FindVariableFeatures(seurat.sc, nfeatures = 2000)
-var.genes <- Seurat::VariableFeatures(seurat.sc)
-# seurat.sc$celltype_main <- plyr::revalue(seurat.sc$celltype, c("B Interm" = "Bcells","B Mem" = "Bcells","B Naive" = "Bcells",
-#                                                                "CD14 Mono" = "Monocytes","CD16 Mono" = "Monocytes",
-#                                                                "CD4 Naive" = "CD4_Tcells","CD4 Mem" = "CD4_Tcells",
-#                                                                "CD8 Naive" = "CD8_Tcells","CD8 Mem" = "CD8_Tcells"))
-names(seurat.sc@assays)[names(seurat.sc@assays) ==  "GA_Signac"] <- "GA"
-seurat.sc@assays$GA@key <- "ga_"
-
-# Load metacell seurat object
-gamma = 75
-seurat.mc <- readRDS(paste0(data_path, "SuperCellMulti/g", gamma, "/seurat.multiome.activities.rds"))
-
-seurat.mc <- addCellTypePBMC(seurat.mc)
-seurat.mc$celltype_main <- seurat.mc$celltype
-
-
-DefaultAssay(seurat.mc) <- 'RNA'
-seurat.mc <- NormalizeData(seurat.mc)
-seurat.mc <- DietSeurat(seurat.mc, assays = c("RNA", "ATAC", "SCT", "GA_Signac", "chromvar"))
-gc()
-# seurat.mc$celltype_main <- plyr::revalue(seurat.mc$celltype, c("B Interm" = "Bcells", "B Mem" = "Bcells", "B Naive" = "Bcells",
-#                                                                "CD14 Mono" = "Monocytes", "CD16 Mono" = "Monocytes",
-#                                                                "CD4 Naive" = "CD4_Tcells", "CD4 Mem" = "CD4_Tcells",
-#                                                                "CD8 Naive" = "CD8_Tcells","CD8 Mem" = "CD8_Tcells"))
-names(seurat.mc@assays)[names(seurat.mc@assays) ==  "GA_Signac"] <- "GA"
-seurat.mc@assays$GA@key <- "ga_"
-```
-
-
-```{r}
-
-detectedMotifs[relatedTFs[relatedTFs %in% TF]]
-```
-
-
-
-```{r}
-
-group.by = "celltype"
-for(TF in TFs){
-  assays <- c("RNA", "GA")
-  ff.plot.res.sc <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.sc, is.normalized = T, cluster = group.by,
-                                                 assays = assays, feature.x = TF, feature.y = TF,
-                                                 color.use = celltype_colors,
-                                                 use.size = F, plot = T, pt.size = 2, add.key = T)
-  sc.p <- ff.plot.res.sc$plots[[1]]+ mytheme + guides(fill = guide_legend(override.aes = list(size=3),ncol = 3))
-  assign(paste0(TF, ".sc.GA.RNA"), sc.p)
-  
-  ff.plot.res.mc <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.mc,
-                                                 is.normalized = T, cluster = group.by,
-                                                 assays = assays,feature.x = TF, feature.y = TF,
-                                                 color.use = celltype_colors,
-                                                 use.size = T,plot = T)
-  mc.p <- ff.plot.res.mc$plots[[1]] + mytheme + guides(fill = guide_legend(override.aes = list(size=3),ncol = 3))
-  assign(paste0(TF, ".mc.GA.RNA"), mc.p)
-  
-  
-  assays <- c("RNA", "chromvar")
-  ff.plot.res.sc <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.sc, is.normalized = T, cluster = group.by,
-                                                 assays = assays, feature.x = TF, feature.y = detectedMotifs[relatedTFs[relatedTFs %in% TF]],
-                                                 color.use = celltype_colors,
-                                                 use.size = F, plot = T, pt.size = 2, add.key = F)
-  sc.p <- ff.plot.res.sc$plots[[1]]+ mytheme + guides(fill = guide_legend(override.aes = list(size=3), ncol = 3))
-  assign(paste0(TF, ".sc.chromVAR.RNA"), sc.p)
-  
-  ff.plot.res.mc <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.mc,
-                                                 is.normalized = T,cluster = group.by,
-                                                 assays = assays,feature.x = TF, feature.y = detectedMotifs[relatedTFs[relatedTFs %in% TF]],
-                                                 color.use = celltype_colors,
-                                                 use.size = T,plot = T, add.key = F)
-  mc.p <- ff.plot.res.mc$plots[[1]] + mytheme + guides(fill = guide_legend(override.aes = list(size=3), ncol = 3))
-  assign(paste0(TF, ".mc.chromVAR.RNA"), mc.p)
-  
-}
-
-pdf(paste0(opt$outdir, "pbmcMultiome_sc_mc_FeatureFeaturePlots_TCF7family.pdf"), h=12, w=12)
-# grid with blanks and legend
-blank_size = 0.05
-blankPlot <- ggplot()+ geom_blank(aes(1,1)) + 
-  cowplot::theme_nothing()
-
-grid.arrange(
-  TCF7.sc.chromVAR.RNA + mytheme +NoLegend(), blankPlot, TCF7.mc.chromVAR.RNA + mytheme +NoLegend(), blankPlot, arrangeGrob(motifs.p$TCF7_rev, motifs.p$LEF1, motifs.p$TCF7L2),
-  blankPlot, blankPlot, blankPlot, blankPlot,
-  LEF1.sc.chromVAR.RNA + mytheme +NoLegend(), blankPlot, LEF1.mc.chromVAR.RNA + mytheme + NoLegend(), blankPlot,
-  blankPlot, blankPlot, blankPlot, blankPlot, blankPlot,
-  TCF7L2.sc.chromVAR.RNA + mytheme + NoLegend(), blankPlot, TCF7L2.mc.chromVAR.RNA + mytheme + NoLegend(), blankPlot, cowplot::get_legend(TCF7.mc.chromVAR.RNA),
-  ncol = 5, layout_matrix = rbind(c(1:5), c(6:9,5), c(10:13, 5), c(14:18), c(19:23)),
-  widths = c(1, blank_size, 1, blank_size, 1), heights = c(1, blank_size, 1, blank_size, 1)
-)
-dev.off()
-
-pdf(paste0(opt$outdir, "pbmcMultiom_sc_mc_FeatureFeaturePlots_SPI1.pdf"), w=12, h=4)
-grid.arrange(
-  SPI1.sc.GA.RNA + mytheme + NoLegend(), blankPlot, 
-  SPI1.mc.GA.RNA + mytheme + NoLegend(), blankPlot, 
-  cowplot::get_legend(SPI1.sc.GA.RNA + guides(fill = guide_legend(override.aes = list(size=3), ncol = 2))),
-  ncol = 5, 
-  widths = c(1, blank_size, 1, blank_size, 0.5)
-)
 dev.off()
 ```
 
-## Correlations between GA vs RNA at the cell/metacell level
-```{r}
+<!-- ```{r fig.height=4,fig.width=11} -->
+<!-- plot_grid(wrap_plots( -->
+<!--             corr.TCF7L2.sc + NoLegend(),corr.TCF7L2.mc + NoLegend(),nrow = 1,axis_titles = "collect"), -->
+<!--            get_legend(corr.TCF7L2.mc  + guides(fill = guide_legend(override.aes = list(size=3),ncol = 2))),rel_widths =  c(4,2)) -->
+<!-- ``` -->
 
-cor.matrices.sc <- readRDS(paste0(opt$resdir, "pbmcMultiome/singlecells_analysis/CorrTables.rds"))
-GA.Signac.cor <- cor.matrices.sc$SignacGA.perCell
-
-cell.groups <- plyr::revalue(seurat.sc$celltype, c("B Naive" = "Bcells", "B Mem" = "Bcells",  "B Interm" = "Bcells",
-                                                   "CD16 Mono" = "Mono", "CD14 Mono" = "Mono"))
-cor.matrix.sc <- matrix(0, nrow = length(unique(cell.groups)), ncol = length(unique(cell.groups)), dimnames = list(unique(cell.groups), unique(cell.groups)))
-for(celltype1 in unique(cell.groups)){
-  for(celltype2 in unique(cell.groups)){
-    cor.matrix.sc[celltype1, celltype2] <- mean(GA.Signac.cor[cell.groups %in% c(celltype1), cell.groups %in% c(celltype2)])
-  }
-}
+<!-- ```{r fig.height=3,fig.width=5} -->
+<!-- motifs.p$TCF7L2 + theme( strip.text =  element_text(size = 20)) -->
+<!-- ``` -->
 
 
-DefaultAssay(seurat.mc) <- "RNA"
-seurat.mc <- FindVariableFeatures(seurat.mc)
-var.genes.mc <- Seurat::VariableFeatures(seurat.mc)
-var.genes.mc <- var.genes.mc[var.genes.mc %in% rownames(seurat.mc[["GA"]])]
-GA.Signac.cor <- cor(as.matrix(GetAssayData(seurat.mc, assay = "GA", slot = "data")[var.genes.mc,]), 
-                     as.matrix(GetAssayData(seurat.mc, assay = "RNA", slot = "data")[var.genes.mc,]))
+<!-- ```{r  fig.height=4,fig.width=10} -->
+<!-- corr.TCF7L2.TCF7.motif.mc <- FeatureScatter.SuperCell(pbmc.mc, -->
+<!--                                                       detectedMotifs[relatedTFs[relatedTFs %in% "TCF7"]],detectedMotifs[relatedTFs[relatedTFs %in% "TCF7L2"]], -->
+<!--                                                       group.by = "celltype", cols = color.celltypes.pbmc) + -->
+<!--   ggtitle("Metacell") + xlab("Motif TCF7") + ylab("Motif TCF7L2") -->
 
-cell.groups <- plyr::revalue(seurat.mc$celltype, c("B Naive" = "Bcells", "B Mem" = "Bcells",  "B Interm" = "Bcells",
-                                                   "CD16 Mono" = "Mono", "CD14 Mono" = "Mono"))
-cor.matrix.mc <- matrix(0, nrow = length(unique(cell.groups)), ncol = length(unique(cell.groups)), dimnames = list(unique(cell.groups), unique(cell.groups)))
+<!-- corr.TCF7L2.TCF7.motif.mc -->
 
-for(celltype1 in unique(cell.groups)){
-  for(celltype2 in unique(cell.groups)){
-    cor.matrix.mc[celltype1, celltype2] <- mean(GA.Signac.cor[cell.groups %in% c(celltype1), cell.groups %in% c(celltype2)])
-  }
-}
 
-col_fun <- colorRamp2(c(min(c(cor.matrix.sc, cor.matrix.mc)), 
-                        mean(c(cor.matrix.sc, cor.matrix.mc)), 
-                        max(c(cor.matrix.sc, cor.matrix.mc))),
-                      c("white","gold", "red"))
 
-row_hclust <- hclust(dist(cor.matrix.sc))
-row_dend   <- rev(as.dendrogram(row_hclust))
-row_order  <- order.dendrogram(row_dend)
-p1 <- Heatmap(cor.matrix.sc, show_row_names = T, show_column_names = T,row_names_side = "left",
-              show_row_dend = T, show_column_dend = F, cluster_rows =  row_dend, cluster_columns = F, 
-              row_order = row_order, column_order = row_order, col=col_fun,
-              name = "Correlation", column_title = paste0("Gamma = ", 1))
+<!-- bm.cite.sc$size <- 1 -->
+<!-- corr.TCF7L2.TCF7.motif.sc <- FeatureScatter(pbmc.sc, -->
+<!--                                             detectedMotifs[relatedTFs[relatedTFs %in% "TCF7"]],detectedMotifs[relatedTFs[relatedTFs %in% "TCF7L2"]], -->
+<!--                                             group.by = "celltype", cols = color.celltypes.bm) + -->
+<!--   ggtitle("Single-cells") + xlab("Motif TCF7") + ylab("Motif TCF7L2") -->
 
-p2 <- Heatmap(cor.matrix.mc[rownames(cor.matrix.sc), colnames(cor.matrix.sc)], show_row_names = T, show_column_names = T,row_names_side = "left", show_heatmap_legend = T,
-              show_row_dend = T, show_column_dend = F, cluster_rows =  row_dend, cluster_columns = F, 
-              row_order = row_order, column_order = row_order, col=col_fun,
-              name = "Correlation", column_title = paste0("Gamma = ", gamma))
-draw(p1 + p2, heatmap_legend_side="right")
-pdf(paste0(opt$outdir, "pbmcMultiome_plasticity_heatmap.pdf"),w=6.5,h=3.5)
-draw(p1 + p2, heatmap_legend_side="right")
-dev.off()
+<!-- plot_grid(wrap_plots( -->
+<!--             corr.TCF7L2.TCF7.motif.sc+ NoLegend(),corr.TCF7L2.TCF7.motif.mc + NoLegend(),nrow = 1,axis_titles = "collect"), -->
+<!--            get_legend(corr.SPI1.mc),rel_widths =  c(4,2)) -->
 
-```
+<!-- ``` -->
+
+
+<!-- ```{r fig.height=6,fig.width=5} -->
+
+<!-- pdf("../../../output/plots/plots_Intermodality/figS5B_right.pdf",height=6,width=5) -->
+<!-- wrap_plots(motifs.p$TCF7 + theme( strip.text =  element_text(size = 20)), -->
+<!-- motifs.p$TCF7L2_rev + theme( strip.text =  element_text(size = 20)),ncol = 1) -->
+<!-- dev.off() -->
+
+<!-- ``` -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- ```{r} -->
+<!-- # Load single-cell seurat object -->
+<!-- seurat.sc = readRDS("../../../output/pbmcMultiome/singlecells_analysis/seurat.multiome.activities.rds") -->
+<!-- seraut.sc <- addCellTypePBMC(seurat.sc) -->
+<!-- seurat.sc$celltype_main <- seraut.sc$celltype -->
+
+<!-- seurat.sc <- DietSeurat(seurat.sc, assays = c("RNA", "ATAC", "SCT", "GA_Signac", "chromvar")) -->
+<!-- DefaultAssay(seurat.sc) <- "RNA" -->
+<!-- seurat.sc <- NormalizeData(seurat.sc) -->
+<!-- seurat.sc <- FindVariableFeatures(seurat.sc, nfeatures = 2000) -->
+<!-- var.genes <- Seurat::VariableFeatures(seurat.sc) -->
+<!-- # seurat.sc$celltype_main <- plyr::revalue(seurat.sc$celltype, c("B Interm" = "Bcells","B Mem" = "Bcells","B Naive" = "Bcells", -->
+<!-- #                                                                "CD14 Mono" = "Monocytes","CD16 Mono" = "Monocytes", -->
+<!-- #                                                                "CD4 Naive" = "CD4_Tcells","CD4 Mem" = "CD4_Tcells", -->
+<!-- #                                                                "CD8 Naive" = "CD8_Tcells","CD8 Mem" = "CD8_Tcells")) -->
+<!-- names(seurat.sc@assays)[names(seurat.sc@assays) ==  "GA_Signac"] <- "GA" -->
+<!-- seurat.sc@assays$GA@key <- "ga_" -->
+
+<!-- # Load metacell seurat object -->
+<!-- gamma = 75 -->
+<!-- seurat.mc <- readRDS(paste0("../../../output/pbmcMultiome/SuperCellMulti/g", gamma, "/seurat.multiome.activities.rds")) -->
+
+<!-- seurat.mc <- addCellTypePBMC(seurat.mc) -->
+<!-- seurat.mc$celltype_main <- seurat.mc$celltype -->
+
+
+<!-- DefaultAssay(seurat.mc) <- 'RNA' -->
+<!-- seurat.mc <- NormalizeData(seurat.mc) -->
+<!-- seurat.mc <- DietSeurat(seurat.mc, assays = c("RNA", "ATAC", "SCT", "GA_Signac", "chromvar")) -->
+<!-- gc() -->
+<!-- # seurat.mc$celltype_main <- plyr::revalue(seurat.mc$celltype, c("B Interm" = "Bcells", "B Mem" = "Bcells", "B Naive" = "Bcells", -->
+<!-- #                                                                "CD14 Mono" = "Monocytes", "CD16 Mono" = "Monocytes", -->
+<!-- #                                                                "CD4 Naive" = "CD4_Tcells", "CD4 Mem" = "CD4_Tcells", -->
+<!-- #                                                                "CD8 Naive" = "CD8_Tcells","CD8 Mem" = "CD8_Tcells")) -->
+<!-- names(seurat.mc@assays)[names(seurat.mc@assays) ==  "GA_Signac"] <- "GA" -->
+<!-- seurat.mc@assays$GA@key <- "ga_" -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+
+<!-- detectedMotifs[relatedTFs[relatedTFs %in% TF]] -->
+<!-- ``` -->
+
+
+
+<!-- ```{r} -->
+
+<!-- group.by = "celltype" -->
+<!-- for(TF in TFs){ -->
+<!--   assays <- c("RNA", "GA") -->
+<!--   ff.plot.res.sc <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.sc, is.normalized = T, cluster = group.by, -->
+<!--                                                  assays = assays, feature.x = TF, feature.y = TF, -->
+<!--                                                  color.use = color.celltypes.pbmc, -->
+<!--                                                  use.size = F, plot = T, pt.size = 2, add.key = T) -->
+<!--   sc.p <- ff.plot.res.sc$plots[[1]]+ mytheme + guides(fill = guide_legend(override.aes = list(size=3),ncol = 3)) -->
+<!--   assign(paste0(TF, ".sc.GA.RNA"), sc.p) -->
+
+<!--   ff.plot.res.mc <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.mc, -->
+<!--                                                  is.normalized = T, cluster = group.by, -->
+<!--                                                  assays = assays,feature.x = TF, feature.y = TF, -->
+<!--                                                  color.use = color.celltypes.pbmc, -->
+<!--                                                  use.size = T,plot = T) -->
+<!--   mc.p <- ff.plot.res.mc$plots[[1]] + mytheme + guides(fill = guide_legend(override.aes = list(size=3),ncol = 3)) -->
+<!--   assign(paste0(TF, ".mc.GA.RNA"), mc.p) -->
+
+
+<!--   assays <- c("RNA", "chromvar") -->
+<!--   ff.plot.res.sc <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.sc, is.normalized = T, cluster = group.by, -->
+<!--                                                  assays = assays, feature.x = TF, feature.y = detectedMotifs[relatedTFs[relatedTFs %in% TF]], -->
+<!--                                                  color.use = color.celltypes.pbmc, -->
+<!--                                                  use.size = F, plot = T, pt.size = 2, add.key = F) -->
+<!--   sc.p <- ff.plot.res.sc$plots[[1]]+ mytheme + guides(fill = guide_legend(override.aes = list(size=3), ncol = 3)) -->
+<!--   assign(paste0(TF, ".sc.chromVAR.RNA"), sc.p) -->
+
+<!--   ff.plot.res.mc <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.mc, -->
+<!--                                                  is.normalized = T,cluster = group.by, -->
+<!--                                                  assays = assays,feature.x = TF, feature.y = detectedMotifs[relatedTFs[relatedTFs %in% TF]], -->
+<!--                                                  color.use = color.celltypes.pbmc, -->
+<!--                                                  use.size = T,plot = T, add.key = F) -->
+<!--   mc.p <- ff.plot.res.mc$plots[[1]] + mytheme + guides(fill = guide_legend(override.aes = list(size=3), ncol = 3)) -->
+<!--   assign(paste0(TF, ".mc.chromVAR.RNA"), mc.p) -->
+
+<!-- } -->
+
+<!-- pdf("../../../output/plots/plots_Intermodality/pbmcMultiome_sc_mc_FeatureFeaturePlots_TCF7family.pdf", h=12, w=12) -->
+<!-- # grid with blanks and legend -->
+<!-- blank_size = 0.05 -->
+<!-- blankPlot <- ggplot()+ geom_blank(aes(1,1)) + -->
+<!--   cowplot::theme_nothing() -->
+
+<!-- grid.arrange( -->
+<!--   TCF7.sc.chromVAR.RNA + mytheme +NoLegend(), blankPlot, TCF7.mc.chromVAR.RNA + mytheme +NoLegend(), blankPlot, arrangeGrob(motifs.p$TCF7_rev, motifs.p$LEF1, motifs.p$TCF7L2), -->
+<!--   blankPlot, blankPlot, blankPlot, blankPlot, -->
+<!--   LEF1.sc.chromVAR.RNA + mytheme +NoLegend(), blankPlot, LEF1.mc.chromVAR.RNA + mytheme + NoLegend(), blankPlot, -->
+<!--   blankPlot, blankPlot, blankPlot, blankPlot, blankPlot, -->
+<!--   TCF7L2.sc.chromVAR.RNA + mytheme + NoLegend(), blankPlot, TCF7L2.mc.chromVAR.RNA + mytheme + NoLegend(), blankPlot, cowplot::get_legend(TCF7.mc.chromVAR.RNA), -->
+<!--   ncol = 5, layout_matrix = rbind(c(1:5), c(6:9,5), c(10:13, 5), c(14:18), c(19:23)), -->
+<!--   widths = c(1, blank_size, 1, blank_size, 1), heights = c(1, blank_size, 1, blank_size, 1) -->
+<!-- ) -->
+<!-- dev.off() -->
+
+<!-- pdf("../../../output/plots/plots_Intermodality/pbmcMultiom_sc_mc_FeatureFeaturePlots_SPI1.pdf", w=12, h=4) -->
+<!-- grid.arrange( -->
+<!--   SPI1.sc.GA.RNA + mytheme + NoLegend(), blankPlot, -->
+<!--   SPI1.mc.GA.RNA + mytheme + NoLegend(), blankPlot, -->
+<!--   cowplot::get_legend(SPI1.sc.GA.RNA + guides(fill = guide_legend(override.aes = list(size=3), ncol = 2))), -->
+<!--   ncol = 5, -->
+<!--   widths = c(1, blank_size, 1, blank_size, 0.5) -->
+<!-- ) -->
+<!-- dev.off() -->
+<!-- ``` -->
+
+<!-- ## Correlations between GA vs RNA at the cell/metacell level -->
+<!-- ```{r} -->
+
+<!-- cor.matrices.sc <- readRDS("../../../output/pbmcMultiome//singlecells_analysis/CorrTables.rds") -->
+<!-- GA.Signac.cor <- cor.matrices.sc$SignacGA.perCell -->
+
+<!-- cell.groups <- plyr::revalue(seurat.sc$celltype, c("B Naive" = "Bcells", "B Mem" = "Bcells",  "B Interm" = "Bcells", -->
+<!--                                                    "CD16 Mono" = "Mono", "CD14 Mono" = "Mono")) -->
+<!-- cor.matrix.sc <- matrix(0, nrow = length(unique(cell.groups)), ncol = length(unique(cell.groups)), dimnames = list(unique(cell.groups), unique(cell.groups))) -->
+<!-- for(celltype1 in unique(cell.groups)){ -->
+<!--   for(celltype2 in unique(cell.groups)){ -->
+<!--     cor.matrix.sc[celltype1, celltype2] <- mean(GA.Signac.cor[cell.groups %in% c(celltype1), cell.groups %in% c(celltype2)]) -->
+<!--   } -->
+<!-- } -->
+
+
+<!-- DefaultAssay(seurat.mc) <- "RNA" -->
+<!-- seurat.mc <- FindVariableFeatures(seurat.mc) -->
+<!-- var.genes.mc <- Seurat::VariableFeatures(seurat.mc) -->
+<!-- var.genes.mc <- var.genes.mc[var.genes.mc %in% rownames(seurat.mc[["GA"]])] -->
+<!-- GA.Signac.cor <- cor(as.matrix(GetAssayData(seurat.mc, assay = "GA", slot = "data")[var.genes.mc,]), -->
+<!--                      as.matrix(GetAssayData(seurat.mc, assay = "RNA", slot = "data")[var.genes.mc,])) -->
+
+<!-- cell.groups <- plyr::revalue(seurat.mc$celltype, c("B Naive" = "Bcells", "B Mem" = "Bcells",  "B Interm" = "Bcells", -->
+<!--                                                    "CD16 Mono" = "Mono", "CD14 Mono" = "Mono")) -->
+<!-- cor.matrix.mc <- matrix(0, nrow = length(unique(cell.groups)), ncol = length(unique(cell.groups)), dimnames = list(unique(cell.groups), unique(cell.groups))) -->
+
+<!-- for(celltype1 in unique(cell.groups)){ -->
+<!--   for(celltype2 in unique(cell.groups)){ -->
+<!--     cor.matrix.mc[celltype1, celltype2] <- mean(GA.Signac.cor[cell.groups %in% c(celltype1), cell.groups %in% c(celltype2)]) -->
+<!--   } -->
+<!-- } -->
+
+<!-- col_fun <- colorRamp2(c(min(c(cor.matrix.sc, cor.matrix.mc)), -->
+<!--                         mean(c(cor.matrix.sc, cor.matrix.mc)), -->
+<!--                         max(c(cor.matrix.sc, cor.matrix.mc))), -->
+<!--                       c("white","gold", "red")) -->
+
+<!-- row_hclust <- hclust(dist(cor.matrix.sc)) -->
+<!-- row_dend   <- rev(as.dendrogram(row_hclust)) -->
+<!-- row_order  <- order.dendrogram(row_dend) -->
+<!-- p1 <- Heatmap(cor.matrix.sc, show_row_names = T, show_column_names = T,row_names_side = "left", -->
+<!--               show_row_dend = T, show_column_dend = F, cluster_rows =  row_dend, cluster_columns = F, -->
+<!--               row_order = row_order, column_order = row_order, col=col_fun, -->
+<!--               name = "Correlation", column_title = paste0("Gamma = ", 1)) -->
+
+<!-- p2 <- Heatmap(cor.matrix.mc[rownames(cor.matrix.sc), colnames(cor.matrix.sc)], show_row_names = T, show_column_names = T,row_names_side = "left", show_heatmap_legend = T, -->
+<!--               show_row_dend = T, show_column_dend = F, cluster_rows =  row_dend, cluster_columns = F, -->
+<!--               row_order = row_order, column_order = row_order, col=col_fun, -->
+<!--               name = "Correlation", column_title = paste0("Gamma = ", gamma)) -->
+<!-- draw(p1 + p2, heatmap_legend_side="right") -->
+<!-- pdf("../../../output/plots/plots_Intermodality/pbmcMultiome_plasticity_heatmap.pdf",w=6.5,h=3.5) -->
+<!-- draw(p1 + p2, heatmap_legend_side="right") -->
+<!-- dev.off() -->
+
+<!-- ``` -->
 
 
 ## Pando analysis
 ### Compare pando methods
 ```{r}
 p_thresh <- 0.05
-load(paste0(data_path, "/SuperCellMulti/pando_metrics_summary_p_thresh", p_thresh, ".RData"))
+load(paste0("../../../output/pbmcMultiome/SuperCellMulti/pando_metrics_summary_p_thresh", p_thresh, ".RData"))
 
 n.target.genes$resolution <- factor(n.target.genes$resolution, levels = paste0("gamma.", c(1, 10, 20, 50, 75, 100, 200)))
 ggplot(n.target.genes,aes(x = resolution, y = n_genes, color = method)) + geom_boxplot()
@@ -963,8 +971,8 @@ GetEnrichmentPval <- function(tf,
                               modules,
                               net,
                               only.pos = F,
-                              tested.genes = hvgs) { 
-  
+                              tested.genes = hvgs) {
+
   net <- net[net$source == tf,]
   net <- net[net$target %in% tested.genes,]
   modules <-  data.frame(modules@meta)
@@ -975,12 +983,12 @@ GetEnrichmentPval <- function(tf,
     net <- net[net$mor >0,]
     modules <- modules[modules$estimate >0,]
   }
-  
+
   mor = 2
   if (only.pos) {
     mor = 1
   }
-  
+
   m = length(net$curated_regulation) # Number of curated regulation in test set
   n = mor*length(tested.genes) - m # Number of non-curated targets in test set
   x = length(intersect(modules$predicted_regulation,net$curated_regulation)) # Overlap between predicted and curated regulations
@@ -998,7 +1006,7 @@ mytheme <- theme(axis.text.x = element_text(size = 11, face = "bold"),
                  axis.title = element_text(size = 12, face = "bold"),
                  plot.title = element_text(size = 14, face = "bold", hjust = 0.5))
 
-assign("modules_sc", readRDS( paste0(data_path, "/singlecells_analysis/modules_g1_met_sc_pval_", p_thresh, ".rds")))
+assign("modules_sc", readRDS( paste0("../../../output/pbmcMultiome/singlecells_analysis/modules_g1_met_sc_pval_", p_thresh, ".rds")))
 
 DefaultAssay(seurat.sc) <- "RNA"
 seurat.sc <- FindVariableFeatures(seurat.sc, assay='RNA', nfeatures = 4000)
@@ -1007,14 +1015,14 @@ hvgs <- Seurat::VariableFeatures(seurat.sc)
 # method =  "LSI2_norm_svy"
 # for(method in c("aggregate", "LSI1_norm_svy", "meanSC_norm_svy")){
 for(method in c( "LSI1_norm_svy","LSI2_norm_svy")){
-  
-  
+
+
   for(gamma in c(10, 20, 50, 75, 100, 200)){
-    assign(paste0("modules_g",gamma), readRDS( paste0(data_path, "/SuperCellMulti/g", gamma, "/modules_g", gamma, "_met_", method, "_pval_", p_thresh, ".rds")))
+    assign(paste0("modules_g",gamma), readRDS( paste0("../../../output/pbmcMultiome/SuperCellMulti/g", gamma, "/modules_g", gamma, "_met_", method, "_pval_", p_thresh, ".rds")))
   }
-  
+
   # Counts number of targets genes per TF -----------------------------------
-  
+
   curated.tf <- names(which(table(net$source)>10))
   tfs <- Reduce(intersect, list(curated.tf,
                                 modules_sc@meta$tf,
@@ -1024,7 +1032,7 @@ for(method in c( "LSI1_norm_svy","LSI2_norm_svy")){
                                 modules_g75@meta$tf,
                                 modules_g100@meta$tf,
                                 modules_g200@meta$tf))
-  
+
   predicted.target.sc <- sapply(tfs, function(x) { nrow(modules_sc@meta[modules_sc@meta$tf == x,])})
   predicted.target.g10 <- sapply(tfs, function(x) { nrow(modules_g10@meta[modules_g10@meta$tf == x,])})
   predicted.target.g20 <- sapply(tfs, function(x) { nrow(modules_g20@meta[modules_g20@meta$tf == x,])})
@@ -1032,34 +1040,34 @@ for(method in c( "LSI1_norm_svy","LSI2_norm_svy")){
   predicted.target.g75 <- sapply(tfs, function(x) { nrow(modules_g75@meta[modules_g75@meta$tf == x,])})
   predicted.target.g100 <- sapply(tfs, function(x) { nrow(modules_g100@meta[modules_g100@meta$tf == x,])})
   predicted.target.g200 <- sapply(tfs, function(x) { nrow(modules_g200@meta[modules_g200@meta$tf == x,])})
-  
-  nb_genes <- as.data.frame(cbind(predicted.target.sc, predicted.target.g10, predicted.target.g20, 
-                                  predicted.target.g50, predicted.target.g75, 
+
+  nb_genes <- as.data.frame(cbind(predicted.target.sc, predicted.target.g10, predicted.target.g20,
+                                  predicted.target.g50, predicted.target.g75,
                                   predicted.target.g100, predicted.target.g200))
-  
+
   df_long <- nb_genes %>%
-    pivot_longer(cols = starts_with("predicted.target"), 
-                 names_to = "Group", 
+    pivot_longer(cols = starts_with("predicted.target"),
+                 names_to = "Group",
                  values_to = "Num_Genes")
   df_long$Group <- factor(gsub("predicted.target.", "", df_long$Group), levels = c("sc", paste0("g",c(10,20,50,75,100,200))))
-  
-  
-  Means <- df_long %>% group_by(Group) %>% 
+
+
+  Means <- df_long %>% group_by(Group) %>%
     summarize(Avg = mean(Num_Genes))
-  
+
   nb_genes_plot <- ggplot(df_long, aes(x = Group, y = Num_Genes)) +
     geom_boxplot(fill = "lightblue", color = "black", outlier.color = "black") +
     geom_point(mapping = aes(x = Group, y = Avg), data = Means, color = "red", shape = 2) +
     geom_line(data = Means, mapping = aes(x = Group, y = Avg), group = 1, color = "red") +
     theme_bw() +
-    labs(title = method, 
-         x = "", 
+    labs(title = method,
+         x = "",
          y = "Nb. predicted targets") +
     mytheme
   # print(nb_genes_plot)
-  
+
   # Enrichment results all directions -----------------------------------------------------
-  
+
   pval.sc <- sapply(tfs,function(x){ GetEnrichmentPval(tf = x,modules = modules_sc,net = net,tested.genes = hvgs)}, USE.NAMES = T)
   pval.g10 <- sapply(tfs,function(x){ GetEnrichmentPval(x,modules_g10,net = net,tested.genes = hvgs)}, USE.NAMES = T)
   pval.g20 <- sapply(tfs,function(x){ GetEnrichmentPval(tf = x,modules = modules_g20,net = net,tested.genes = hvgs)}, USE.NAMES = T)
@@ -1067,7 +1075,7 @@ for(method in c( "LSI1_norm_svy","LSI2_norm_svy")){
   pval.g75 <- sapply(tfs,function(x){ GetEnrichmentPval(tf = x,modules = modules_g75,net = net,tested.genes = hvgs)}, USE.NAMES = T)
   pval.g100 <- sapply(tfs,function(x){ GetEnrichmentPval(x,modules_g100,net = net,tested.genes = hvgs)}, USE.NAMES = T)
   pval.g200 <- sapply(tfs,function(x){ GetEnrichmentPval(x,modules_g200,net = net,tested.genes = hvgs)}, USE.NAMES = T)
-  
+
   res <- data.frame("sc" = pval.sc,
                     "g10" = pval.g10,
                     "g20" = pval.g20,
@@ -1075,36 +1083,36 @@ for(method in c( "LSI1_norm_svy","LSI2_norm_svy")){
                     "g75" = pval.g75,
                     "g100" = pval.g100,
                     "g200" = pval.g200)
-  
-  
+
+
   res_long <- res %>%
     pivot_longer(
       cols = colnames(res),  # Specify the columns to pivot
       names_to = "group",  # Name of the new column for groups
       values_to = "value"  # Name of the new column for values
     )
-  
+
   res_long$resolution <- factor(res_long$group, levels= c("sc","g10","g20","g50","g75","g100","g200"))
-  
-  stats <- res_long %>% group_by(resolution) %>% 
+
+  stats <- res_long %>% group_by(resolution) %>%
     summarize(stat = median(value))
-  
-  pval_boxplot <- ggplot(res_long, aes(x = resolution, y=(value))) + 
-    geom_boxplot(fill = "lightblue", color = "black", outlier.color = "black" ) + 
-    geom_jitter(width = 0.1) + 
+
+  pval_boxplot <- ggplot(res_long, aes(x = resolution, y=(value))) +
+    geom_boxplot(fill = "lightblue", color = "black", outlier.color = "black" ) +
+    geom_jitter(width = 0.1) +
     geom_point(mapping = aes(x = resolution, y = stat), data = stats, color = "red", shape = 2) +
     geom_line(data = stats, mapping = aes(x = resolution, y = stat), group = 1, color = "red") +
     theme_bw() +
-    labs(title = paste0(method," (common TFs)"), 
-         x = "", 
+    labs(title = paste0(method," (common TFs)"),
+         x = "",
          y = "P-value") +
     mytheme
-  
-  
+
+
   # Enrichment using only positive regulation -------------------------------
-  
+
   curated.tf <- names(which(table(net[net$mor>0,]$source)>10))
-  
+
   tfs <- Reduce(intersect, list(
     curated.tf,
     modules_sc@meta$tf,
@@ -1115,7 +1123,7 @@ for(method in c( "LSI1_norm_svy","LSI2_norm_svy")){
     modules_g100@meta$tf,
     modules_g200@meta$tf
   ))
-  
+
   pval.sc <- sapply(tfs,function(x){ GetEnrichmentPval(x,modules_sc,net = net,tested.genes = hvgs,only.pos = T)},USE.NAMES = T)
   pval.g10 <- sapply(tfs,function(x){ GetEnrichmentPval(x,modules_g10,net = net,tested.genes = hvgs,only.pos = T)},USE.NAMES = T)
   pval.g20 <- sapply(tfs,function(x){ GetEnrichmentPval(x,modules_g20,net = net,tested.genes = hvgs,only.pos = T)},USE.NAMES = T)
@@ -1123,7 +1131,7 @@ for(method in c( "LSI1_norm_svy","LSI2_norm_svy")){
   pval.g75 <- sapply(tfs,function(x){ GetEnrichmentPval(x,modules_g75,net = net,tested.genes = hvgs,only.pos = T)},USE.NAMES = T)
   pval.g100 <- sapply(tfs,function(x){ GetEnrichmentPval(x,modules_g100,net = net,tested.genes = hvgs,only.pos = T)},USE.NAMES = T)
   pval.g200 <- sapply(tfs,function(x){ GetEnrichmentPval(x,modules_g200,net = net,tested.genes = hvgs,only.pos = T)},USE.NAMES = T)
-  
+
   res <- data.frame("sc" = pval.sc,
                     "g10" = pval.g10,
                     "g20"= pval.g20,
@@ -1131,38 +1139,38 @@ for(method in c( "LSI1_norm_svy","LSI2_norm_svy")){
                     "g75" = pval.g75,
                     "g100" = pval.g100,
                     "g200" = pval.g200)
-  
-  
+
+
   res_long <- res %>%
     pivot_longer(
       cols = colnames(res),  # Specify the columns to pivot
       names_to = "group",  # Name of the new column for groups
       values_to = "value"  # Name of the new column for values
     )
-  
+
   res_long$resolution <- factor(res_long$group,levels= c("sc","g10","g20","g50","g75","g100","g200"))
-  stats <- res_long %>% group_by(resolution) %>% 
+  stats <- res_long %>% group_by(resolution) %>%
     summarize(stat = median(value))
-  
-  pval_boxplot_onlyPos <- ggplot(res_long, aes(x = resolution, y=(value))) + 
+
+  pval_boxplot_onlyPos <- ggplot(res_long, aes(x = resolution, y=(value))) +
     geom_boxplot(fill = "lightblue", color = "black", outlier.color = "black" ) +
-    geom_jitter(width = 0.1) + 
+    geom_jitter(width = 0.1) +
     geom_point(mapping = aes(x = resolution, y = stat), data = stats, color = "red", shape = 2) +
     geom_line(data = stats, mapping = aes(x = resolution, y = stat), group = 1, color = "red") +
     theme_bw() +
-    labs(title = paste0(method," (only pos., common TFs)"), 
-         x = "", 
+    labs(title = paste0(method," (only pos., common TFs)"),
+         x = "",
          y = "P-value") +
     mytheme
-  
+
   combined.plot <- nb_genes_plot | pval_boxplot  | pval_boxplot_onlyPos
   # combined.plot <- nb_genes_plot | pval_boxplot  
   print(combined.plot)
   assign(paste0("p.",method), combined.plot)
-  
-  
+
+
   comparisons <- list(
-  
+
   # c("1","50"),
   c("1", "75"))
 
@@ -1177,41 +1185,40 @@ nb_genes_plot <- ggplot(df_long, aes(x = graining_level, y = Num_Genes)) +
   # geom_point(mapping = aes(x = Group, y = Avg), data = Means, color = "red", shape = 2) +
   # geom_line(data = Means, mapping = aes(x = Group, y = Avg), group = 1, color = "red") +
   theme_bw() +
-  labs(title = method, 
-       x = "Graining level (\u03B3)", 
+  labs(title = method,
+       x = "Graining level (\u03B3)",
        y = "Predicted targets") + ggtitle("Pando regulon size")
 
-stats <- res_long %>% group_by(resolution) %>% 
+stats <- res_long %>% group_by(resolution) %>%
   summarize(stat = median(-log10(value)))
 
 res_long$graining_level <- str_split_fixed(res_long$resolution,"g",n=2)[,2]
 res_long$graining_level[res_long$graining_level == ""] <- "1"
 res_long$graining_level <- factor(res_long$graining_level,as.character(c(1,10,20,50,75,100,200)))
 
-pval_boxplot <- ggplot(res_long, aes(x = graining_level, y=-log10(value))) + 
-  geom_boxplot(fill = "lightblue", color = "black", outliers = F ) + 
+pval_boxplot <- ggplot(res_long, aes(x = graining_level, y=-log10(value))) +
+  geom_boxplot(fill = "lightblue", color = "black", outliers = F ) +
   geom_signif(comparisons = comparisons,y_position = 2.5,
               step_increase=0.05,tip_length = 0.005,
               map_signif_level=F,extend_line = -0.005,
               textsize = 5)+ coord_cartesian(ylim = c(0,3.25))+
-  # geom_jitter(width = 0.1) + 
+  # geom_jitter(width = 0.1) +
   # geom_point(mapping = aes(x = resolution, y = stat), data = stats, color = "red", shape = 2) +
   # geom_line(data = stats, mapping = aes(x = resolution, y = stat), group = 1, color = "red") +
   theme_bw() +
-  labs(title = paste0(method," (common TFs)"), 
-       x = "", 
+  labs(title = paste0(method," (common TFs)"),
+       x = "",
        y = "- log10(P-value)") +
   labs(
-    x = "Graining level (\u03B3)", 
+    x = "Graining level (\u03B3)",
     y = "Predicted targets")+
   ggtitle("Enrichment in curated targets")
 
 wrap_plots(nb_genes_plot,pval_boxplot)
-  
+
 }
-pdf(paste0(opt$outdir,"/pando_figures_pval_",p_thresh,".pdf"), w=15,h=5)
 # p.LSI1_norm_svy
-dev.off()
+
 ```
 
 
@@ -1223,7 +1230,7 @@ p.LSI2_norm_svy
 # PLot for LSI method 1 svy
 ```{r fig.height=4,fig.width=7.25}
 comparisons <- list(
-  
+
   # c("1","50"),
   c("1", "75"))
 
@@ -1238,37 +1245,40 @@ nb_genes_plot <- ggplot(df_long, aes(x = graining_level, y = Num_Genes)) +
   # geom_point(mapping = aes(x = Group, y = Avg), data = Means, color = "red", shape = 2) +
   # geom_line(data = Means, mapping = aes(x = Group, y = Avg), group = 1, color = "red") +
   theme_bw() +
-  labs(title = method, 
-       x = "Graining level (\u03B3)", 
+  labs(title = method,
+       x = "Graining level (\u03B3)",
        y = "Nb. predicted targets") + ggtitle("Pando regulon size")
 
-stats <- res_long %>% group_by(resolution) %>% 
+stats <- res_long %>% group_by(resolution) %>%
   summarize(stat = median(-log10(value)))
 
 res_long$graining_level <- str_split_fixed(res_long$resolution,"g",n=2)[,2]
 res_long$graining_level[res_long$graining_level == ""] <- "1"
 res_long$graining_level <- factor(res_long$graining_level,as.character(c(1,10,20,50,75,100,200)))
 
-pval_boxplot <- ggplot(res_long, aes(x = graining_level, y=-log10(value))) + 
-  geom_boxplot(fill = "lightblue", color = "black", outliers = F ) + 
+pval_boxplot <- ggplot(res_long, aes(x = graining_level, y=-log10(value))) +
+  geom_boxplot(fill = "lightblue", color = "black", outliers = F ) +
   geom_signif(comparisons = comparisons,y_position = 2.5,
               step_increase=0.05,tip_length = 0.005,
               map_signif_level=F,extend_line = -0.005,
               textsize = 5)+ coord_cartesian(ylim = c(0,3.25))+
-  # geom_jitter(width = 0.1) + 
+  # geom_jitter(width = 0.1) +
   # geom_point(mapping = aes(x = resolution, y = stat), data = stats, color = "red", shape = 2) +
   # geom_line(data = stats, mapping = aes(x = resolution, y = stat), group = 1, color = "red") +
   theme_bw() +
-  labs(title = paste0(method," (common TFs)"), 
-       x = "", 
+  labs(title = paste0(method," (common TFs)"),
+       x = "",
        y = "- log10(P-value)") +
   labs(
-    x = "Graining level (\u03B3)", 
+    x = "Graining level (\u03B3)",
     y = "- log10(P value)")+
   ggtitle("Enrichment in curated targets")
 
+pdf(paste0("../../../pdf_files/Fig3/Fig3pando_figures_pval_",p_thresh,".pdf"), w=6,h=3)
+
 wrap_plots(nb_genes_plot,pval_boxplot,axis_titles = "collect") & theme(axis.title  = element_text(size = 18),
                                                title =  element_text(size = 14) )
+dev.off()
 ```
 
 
@@ -1276,8 +1286,9 @@ wrap_plots(nb_genes_plot,pval_boxplot,axis_titles = "collect") & theme(axis.titl
 
 
 ```{r fig.height=3,fig.width=6}
+
 comparisons <- list(
-  
+
   # c("1","50"),
   c("1", "75"))
 
@@ -1292,32 +1303,32 @@ nb_genes_plot <- ggplot(df_long, aes(x = graining_level, y = Num_Genes)) +
   # geom_point(mapping = aes(x = Group, y = Avg), data = Means, color = "red", shape = 2) +
   # geom_line(data = Means, mapping = aes(x = Group, y = Avg), group = 1, color = "red") +
   theme_bw() +
-  labs(title = method, 
-       x = "Graining level (\u03B3)", 
+  labs(title = method,
+       x = "Graining level (\u03B3)",
        y = "Predicted targets") + ggtitle("Pando regulon size")
 
-stats <- res_long %>% group_by(resolution) %>% 
+stats <- res_long %>% group_by(resolution) %>%
   summarize(stat = median(-log10(value)))
 
 res_long$graining_level <- str_split_fixed(res_long$resolution,"g",n=2)[,2]
 res_long$graining_level[res_long$graining_level == ""] <- "1"
 res_long$graining_level <- factor(res_long$graining_level,as.character(c(1,10,20,50,75,100,200)))
 
-pval_boxplot <- ggplot(res_long, aes(x = graining_level, y=-log10(value))) + 
-  geom_boxplot(fill = "lightblue", color = "black", outliers = F ) + 
+pval_boxplot <- ggplot(res_long, aes(x = graining_level, y=-log10(value))) +
+  geom_boxplot(fill = "lightblue", color = "black", outliers = F ) +
   geom_signif(comparisons = comparisons,y_position = 2.5,
               step_increase=0.05,tip_length = 0.005,
               map_signif_level=F,extend_line = -0.005,
               textsize = 5)+ coord_cartesian(ylim = c(0,3.25))+
-  # geom_jitter(width = 0.1) + 
+  # geom_jitter(width = 0.1) +
   # geom_point(mapping = aes(x = resolution, y = stat), data = stats, color = "red", shape = 2) +
   # geom_line(data = stats, mapping = aes(x = resolution, y = stat), group = 1, color = "red") +
   theme_bw() +
-  labs(title = paste0(method," (common TFs)"), 
-       x = "", 
+  labs(title = paste0(method," (common TFs)"),
+       x = "",
        y = "- log10(P-value)") +
   labs(
-    x = "Graining level (\u03B3)", 
+    x = "Graining level (\u03B3)",
     y = "Predicted targets")+
   ggtitle("Enrichment in curated targets")
 
@@ -1325,256 +1336,254 @@ wrap_plots(nb_genes_plot,pval_boxplot)
 ```
 
 
-# Hspc multiome related figures
+<!-- # Hspc multiome related figures -->
 
-## Global parameters
-```{r}
-data_path <- paste0(opt$resdir, "/hspcMultiomePersad/")
-celltype_colors <- c("HMP" = "#999999", "Mono" = "#004949", "HSC" = "#009292",
-                     "Ery" = "#FF6DB6", "MEP" = "#490092", "cDC" = "#006DDB", 
-                     "CLP" = "#B66DFF", "pDC" = "#6DB6FF")
-
-
-# plot theme
-axis.size <- 15
-mytheme <-  theme(axis.title = element_text(size = axis.size),
-                  axis.text.x = element_text(size = axis.size),
-                  axis.text.y = element_text(size = axis.size),
-                  legend.title = element_text(size = 15),
-                  legend.text = element_text(size=13)) 
-
-```
-
-```{r}
-# Load single-cell seurat object
-seurat.sc = readRDS(paste0(data_path, "singlecells_analysis/seurat.multiome.activities.rds"))
-seurat.sc <- DietSeurat(seurat.sc, assays = c("RNA", "ATAC", "SCT", "GA_Signac", "chromvar"), dimreducs = "wnn.umap")
-DefaultAssay(seurat.sc) <- "RNA"
-seurat.sc <- NormalizeData(seurat.sc)
-seurat.sc <- FindVariableFeatures(seurat.sc, nfeatures = 2000)
-var.genes <- Seurat::VariableFeatures(seurat.sc)
-names(seurat.sc@assays)[names(seurat.sc@assays) ==  "GA_Signac"] <- "GA"
-seurat.sc@assays$GA@key <- "ga_"
-
-# Load metacell seurat object
-gamma = 75
-seurat.mc <- readRDS(paste0(data_path, "SuperCellMulti/g", gamma, "/seurat.multiome.activities.rds"))
-DefaultAssay(seurat.mc) <- 'RNA'
-seurat.mc <- NormalizeData(seurat.mc)
-seurat.mc <- DietSeurat(seurat.mc, assays = c("RNA", "ATAC", "SCT", "GA_Signac", "chromvar"))
-gc()
-
-names(seurat.mc@assays)[names(seurat.mc@assays) ==  "GA_Signac"] <- "GA"
-seurat.mc@assays$GA@key <- "ga_"
-```
-
-## Motifs logo plots 
-```{r}
-TFs <- c("GATA1") 
-DefaultAssay(seurat.sc) <- "ATAC"
-detectedMotifs <- rownames(seurat.sc@assays$chromvar) #motif
-relatedTFs <- ConvertMotifID(seurat.sc, id = detectedMotifs) #tf
-detectedMotifs <- detectedMotifs[relatedTFs %in% rownames(seurat.sc[["RNA"]])]
-relatedTFs <- relatedTFs[relatedTFs %in% rownames(seurat.sc[["RNA"]])]
-names(detectedMotifs) = relatedTFs
-
-motifs.p <- list()
-
-for(TF in TFs){
-  m <- detectedMotifs[relatedTFs[relatedTFs %in% TF]]
-  motifs.p[[TF]] <- MotifPlot(seurat.sc, motifs = m) 
-  
-  data.use <- GetMotifData(object = seurat.sc, assay = "ATAC", 
-                           slot = "pwm")[m]
-  TF_rev = data.use
-  names(TF_rev) <- TF
-  rownames(TF_rev[[TF]]) <- plyr::revalue(rownames(TF_rev[[TF]]), replace = c("A" = "T", "T"= "A", "C" = "G", "G" = "C"))
-  TF_rev[[TF]] <- TF_rev[[TF]][,ncol(TF_rev[[TF]]):1]
-  motifs.p[[paste0(TF,"_rev")]] <- ggseqlogo::ggseqlogo(TF_rev) 
-  
-}
-
-```
-
-```{r}
-
-group.by = "celltype"
-for(TF in TFs){
-  assays <- c("RNA", "GA")
-  ff.plot.res.sc <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.sc, is.normalized = T, cluster = group.by,
-                                                 assays = assays, feature.x = TF, feature.y = TF,
-                                                 color.use = celltype_colors,
-                                                 use.size = F, plot = T, pt.size = 2, add.key = T)
-  sc.p <- ff.plot.res.sc$plots[[1]]+ mytheme + guides(fill = guide_legend(override.aes = list(size=3),ncol = 3))
-  assign(paste0(TF, ".sc.GA.RNA"), sc.p)
-  
-  ff.plot.res.mc <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.mc,
-                                                 is.normalized = T, cluster = group.by,
-                                                 assays = assays,feature.x = TF, feature.y = TF,
-                                                 color.use = celltype_colors,
-                                                 use.size = T,plot = T)
-  mc.p <- ff.plot.res.mc$plots[[1]] + mytheme + guides(fill = guide_legend(override.aes = list(size=3),ncol = 3))
-  assign(paste0(TF, ".mc.GA.RNA"), mc.p)
-  
-  
-  assays <- c("RNA", "chromvar")
-  ff.plot.res.sc <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.sc, is.normalized = T, cluster = group.by,
-                                                 assays = assays, feature.x = TF, feature.y = detectedMotifs[relatedTFs[relatedTFs %in% TF]],
-                                                 color.use = celltype_colors,
-                                                 use.size = F, plot = T, pt.size = 2, add.key = F)
-  sc.p <- ff.plot.res.sc$plots[[1]]+ mytheme + guides(fill = guide_legend(override.aes = list(size=3), ncol = 3))
-  assign(paste0(TF, ".sc.chromVAR.RNA"), sc.p)
-  
-  ff.plot.res.mc <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.mc,
-                                                 is.normalized = T,cluster = group.by,
-                                                 assays = assays,feature.x = TF, feature.y = detectedMotifs[relatedTFs[relatedTFs %in% TF]],
-                                                 color.use = celltype_colors,
-                                                 use.size = T,plot = T, add.key = F)
-  mc.p <- ff.plot.res.mc$plots[[1]] + mytheme + guides(fill = guide_legend(override.aes = list(size=3), ncol = 3))
-  assign(paste0(TF, ".mc.chromVAR.RNA"), mc.p)
-  
-}
-
-# grid with blanks and legend
-blank_size = 0.05
-blankPlot <- ggplot()+ geom_blank(aes(1,1)) + 
-  cowplot::theme_nothing()
-
-grid.arrange(
-  GATA1.sc.GA.RNA + mytheme + NoLegend(), blankPlot, 
-  GATA1.mc.GA.RNA + mytheme + NoLegend(), blankPlot, 
-  cowplot::get_legend(GATA1.sc.GA.RNA + guides(fill = guide_legend(override.aes = list(size=3), ncol = 2))),
-  ncol = 5, 
-  widths = c(1, blank_size, 1, blank_size, 0.5)
-)
-
-# save plot in pdf
-pdf(paste0(opt$outdir, "hspcMultiomePersad_sc_mc_FeatureFeaturePlots_GATA1.pdf"), w=10, h=4)
-grid.arrange(
-  GATA1.sc.GA.RNA + mytheme + NoLegend(), blankPlot, 
-  GATA1.mc.GA.RNA + mytheme + NoLegend(), blankPlot, 
-  cowplot::get_legend(GATA1.sc.GA.RNA + guides(fill = guide_legend(override.aes = list(size=3), ncol = 2))),
-  ncol = 5, 
-  widths = c(1, blank_size, 1, blank_size, 0.5)
-)
-dev.off()
-```
-## UMAP plot
-```{r}
-png(paste0(opt$outdir, "hspcMultiomePersad_UMAPprojetcion.png"),width = 5*300, height = 4*300, res= 300)
-projection <- mc_projection(
-  sc.obj = seurat.sc, 
-  mc.obj = seurat.mc,
-  cell.membership = data.frame(row.names = names(seurat.mc@misc$membership), membership = paste0("Metacell_",seurat.mc@misc$membership)),
-  sc.reduction = "wnn.umap", mc.color = celltype_colors, sc.color = celltype_colors, 
-  sc.label = "celltype",
-  metacell.label = "celltype"
-) 
-projection + ggtitle(paste0("UMAP projection (hspcMultiomePersad)")) + mytheme +
-  guides(colour = guide_legend(override.aes = list(size=4)))
-dev.off()
-
-```
-
-## Correlations between GA vs RNA at the cell/metacell level
-```{r}
-cor.matrices.sc <- readRDS(paste0(opt$resdir, "hspcMultiomePersad/singlecells_analysis/CorrTables.rds"))
-GA.Signac.cor <- cor.matrices.sc$SignacGA.perCell
-
-cell.groups <- seurat.sc$celltype
-
-cor.matrix.sc <- matrix(0, nrow = length(unique(cell.groups)), ncol = length(unique(cell.groups)), dimnames = list(unique(cell.groups), unique(cell.groups)))
-for(celltype1 in unique(cell.groups)){
-  for(celltype2 in unique(cell.groups)){
-    cor.matrix.sc[celltype1, celltype2] <- mean(GA.Signac.cor[cell.groups %in% c(celltype1), cell.groups %in% c(celltype2)])
-  }
-}
+<!-- ## Global parameters -->
+<!-- ```{r} -->
+<!-- celltype_colors <- c("HMP" = "#999999", "Mono" = "#004949", "HSC" = "#009292", -->
+<!--                      "Ery" = "#FF6DB6", "MEP" = "#490092", "cDC" = "#006DDB", -->
+<!--                      "CLP" = "#B66DFF", "pDC" = "#6DB6FF") -->
 
 
-DefaultAssay(seurat.mc) <- "RNA"
-seurat.mc <- FindVariableFeatures(seurat.mc)
-var.genes.mc <- VariableFeatures(seurat.mc)
-var.genes.mc <- var.genes.mc[var.genes.mc %in% rownames(seurat.mc[["GA"]])]
-GA.Signac.cor <- cor(as.matrix(GetAssayData(seurat.mc, assay = "GA", slot = "data")[var.genes.mc,]), 
-                     as.matrix(GetAssayData(seurat.mc, assay = "RNA", slot = "data")[var.genes.mc,]))
+<!-- # plot theme -->
+<!-- axis.size <- 15 -->
+<!-- mytheme <-  theme(axis.title = element_text(size = axis.size), -->
+<!--                   axis.text.x = element_text(size = axis.size), -->
+<!--                   axis.text.y = element_text(size = axis.size), -->
+<!--                   legend.title = element_text(size = 15), -->
+<!--                   legend.text = element_text(size=13)) -->
 
-cor.matrix.mc <- matrix(0, nrow = length(unique(cell.groups)), ncol = length(unique(cell.groups)), dimnames = list(unique(cell.groups), unique(cell.groups)))
+<!-- ``` -->
 
-cell.groups <- seurat.mc$celltype
-for(celltype1 in unique(cell.groups)){
-  for(celltype2 in unique(cell.groups)){
-    cor.matrix.mc[celltype1, celltype2] <- mean(GA.Signac.cor[cell.groups %in% c(celltype1), cell.groups %in% c(celltype2)])
-  }
-}
+<!-- ```{r} -->
+<!-- # Load single-cell seurat object -->
+<!-- seurat.sc = readRDS("../../../output/hspcMultiomePersad/singlecells_analysis/seurat.multiome.activities.rds") -->
+<!-- seurat.sc <- DietSeurat(seurat.sc, assays = c("RNA", "ATAC", "SCT", "GA_Signac", "chromvar"), dimreducs = "wnn.umap") -->
+<!-- DefaultAssay(seurat.sc) <- "RNA" -->
+<!-- seurat.sc <- NormalizeData(seurat.sc) -->
+<!-- seurat.sc <- FindVariableFeatures(seurat.sc, nfeatures = 2000) -->
+<!-- var.genes <- Seurat::VariableFeatures(seurat.sc) -->
+<!-- names(seurat.sc@assays)[names(seurat.sc@assays) ==  "GA_Signac"] <- "GA" -->
+<!-- seurat.sc@assays$GA@key <- "ga_" -->
 
-# col_fun <- colorRamp2(c(min(c(cor.matrix.sc, cor.matrix.mc)), 
-#                         mean(c(cor.matrix.sc, cor.matrix.mc)), 
-#                         max(c(cor.matrix.sc, cor.matrix.mc))),
-#                       c("blue", "white", "red"))
-col_fun <- colorRamp2(c(min(c(cor.matrix.sc, cor.matrix.mc)), 
-                        mean(c(cor.matrix.sc, cor.matrix.mc)), 
-                        max(c(cor.matrix.sc, cor.matrix.mc))),
-                      c("white","gold", "red"))
+<!-- # Load metacell seurat object -->
+<!-- gamma = 75 -->
+<!-- seurat.mc <- readRDS(paste0("../../../output/hspcMultiomePersad/SuperCellMulti/g", gamma, "/seurat.multiome.activities.rds")) -->
+<!-- DefaultAssay(seurat.mc) <- 'RNA' -->
+<!-- seurat.mc <- NormalizeData(seurat.mc) -->
+<!-- seurat.mc <- DietSeurat(seurat.mc, assays = c("RNA", "ATAC", "SCT", "GA_Signac", "chromvar")) -->
+<!-- gc() -->
 
-row_hclust <- hclust(dist(cor.matrix.sc))
-row_dend   <- rev(as.dendrogram(row_hclust))
-row_order  <- order.dendrogram(row_dend)
-p1 <- Heatmap(cor.matrix.sc, show_row_names = T, show_column_names = T,row_names_side = "left",
-              show_row_dend = T, show_column_dend = F, cluster_rows =  row_dend, cluster_columns = F, 
-              row_order = row_order, column_order = row_order, col=col_fun,
-              name = "Correlation", column_title = paste0("Gamma = ", 1))
+<!-- names(seurat.mc@assays)[names(seurat.mc@assays) ==  "GA_Signac"] <- "GA" -->
+<!-- seurat.mc@assays$GA@key <- "ga_" -->
+<!-- ``` -->
 
-# row_hclust <- hclust(dist(cor.matrix.mc))
-# row_dend   <- rev(as.dendrogram(row_hclust))
-# row_order  <- order.dendrogram(row_dend)
-p2 <- Heatmap(cor.matrix.mc[rownames(cor.matrix.sc), colnames(cor.matrix.sc)], show_row_names = T, show_column_names = T,row_names_side = "left", show_heatmap_legend = T,
-              show_row_dend = T, show_column_dend = F, cluster_rows =  row_dend, cluster_columns = F, 
-              row_order = row_order, column_order = row_order, col=col_fun,
-              name = "Correlation", column_title = paste0("Gamma = ", gamma))
-pdf(paste0(opt$outdir, "hspcMultiomePersad_plasticity_heatmap.pdf"),w=6.5,h=3.5)
-draw(p1 + p2, heatmap_legend_side="right")
-dev.off()
-```
+<!-- ## Motifs logo plots -->
+<!-- ```{r} -->
+<!-- TFs <- c("GATA1") -->
+<!-- DefaultAssay(seurat.sc) <- "ATAC" -->
+<!-- detectedMotifs <- rownames(seurat.sc@assays$chromvar) #motif -->
+<!-- relatedTFs <- ConvertMotifID(seurat.sc, id = detectedMotifs) #tf -->
+<!-- detectedMotifs <- detectedMotifs[relatedTFs %in% rownames(seurat.sc[["RNA"]])] -->
+<!-- relatedTFs <- relatedTFs[relatedTFs %in% rownames(seurat.sc[["RNA"]])] -->
+<!-- names(detectedMotifs) = relatedTFs -->
+
+<!-- motifs.p <- list() -->
+
+<!-- for(TF in TFs){ -->
+<!--   m <- detectedMotifs[relatedTFs[relatedTFs %in% TF]] -->
+<!--   motifs.p[[TF]] <- MotifPlot(seurat.sc, motifs = m) -->
+
+<!--   data.use <- GetMotifData(object = seurat.sc, assay = "ATAC", -->
+<!--                            slot = "pwm")[m] -->
+<!--   TF_rev = data.use -->
+<!--   names(TF_rev) <- TF -->
+<!--   rownames(TF_rev[[TF]]) <- plyr::revalue(rownames(TF_rev[[TF]]), replace = c("A" = "T", "T"= "A", "C" = "G", "G" = "C")) -->
+<!--   TF_rev[[TF]] <- TF_rev[[TF]][,ncol(TF_rev[[TF]]):1] -->
+<!--   motifs.p[[paste0(TF,"_rev")]] <- ggseqlogo::ggseqlogo(TF_rev) -->
+
+<!-- } -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- group.by = "celltype" -->
+<!-- for(TF in TFs){ -->
+<!--   assays <- c("RNA", "GA") -->
+<!--   ff.plot.res.sc <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.sc, is.normalized = T, cluster = group.by, -->
+<!--                                                  assays = assays, feature.x = TF, feature.y = TF, -->
+<!--                                                  color.use = celltype_colors, -->
+<!--                                                  use.size = F, plot = T, pt.size = 2, add.key = T) -->
+<!--   sc.p <- ff.plot.res.sc$plots[[1]]+ mytheme + guides(fill = guide_legend(override.aes = list(size=3),ncol = 3)) -->
+<!--   assign(paste0(TF, ".sc.GA.RNA"), sc.p) -->
+
+<!--   ff.plot.res.mc <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.mc, -->
+<!--                                                  is.normalized = T, cluster = group.by, -->
+<!--                                                  assays = assays,feature.x = TF, feature.y = TF, -->
+<!--                                                  color.use = celltype_colors, -->
+<!--                                                  use.size = T,plot = T) -->
+<!--   mc.p <- ff.plot.res.mc$plots[[1]] + mytheme + guides(fill = guide_legend(override.aes = list(size=3),ncol = 3)) -->
+<!--   assign(paste0(TF, ".mc.GA.RNA"), mc.p) -->
+
+
+<!--   assays <- c("RNA", "chromvar") -->
+<!--   ff.plot.res.sc <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.sc, is.normalized = T, cluster = group.by, -->
+<!--                                                  assays = assays, feature.x = TF, feature.y = detectedMotifs[relatedTFs[relatedTFs %in% TF]], -->
+<!--                                                  color.use = celltype_colors, -->
+<!--                                                  use.size = F, plot = T, pt.size = 2, add.key = F) -->
+<!--   sc.p <- ff.plot.res.sc$plots[[1]]+ mytheme + guides(fill = guide_legend(override.aes = list(size=3), ncol = 3)) -->
+<!--   assign(paste0(TF, ".sc.chromVAR.RNA"), sc.p) -->
+
+<!--   ff.plot.res.mc <- FeatureFeaturePlot.SuperCell(seurat.obj = seurat.mc, -->
+<!--                                                  is.normalized = T,cluster = group.by, -->
+<!--                                                  assays = assays,feature.x = TF, feature.y = detectedMotifs[relatedTFs[relatedTFs %in% TF]], -->
+<!--                                                  color.use = celltype_colors, -->
+<!--                                                  use.size = T,plot = T, add.key = F) -->
+<!--   mc.p <- ff.plot.res.mc$plots[[1]] + mytheme + guides(fill = guide_legend(override.aes = list(size=3), ncol = 3)) -->
+<!--   assign(paste0(TF, ".mc.chromVAR.RNA"), mc.p) -->
+
+<!-- } -->
+
+<!-- # grid with blanks and legend -->
+<!-- blank_size = 0.05 -->
+<!-- blankPlot <- ggplot()+ geom_blank(aes(1,1)) + -->
+<!--   cowplot::theme_nothing() -->
+
+<!-- grid.arrange( -->
+<!--   GATA1.sc.GA.RNA + mytheme + NoLegend(), blankPlot, -->
+<!--   GATA1.mc.GA.RNA + mytheme + NoLegend(), blankPlot, -->
+<!--   cowplot::get_legend(GATA1.sc.GA.RNA + guides(fill = guide_legend(override.aes = list(size=3), ncol = 2))), -->
+<!--   ncol = 5, -->
+<!--   widths = c(1, blank_size, 1, blank_size, 0.5) -->
+<!-- ) -->
+
+<!-- # save plot in pdf -->
+<!-- pdf("../../../output/plots/plots_Intermodality/hspcMultiomePersad_sc_mc_FeatureFeaturePlots_GATA1.pdf", w=10, h=4) -->
+<!-- grid.arrange( -->
+<!--   GATA1.sc.GA.RNA + mytheme + NoLegend(), blankPlot, -->
+<!--   GATA1.mc.GA.RNA + mytheme + NoLegend(), blankPlot, -->
+<!--   cowplot::get_legend(GATA1.sc.GA.RNA + guides(fill = guide_legend(override.aes = list(size=3), ncol = 2))), -->
+<!--   ncol = 5, -->
+<!--   widths = c(1, blank_size, 1, blank_size, 0.5) -->
+<!-- ) -->
+<!-- dev.off() -->
+<!-- ``` -->
+<!-- ## UMAP plot -->
+<!-- ```{r} -->
+<!-- png("../../../output/plots/plots_Intermodality/hspcMultiomePersad_UMAPprojetcion.png",width = 5*300, height = 4*300, res= 300) -->
+<!-- projection <- mc_projection( -->
+<!--   sc.obj = seurat.sc, -->
+<!--   mc.obj = seurat.mc, -->
+<!--   cell.membership = data.frame(row.names = names(seurat.mc@misc$membership), membership = paste0("Metacell_",seurat.mc@misc$membership)), -->
+<!--   sc.reduction = "wnn.umap", mc.color = celltype_colors, sc.color = celltype_colors, -->
+<!--   sc.label = "celltype", -->
+<!--   metacell.label = "celltype" -->
+<!-- ) -->
+<!-- projection + ggtitle(paste0("UMAP projection (hspcMultiomePersad)")) + mytheme + -->
+<!--   guides(colour = guide_legend(override.aes = list(size=4))) -->
+<!-- dev.off() -->
+
+<!-- ``` -->
+
+<!-- ## Correlations between GA vs RNA at the cell/metacell level -->
+<!-- ```{r} -->
+<!-- cor.matrices.sc <- readRDS("../../../output/hspcMultiomePersad/singlecells_analysis/CorrTables.rds") -->
+<!-- GA.Signac.cor <- cor.matrices.sc$SignacGA.perCell -->
+
+<!-- cell.groups <- seurat.sc$celltype -->
+
+<!-- cor.matrix.sc <- matrix(0, nrow = length(unique(cell.groups)), ncol = length(unique(cell.groups)), dimnames = list(unique(cell.groups), unique(cell.groups))) -->
+<!-- for(celltype1 in unique(cell.groups)){ -->
+<!--   for(celltype2 in unique(cell.groups)){ -->
+<!--     cor.matrix.sc[celltype1, celltype2] <- mean(GA.Signac.cor[cell.groups %in% c(celltype1), cell.groups %in% c(celltype2)]) -->
+<!--   } -->
+<!-- } -->
+
+
+<!-- DefaultAssay(seurat.mc) <- "RNA" -->
+<!-- seurat.mc <- FindVariableFeatures(seurat.mc) -->
+<!-- var.genes.mc <- Seurat::VariableFeatures(seurat.mc) -->
+<!-- var.genes.mc <- var.genes.mc[var.genes.mc %in% rownames(seurat.mc[["GA"]])] -->
+<!-- GA.Signac.cor <- cor(as.matrix(GetAssayData(seurat.mc, assay = "GA", slot = "data")[var.genes.mc,]), -->
+<!--                      as.matrix(GetAssayData(seurat.mc, assay = "RNA", slot = "data")[var.genes.mc,])) -->
+
+<!-- cor.matrix.mc <- matrix(0, nrow = length(unique(cell.groups)), ncol = length(unique(cell.groups)), dimnames = list(unique(cell.groups), unique(cell.groups))) -->
+
+<!-- cell.groups <- seurat.mc$celltype -->
+<!-- for(celltype1 in unique(cell.groups)){ -->
+<!--   for(celltype2 in unique(cell.groups)){ -->
+<!--     cor.matrix.mc[celltype1, celltype2] <- mean(GA.Signac.cor[cell.groups %in% c(celltype1), cell.groups %in% c(celltype2)]) -->
+<!--   } -->
+<!-- } -->
+
+<!-- # col_fun <- colorRamp2(c(min(c(cor.matrix.sc, cor.matrix.mc)), -->
+<!-- #                         mean(c(cor.matrix.sc, cor.matrix.mc)), -->
+<!-- #                         max(c(cor.matrix.sc, cor.matrix.mc))), -->
+<!-- #                       c("blue", "white", "red")) -->
+<!-- col_fun <- colorRamp2(c(min(c(cor.matrix.sc, cor.matrix.mc)), -->
+<!--                         mean(c(cor.matrix.sc, cor.matrix.mc)), -->
+<!--                         max(c(cor.matrix.sc, cor.matrix.mc))), -->
+<!--                       c("white","gold", "red")) -->
+
+<!-- row_hclust <- hclust(dist(cor.matrix.sc)) -->
+<!-- row_dend   <- rev(as.dendrogram(row_hclust)) -->
+<!-- row_order  <- order.dendrogram(row_dend) -->
+<!-- p1 <- Heatmap(cor.matrix.sc, show_row_names = T, show_column_names = T,row_names_side = "left", -->
+<!--               show_row_dend = T, show_column_dend = F, cluster_rows =  row_dend, cluster_columns = F, -->
+<!--               row_order = row_order, column_order = row_order, col=col_fun, -->
+<!--               name = "Correlation", column_title = paste0("Gamma = ", 1)) -->
+
+<!-- # row_hclust <- hclust(dist(cor.matrix.mc)) -->
+<!-- # row_dend   <- rev(as.dendrogram(row_hclust)) -->
+<!-- # row_order  <- order.dendrogram(row_dend) -->
+<!-- p2 <- Heatmap(cor.matrix.mc[rownames(cor.matrix.sc), colnames(cor.matrix.sc)], show_row_names = T, show_column_names = T,row_names_side = "left", show_heatmap_legend = T, -->
+<!--               show_row_dend = T, show_column_dend = F, cluster_rows =  row_dend, cluster_columns = F, -->
+<!--               row_order = row_order, column_order = row_order, col=col_fun, -->
+<!--               name = "Correlation", column_title = paste0("Gamma = ", gamma)) -->
+<!-- pdf("../../../output/plots/plots_Intermodality/hspcMultiomePersad_plasticity_heatmap.pdf",w=6.5,h=3.5) -->
+<!-- draw(p1 + p2, heatmap_legend_side="right") -->
+<!-- dev.off() -->
+<!-- ``` -->
 
 
 
-# Correlations between GA vs RNA at the gene level for each HVGs
-```{r}
+<!-- # Correlations between GA vs RNA at the gene level for each HVGs -->
+<!-- ```{r} -->
 
-cor.summary <- data.frame(gamma = vector(), gene = vector(), dataset= vector(), cor.Signac = vector())
-for(dat in c("hspcMultiomePersad","pbmcMultiome")){
-  cor.matrices.sc <- readRDS(paste0(opt$resdir, dat, "/singlecells_analysis/CorrTables.rds"))
-  
-  for(gamma in c(1, 10, 20, 30, 50, 75, 100)){
-    if(gamma == 1){
-      GA.Signac.cor <- cor.matrices.sc$SignacGA.RNA
-    }else{
-      GA.Signac.cor <- readRDS(paste0(opt$resdir, dat, "/SuperCellMulti/g", gamma, "/CorrTables.rds"))$SignacGA.RNA
-    }
-    genes <- sapply(rownames(GA.Signac.cor), function(i) unlist(strsplit(i, "_"))[2])
-    cor.summary <- rbind(cor.summary, data.frame(gamma = rep(gamma, length(genes)), 
-                                                 gene = genes, 
-                                                 dataset = dat,
-                                                 cor.Signac = GA.Signac.cor[, "w.cor"]))
-  }
-}
+<!-- cor.summary <- data.frame(gamma = vector(), gene = vector(), dataset= vector(), cor.Signac = vector()) -->
+<!-- for(dat in c("hspcMultiomePersad","pbmcMultiome")){ -->
+<!--   cor.matrices.sc <- readRDS(paste0("../../../output/", dat, "/singlecells_analysis/CorrTables.rds")) -->
 
-df_long <- as.data.frame(pivot_longer(cor.summary, cols = starts_with("cor"), 
-                                      names_to = "method", values_to = "correlation"))
-df_long$dataset <- factor(df_long$dataset)
-df_long$gamma <- paste0("g", df_long$gamma)
-df_long$gamma <- factor(df_long$gamma, levels = paste0("g", c(1,10,20,30,50,75,100,200)))
+<!--   for(gamma in c(1, 10, 20, 50, 75, 100)){ -->
+<!--     if(gamma == 1){ -->
+<!--       GA.Signac.cor <- cor.matrices.sc$SignacGA.RNA -->
+<!--     }else{ -->
+<!--       GA.Signac.cor <- readRDS(paste0("../../../output/", dat, "/SuperCellMulti/g", gamma, "/CorrTables.rds"))$SignacGA.RNA -->
+<!--     } -->
+<!--     genes <- sapply(rownames(GA.Signac.cor), function(i) unlist(strsplit(i, "_"))[2]) -->
+<!--     cor.summary <- rbind(cor.summary, data.frame(gamma = rep(gamma, length(genes)), -->
+<!--                                                  gene = genes, -->
+<!--                                                  dataset = dat, -->
+<!--                                                  cor.Signac = GA.Signac.cor[, "w.cor"])) -->
+<!--   } -->
+<!-- } -->
 
-CorGARNA.boxplots <- ggplot(df_long, aes(x = factor(gamma), y = correlation, fill = dataset)) +
-  geom_boxplot(position = position_dodge(width = 0.8)) +
-  labs(x = "Gamma", y = "Correlation", title = "Correlation between HVGs expression and gene activity") +
-  theme_bw() + mytheme + theme(legend.title = element_blank()) 
-print(CorGARNA.boxplots)
+<!-- df_long <- as.data.frame(pivot_longer(cor.summary, cols = starts_with("cor"), -->
+<!--                                       names_to = "method", values_to = "correlation")) -->
+<!-- df_long$dataset <- factor(df_long$dataset) -->
+<!-- df_long$gamma <- paste0("g", df_long$gamma) -->
+<!-- df_long$gamma <- factor(df_long$gamma, levels = paste0("g", c(1,10,20,50,75,100,200))) -->
 
-# save figure in pdf
-pdf(paste0(opt$outdir, "CorGARNA_boxplots.pdf"), w=10, h=3)
-print(CorGARNA.boxplots)
-dev.off()
+<!-- CorGARNA.boxplots <- ggplot(df_long, aes(x = factor(gamma), y = correlation, fill = dataset)) + -->
+<!--   geom_boxplot(position = position_dodge(width = 0.8)) + -->
+<!--   labs(x = "Gamma", y = "Correlation", title = "Correlation between HVGs expression and gene activity") + -->
+<!--   theme_bw() + mytheme + theme(legend.title = element_blank()) -->
+<!-- print(CorGARNA.boxplots) -->
 
-```
+<!-- # save figure in pdf -->
+<!-- pdf("../../../output/plots/plots_Intermodality/CorGARNA_boxplots.pdf", w=10, h=3) -->
+<!-- print(CorGARNA.boxplots) -->
+<!-- dev.off() -->
 
+<!-- ``` -->

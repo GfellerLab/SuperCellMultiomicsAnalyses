@@ -34,7 +34,7 @@ library(patchwork)
 options(bitmapType = "cairo")
 library(cowplot)
 library(ggpubr)
-library(ggthemes)
+# library(ggthemes)
 
 RenameLabels <- function(sobj) {
   sobj$scATOMIC_labels <- sobj$label_integration
@@ -79,14 +79,13 @@ names(htan.colors) <- c("Endothelial","Fibroblasts","DC","Macro","Plasma","B","T
 
 New docker image
 ```{r}
-# res.unsup <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/run_kanchors_5/output/whole_atlas/metacells/bench_res.rds")
-res.unsup <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells/bench_res.rds")
+res.unsup <- readRDS("../output/whole_atlas/metacells/bench_res.rds")
 
 
 res.unsup$Workflow <- "Unsup."
 res.unsup <- res.unsup[res.unsup$method %in% c("pca","unsupSTACAS","cusanovich.SignacRLSI", "cusanovich.lsi"),]
 
-res.sup <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/bench_res.rds")
+res.sup <- readRDS("../output/whole_atlas/metacells_sup/bench_res.rds")
 
 res.sup$Workflow <- "Semi-sup."
 res.sup <- res.sup[res.sup$method %in% c("pca","ssSTACAS","cusanovich.supSignacRLSI", "cusanovich.lsi"),]
@@ -98,7 +97,9 @@ res.mc$label_name <- "scATOMIC"
 res.mc$label_name[res.mc$label == "cell_type"] <- "HTAN"
 
 
-main.bench <- ggplot(res.mc,aes(x= CiLISI,y=celltype_ASW,shape = Batch,color = Workflow)) + geom_point(size = 2.5,) + theme_bw()+ scale_color_manual(values = colorblind_pal()(8)[c(6,7)]) + facet_grid(c("modality","label_name"),scales = "free",axis.labels = "margins") + 
+main.bench <- ggplot(res.mc,aes(x= CiLISI,y=celltype_ASW,shape = Batch,color = Workflow)) + geom_point(size = 2.5,) + theme_bw()+ 
+  scale_color_manual(values = c("#0072B2", "#D55E00")) + #colorblind_pal()(8)[c(6,7)]
+  facet_grid(c("modality","label_name"),scales = "free",axis.labels = "margins") + 
   ylab("Cell type ASW (cell type separation)") +
   xlab("CiLISI (batch mixing)") + xlim(0.05,0.205)
 
@@ -118,7 +119,7 @@ main.bench
 ```{r fig.height=3,fig.width=5}
 main.bench
 
-pdf("../pdf_files/Fig4K_main.pdf",height=3,width=5)
+pdf("../pdf_files/Fig4/Fig4K_main.pdf",height=3,width=5)
 main.bench
 dev.off()
 ```
@@ -126,8 +127,7 @@ dev.off()
 
 
 ```{r}
-# htan.sup <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/run_kanchors_5/output/whole_atlas/metacells_sup/whole_atlas_all_integrations_metacells.rds")
-htan.sup <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/whole_atlas_all_integrations_metacells.rds")
+htan.sup <-  readRDS("../output/whole_atlas/metacells_sup/whole_atlas_all_integrations_metacells.rds")
 htan.sup <- RenameLabels(htan.sup)
 # depth.cor.cusanovich<- DepthCor(htan.sup,n = 50,reduction = "cusanovich.lsi",assay = "ATAC")
 # 
@@ -143,8 +143,7 @@ htan.sup <- RenameLabels(htan.sup)
 
 
 
-# htan.unsup <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/run_kanchors_5/output/whole_atlas/metacells/whole_atlas_all_integrations_metacells.rds")
-htan.unsup <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells/whole_atlas_all_integrations_metacells.rds")
+htan.unsup <-  readRDS("../output/whole_atlas/metacells/whole_atlas_all_integrations_metacells.rds")
 htan.unsup <- RenameLabels(htan.unsup)
 # 
 # depth.cor.cusanovich<- DepthCor(htan.unsup,n = 50,reduction = "cusanovich.lsi",assay = "ATAC")
@@ -173,10 +172,10 @@ DimPlot(htan.unsup,reduction = "wnn.umap",group.by = "HTAN",cols = htan.colors)
 
 ```{r}
 # gc() 
-# htan.sup.bench <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/run_kanchors_5/output/whole_atlas/metacells_sup/whole_atlas_all_integrations_metacells.rds")
+# htan.sup.bench <-  readRDS("../output/whole_atlas/metacells_sup/whole_atlas_all_integrations_metacells.rds")
 # htan.sup.bench <- RenameLabels(htan.sup.bench)
 # 
-# htan.sup <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/run_kanchors_5/output/whole_atlas/metacells_sup/g10_final/full_atlas_metacells.rds")
+# htan.sup <-  readRDS("../output//whole_atlas/metacells_sup/g10_final/full_atlas_metacells.rds")
 # htan.sup <- RenameLabels(htan.sup)
 # 
 # 
@@ -306,7 +305,7 @@ fig4H
 dev.off()
 ```
 ```{r}
-htan.sup.analyzed <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/g10_final/full_atlas_metacells_activities.rds")
+htan.sup.analyzed <-  readRDS("../output/whole_atlas/metacells_sup/g10_final/full_atlas_metacells_activities.rds")
 htan.sup.analyzed <- RenameLabels(htan.sup.analyzed)
 # depth.cor.cusanovich<- DepthCor(htan.sup,n = 50,reduction = "cusanovich.lsi",assay = "ATAC")
 # 
@@ -335,7 +334,7 @@ gc()
 htan.sup$mc_mode <- "Semi-sup. metacells"
 htan.unsup$mc_mode <- "Unsup. metacells"
 
-col.workflow <-  colorblind_pal()(8)[c(6,7)]
+col.workflow <-  c("#0072B2", "#D55E00") #colorblind_pal()(8)[c(6,7)]
 names(col.workflow) <- c("Semi-sup. metacells","Unsup. metacells")
 
 meta.mc.all <- rbind(htan.sup@meta.data[,c("cell_type","cell_type_purity","scATOMIC_labels",
@@ -439,9 +438,9 @@ dev.off()
 
 ```{r fig.height=2.5,fig.width=3.75}
 
-combined.sc <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/single_cells/final_k34/full_atlas_single_cells.rds")
+combined.sc <- readRDS("../output/whole_atlas/single_cells/final_k34/full_atlas_single_cells.rds")
 
-bench.scalability.sc <- read.table("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/single_cells/final_k34/benchmark.txt",header = T)
+bench.scalability.sc <- read.table("../output/whole_atlas/single_cells/final_k34/benchmark.txt",header = T)
 bench.scalability.sc$workflow <- "Single-cells"
 bench.scalability.sc$object_size <-  as.numeric(object.size(combined.sc))/(1024^3) #GB
 bench.scalability.sc$n_cells <- as.numeric(ncol(combined.sc))
@@ -450,17 +449,17 @@ remove(combined.sc)
 gc()
 
 
-bench.scalability.sup.mc <- read.table("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/g10_final/benchmark.txt",header = T)
+bench.scalability.sup.mc <- read.table("../output/whole_atlas/metacells_sup/g10_final/benchmark.txt",header = T)
 bench.scalability.sup.mc$object_size <-  as.numeric(object.size(htan.sup))/(1024^3) #GB
 bench.scalability.sup.mc$n_cells <- as.numeric(ncol(htan.sup))
 
 bench.scalability.sup.mc$workflow <- "Sup. metacells"
 
 
-combined.unsup.mc <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/g10_final/full_atlas_metacells.rds")
+combined.unsup.mc <- readRDS("../output/whole_atlas/metacells_sup/g10_final/full_atlas_metacells.rds")
 
 # 
-bench.scalability.unsup.mc <- read.table("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/g10_final/benchmark.txt",header = T)
+bench.scalability.unsup.mc <- read.table("../output/whole_atlas/metacells_sup/g10_final/benchmark.txt",header = T)
 bench.scalability.unsup.mc$object_size <-  as.numeric(object.size(combined.unsup.mc))/(1024^3) #GB
 bench.scalability.unsup.mc$n_cells <- as.numeric(ncol(combined.unsup.mc))
 
@@ -964,7 +963,7 @@ dev.off()
 
 
 ```{r}
-annotation.all <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/annotation.all.rds")
+annotation.all <- readRDS("../output/whole_atlas/metacells_sup/annotation.all.rds")
 
 length(unique(annotation.all$Sample))
 ```

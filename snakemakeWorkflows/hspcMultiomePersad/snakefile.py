@@ -178,10 +178,27 @@ rule atacRnaMetacellAnalysis_hspc:
 ########################################## Figures #################################################################################
 ####################################################################################################################################
 
+rule generate_figures_from_figure3:
+  input: "figures/manuscript/final_figures_Rmd/figure_3_intermodality_v2.Rmd",
+        "output/pbmcMultiome/singlecells_analysis/seurat.multiome.activities.rds",
+        "output/pbmcMultiome/singlecells_analysis/CorrTables.rds",
+        "output/hspcMultiomePersad/singlecells_analysis/CorrTables.rds",
+        expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells"]),
+        expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/CorrTables.rds", gamma = GAMMA, inputMetacells = ['SuperCellMulti',"randomMetacells"]),
+        expand("output/hspcMultiomePersad/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ['SuperCellMulti',"randomMetacells"]),
+        expand("output/hspcMultiomePersad/{inputMetacells}/g{gamma}/CorrTables.rds", gamma = GAMMA, inputMetacells = ['SuperCellMulti',"randomMetacells"]),
+        expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/multimodalMarkers_surveyweightedt.rds", gamma = GAMMA, inputMetacells = ['SuperCellMulti',"randomMetacells"]),
+        "output/pbmcMultiome/singlecells_analysis/multimodalMarkers_mainCellTypes_ttest.rds",
+        "output/pbmcMultiome/SuperCellMulti/pando_metrics_summary_p_thresh0.1.RData"
+  output: "figures/manuscript/final_figures_Rmd/figure_3_intermodality_v2.html"
+  singularity: config["sif_file"]
+  shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"
+
 rule generate_figures_from_figureS4:
-  input: "figures/manuscript/figure_S4_intermodality.Rmd",
+  input: "figures/manuscript/final_figures_Rmd/figure_S4_intermodality.Rmd",
         "output/hspcMultiomePersad/singlecells_analysis/seurat.multiome.activities.rds",
-        expand("output/hspcMultiomePersad/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti"])
-  output: "figures/manuscript/figure_S4_intermodality.html"
+        expand("output/hspcMultiomePersad/{inputMetacells}/g{gamma}/CorrTables.rds", gamma = GAMMA, inputMetacells = ['SuperCellMulti',"randomMetacells"]),
+        expand("output/hspcMultiomePersad/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells"])
+  output: "figures/manuscript/final_figures_Rmd/figure_S4_intermodality.html"
   singularity: config["sif_file"]
   shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"

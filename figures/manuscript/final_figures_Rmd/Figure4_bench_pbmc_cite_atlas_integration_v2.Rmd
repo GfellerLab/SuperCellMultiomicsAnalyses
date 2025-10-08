@@ -20,8 +20,8 @@ library(future.apply)
 library(pbapply)
 library(igraph)
 library(ggplot2)
-library(SuperCellMultiomics)
-library(ggthemes)
+library(SuperCell)
+#library(ggthemes)
 library(ggsignif)
 library(patchwork)
 
@@ -140,7 +140,8 @@ DimPlot(pbmc.combined.mc,reduction = "wnn.umap",group.by = "cell_type",label = T
 
 
 ```{r}
-pdf("../pdf_files/Fig4B.pdf",height=6.5,width=8.25)
+dir.create("../../../pdf_files/Fig4/", recursive = T, showWarnings = F)
+pdf("../../../pdf_files/Fig4/Fig4B.pdf",height=6.5,width=8.25)
 DimPlot(pbmc.combined.mc,reduction = "wnn.umap",group.by = "cell_type",label = T,repel = T,cols =(color_celltype_final))  +
   guides(color = guide_legend(ncol = 1,override.aes = list(size = 3 ))) + xlab("wnnUMAP_1")  + ggtitle("PBMC CITE-seq atlas",subtitle = paste0(ncol(pbmc.combined.mc)," metacells (",round(sum(pbmc.combined.mc$size)/1000,digits = 0),"k single-cells)"))
 
@@ -164,7 +165,8 @@ pbmc.combined.unsup.mc$cell_type <- factor(pbmc.combined.unsup.mc$celltype.l2,le
 unsup.mc.atlas <- DimPlot(pbmc.combined.unsup.mc,reduction = "wnn.umap",group.by = "cell_type",label = T,repel = T,cols =(color_celltype_final))  +
   guides(color = guide_legend(ncol = 1,override.aes = list(size = 3 ))) + xlab("wnnUMAP_1")  + ylab("wnnUMAP_2")  + ggtitle("PBMC CITE-seq atlas",subtitle = paste0(ncol(pbmc.combined.unsup.mc)," metacells (",round(sum(pbmc.combined.unsup.mc$size)/1000,digits = 0),"k single-cells)"))
 unsup.mc.atlas
-pdf("../pdf_files/FigS5D.pdf",height=6.5,width=8.25)
+dir.create("../../../pdf_files/FigS5/", recursive = T, showWarnings = F)
+pdf("../../../pdf_files/FigS5/FigS5D.pdf",height=6.5,width=8.25)
 unsup.mc.atlas
 dev.off()
 ```
@@ -333,7 +335,7 @@ figS5A
 ```{r fig.height=3.5,fig.width=6}
 fig4C_donors
 
-pdf("../pdf_files/fig4C_donors.pdf",height = 3.5,width = 6)
+pdf("../../../pdf_files/Fig4/fig4C_donors.pdf",height = 3.5,width = 6)
 fig4C_donors
 dev.off()
 ```
@@ -341,7 +343,7 @@ dev.off()
 ```{r fig.height=6,fig.width=8}
 figS5A 
 
-pdf("../pdf_files/fig5SA.pdf",height = 6,width = 8)
+pdf("../../../pdf_files/FigS5/fig5SA.pdf",height = 6,width = 8)
 figS5A
 dev.off()
 ```
@@ -394,7 +396,7 @@ figS5C
 figS5C
 
 
-pdf("../pdf_files/figS5C.pdf",height = 6,width = 6.5)
+pdf("../../../pdf_files/FigS5/figS5C.pdf",height = 6,width = 6.5)
 figS5C
 dev.off()
 
@@ -419,7 +421,7 @@ library(patchwork)
 # names(col.workflow) <- c("Sup metacells", "Unsup metacells", "Single-cells")
 
 # col.workflow <-  c("#009E73","#56B4E9" )
-col.workflow <- colorblind_pal()(8)[c(6,7)]
+col.workflow <- c("#0072B2","#D55E00") #colorblind_pal()(8)[c(6,7)]
 names(col.workflow) <- c("Sup. metacells","Unsup. metacells")
 
 metaAll <- pbmc.combined.mc@meta.data[,c("method","size","celltype.l1.5_purity","celltype.l2_purity")]
@@ -456,24 +458,24 @@ size <- ggplot(metaAll,aes(x=method,y = size, fill = method)) + geom_boxplot() +
 size
 ```
 ```{r}
-pdf("Fig4D.pdf",height=4,width=1.75)
+pdf("../../../pdf_files/FigS5/FigS5B.pdf",height=4,width=1.75)
 wrap_plots(l1.5_purity,l2_purity,ncol = 1)
 dev.off()
 ```
 
 ```{r fig.height=2.5,fig.width=4}
-unsup.metacells.unsup.stacas <- readRDS("../../output/pbmcCiteSeqAtlas//100percent_semisupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds")
+unsup.metacells.unsup.stacas <- readRDS("../../../output/pbmcCiteSeqAtlas//100percent_semisupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds")
 unsup.metacells.unsup.stacas$Workflow <- "Unsup."
 unsup.metacells.unsup.stacas$Batch <- "Corrected"
 
 
 
 
-# sup.metacells.unsup.stacas <- readRDS("../../output/pbmcCiteSeqAtlas//supMetacells_SCT_unsupStacas_lognorm/g20/bench_res.rds" )
+# sup.metacells.unsup.stacas <- readRDS("../../../output/pbmcCiteSeqAtlas//supMetacells_SCT_unsupStacas_lognorm/g20/bench_res.rds" )
 # sup.metacells.unsup.stacas$metacells <- "Sup."
 # sup.metacells.unsup.stacas$integration <- "Unsup."
 
-sup.metacells.sup.stacas <- readRDS("../../output/pbmcCiteSeqAtlas//supMetacells_SCT_supStacas_lognorm/g20/bench_res.rds" )
+sup.metacells.sup.stacas <- readRDS("../../../output/pbmcCiteSeqAtlas//supMetacells_SCT_supStacas_lognorm/g20/bench_res.rds" )
 
 # we keep only once unintegrated results
 # sup.metacells.sup.stacas <- sup.metacells.sup.stacas[!grepl(x = sup.metacells.sup.stacas$method,
@@ -495,7 +497,9 @@ bench.integration.final$label_name[bench.integration.final$label == "celltype.l2
 bench.integration.final$label_name <- factor(bench.integration.final$label_name,
                                              levels = c("Main annotation" ,"Fine annotation" ))
 
-main.bench <- ggplot(bench.integration.final,aes(x= CiLISI,y=celltype_ASW,shape = Batch,color = Workflow)) + geom_point(size = 2.5,) + theme_bw()+ scale_color_manual(values = colorblind_pal()(8)[c(6,7)]) + facet_grid(c("modality","label_name"),scales = "free",axis.labels = "margins") + 
+main.bench <- ggplot(bench.integration.final,aes(x= CiLISI,y=celltype_ASW,shape = Batch,color = Workflow)) + geom_point(size = 2.5,) + theme_bw()+ 
+  scale_color_manual(values = c("#0072B2", "#D55E00")) + #colorblind_pal()(8)[c(6,7)]
+  facet_grid(c("modality","label_name"),scales = "free",axis.labels = "margins") + 
   ylab("Cell type ASW (bio-conservation)") +
   xlab("CiLISI (batch mixing)")
 ```
@@ -503,21 +507,21 @@ main.bench <- ggplot(bench.integration.final,aes(x= CiLISI,y=celltype_ASW,shape 
 ```{r fig.height=3,fig.width=5}
 main.bench
 
-pdf("Fig4D_main.pdf",height=3,width=5)
+pdf("../../../pdf_files/Fig4/Fig4D_main.pdf",height=3,width=5)
 main.bench
 dev.off()
 ```
 ```{r}
-unsup.metacells.sup.stacas <- readRDS("../../output/pbmcCiteSeqAtlas/unsupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds")
+unsup.metacells.sup.stacas <- readRDS("../../../output/pbmcCiteSeqAtlas/unsupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds")
 unsup.metacells.sup.stacas$Workflow <- "Unsup.Sup."
 unsup.metacells.sup.stacas$Batch <- "Corrected"
 
 
-sup.metacells.unsup.stacas <- readRDS("../../output/pbmcCiteSeqAtlas//supMetacells_SCT_unsupStacas_lognorm/g20/bench_res.rds" )
+sup.metacells.unsup.stacas <- readRDS("../../../output/pbmcCiteSeqAtlas//supMetacells_SCT_unsupStacas_lognorm/g20/bench_res.rds" )
 sup.metacells.unsup.stacas$metacells <- "Sup."
 sup.metacells.unsup.stacas$integration <- "Unsup."
 
-sup.metacells.unsup.stacas <- readRDS("../../output/pbmcCiteSeqAtlas/supMetacells_SCT_unsupStacas_lognorm//g20/bench_res.rds" )
+sup.metacells.unsup.stacas <- readRDS("../../../output/pbmcCiteSeqAtlas/supMetacells_SCT_unsupStacas_lognorm//g20/bench_res.rds" )
 
 # we keep only once unintegrated results
 # sup.metacells.sup.stacas <- sup.metacells.sup.stacas[!grepl(x = sup.metacells.sup.stacas$method,
@@ -540,7 +544,9 @@ bench.integration.all$label_name[bench.integration.all$label == "celltype.l2"] <
 bench.integration.all$label_name <- factor(bench.integration.all$label_name,
                                            levels = c("Main annotation" ,"Fine annotation" ))
 
-all.bench <- ggplot(bench.integration.all,aes(x= CiLISI,y=celltype_ASW,shape = Batch,color = Workflow)) + geom_point(size = 2.5,) + theme_bw()+ scale_color_manual(values = colorblind_pal()(8)[c(6,7,4,5)]) + facet_grid(c("modality","label_name"),scales = "free",axis.labels = "margins") + 
+all.bench <- ggplot(bench.integration.all,aes(x= CiLISI,y=celltype_ASW,shape = Batch,color = Workflow)) + geom_point(size = 2.5,) + theme_bw()+ 
+  scale_color_manual(values = c("#0072B2", "#D55E00", "#009E73", "#F0E442")) + #colorblind_pal()(8)[c(6,7,4,5)]
+  facet_grid(c("modality","label_name"),scales = "free",axis.labels = "margins") + 
   ylab("Cell type ASW (bio-conservation)") +
   xlab("CiLISI (batch mixing)")
 
@@ -550,15 +556,15 @@ all.bench
 
 ```{r fig.height=2.5,fig.width=3.75}
 
-pbmc.combined.sc <- readRDS("../../output/pbmcCiteSeqAtlas//singlecells_SCT_seuratRPCA_SCT/seuratCombinedWNN.rds")
+pbmc.combined.sc <- readRDS("../../../output/pbmcCiteSeqAtlas//singlecells_SCT_seuratRPCA_SCT/seuratCombinedWNN.rds")
 
-bench.scalability.sc <- read.table("../../benchmark/pbmcCiteSeqAtlas_single_cells/bench.txt",header = T)
+bench.scalability.sc <- read.table("../../../benchmark/pbmcCiteSeqAtlas/singlecells_SCT_seuratRPCA_SCT/bench.txt",header = T)
 bench.scalability.sc$workflow <- "Single-cells"
 bench.scalability.sc$object_size <-  as.numeric(object.size(pbmc.combined.sc))/(1024^3) #GB
 bench.scalability.sc$n_cells <- as.numeric(ncol(pbmc.combined.sc))
 
 
-bench.scalability.sup.mc <- read.table("../../benchmark/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/bench.txt",header = T)
+bench.scalability.sup.mc <- read.table("../../../benchmark/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/bench.txt",header = T)
 bench.scalability.sup.mc$object_size <-  as.numeric(object.size(pbmc.combined.mc))/(1024^3) #GB
 bench.scalability.sup.mc$n_cells <- as.numeric(ncol(pbmc.combined.mc))
 
@@ -566,7 +572,7 @@ bench.scalability.sup.mc$workflow <- "Sup. metacells"
 
 
 
-bench.scalability.unsup.mc <- read.table("../../benchmark/pbmcCiteSeqAtlas/100percent_semisupMetacells_SCT_supStacas_lognorm/g20/bench.txt",header = T)
+bench.scalability.unsup.mc <- read.table("../../../benchmark/pbmcCiteSeqAtlas/100percent_semisupMetacells_SCT_supStacas_lognorm/g20/bench.txt",header = T)
 bench.scalability.unsup.mc$object_size <-  as.numeric(object.size(pbmc.combined.unsup.mc))/(1024^3) #GB
 bench.scalability.unsup.mc$n_cells <- as.numeric(ncol(pbmc.combined.unsup.mc))
 
@@ -617,7 +623,7 @@ main.scalability <- wrap_plots(cpu.time + NoLegend()  ,
 
 main.scalability
 
-pdf("Fig4F.pdf",height = 2.5,width = 3.75)
+pdf("../../../pdf_files/Fig4/Fig4E.pdf",height = 2.5,width = 3.75)
 main.scalability
 dev.off()
 ```
@@ -633,16 +639,16 @@ unsup.metacells.unsup.stacas$pct.known = 0
 sup.metacells.sup.stacas$pct.known = 100
 
 
-semi.sup.80  <- readRDS("../../output/pbmcCiteSeqAtlas/20percent_semisupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds" )
+semi.sup.80  <- readRDS("../../../output/pbmcCiteSeqAtlas/20percent_semisupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds" )
 semi.sup.80$pct.known = 80
 semi.sup.80$Batch = "Corrected"
 
-semi.sup.95  <- readRDS("../../output/pbmcCiteSeqAtlas/5percent_semisupMetacells_SCT_supStacas_lognorm//g20/bench_res.rds" )
+semi.sup.95  <- readRDS("../../../output/pbmcCiteSeqAtlas/5percent_semisupMetacells_SCT_supStacas_lognorm//g20/bench_res.rds" )
 semi.sup.95$pct.known = 95
 semi.sup.95$Batch = "Corrected"
 
 
-semi.sup.50  <- readRDS("../../output/pbmcCiteSeqAtlas//50percent_semisupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds" )
+semi.sup.50  <- readRDS("../../../output/pbmcCiteSeqAtlas//50percent_semisupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds" )
 semi.sup.50$pct.known = 50
 semi.sup.50$Batch = "Corrected"
 
@@ -671,7 +677,8 @@ semi.sup.bench.CiLISI <- ggplot(bench.integration.semi.sup,
                                     shape = Batch,
                                     color = Batch)) + 
   geom_point(size = 2.5)+ 
-  geom_line()  + theme_bw()+ scale_color_manual(values = colorblind_pal()(8)[c(6,3)]) + facet_grid(c("modality","label_name"),scales = "free",axis.labels = "margins") + 
+  geom_line()  + theme_bw()+ scale_color_manual(values = c("#0072B2", "#56B4E9")) + #colorblind_pal()(8)[c(6,3)]
+  facet_grid(c("modality","label_name"),scales = "free",axis.labels = "margins") + 
   xlab("% Annotated cells (main annotation)") +
   ylab("CiLISI (batch mixing)") +
   scale_x_discrete(limits=rev)
@@ -681,7 +688,9 @@ semi.sup.bench.ASW <- ggplot(bench.integration.semi.sup,
                                  y=celltype_ASW,
                                  group = Batch,
                                  shape = Batch,
-                                 color = Batch)) + geom_point(size = 2.5) + geom_line() + theme_bw()+ scale_color_manual(values = colorblind_pal()(8)[c(6,3)]) + facet_grid(c("modality","label_name"),scales = "free",axis.labels = "margins") + 
+                                 color = Batch)) + geom_point(size = 2.5) + geom_line() + theme_bw()+ 
+  scale_color_manual(values = c("#0072B2","#56B4E9")) + #colorblind_pal()(8)[c(6,3)]
+  facet_grid(c("modality","label_name"),scales = "free",axis.labels = "margins") + 
   ylab("Cell type ASW (bio-conservation)") +
   xlab("% Annotated cells (main annotation)")+
   scale_x_discrete(limits=rev)
@@ -696,7 +705,7 @@ semi.sup.bench.CiLISI
 ```{r fig.height=4,fig.width=9}
 wrap_plots(semi.sup.bench.ASW+ NoLegend(),semi.sup.bench.CiLISI + theme(legend.position = "bottom"),nrow=1)
 
-pdf("FigS6E_bench_semi_s_p_cite.pdf",height=4,width=9)
+pdf("../../../pdf_files/FigS5/FigS5F_bench_semi_s_p_cite.pdf",height=4,width=9)
 wrap_plots(semi.sup.bench.ASW+ NoLegend(),semi.sup.bench.CiLISI + theme(legend.position = "bottom"),nrow=1)
 dev.off()
 ```
@@ -707,14 +716,14 @@ pbmc.combined.mc$pct.known = 100
 pbmc.combined.unsup.mc$pct.known = 0
 
 
-semi.sup.80.mc  <- readRDS("../../output/pbmcCiteSeqAtlas/20percent_semisupMetacells_SCT_supStacas_lognorm/g20/seuratCombinedWNN.rds" )
+semi.sup.80.mc  <- readRDS("../../../output/pbmcCiteSeqAtlas/20percent_semisupMetacells_SCT_supStacas_lognorm/g20/seuratCombinedWNN.rds" )
 semi.sup.80.mc$pct.known = 80
 
-semi.sup.95.mc  <- readRDS("../../output/pbmcCiteSeqAtlas/5percent_semisupMetacells_SCT_supStacas_lognorm/g20/seuratCombinedWNN.rds" )
+semi.sup.95.mc  <- readRDS("../../../output/pbmcCiteSeqAtlas/5percent_semisupMetacells_SCT_supStacas_lognorm/g20/seuratCombinedWNN.rds" )
 semi.sup.95.mc$pct.known = 95
 
 
-semi.sup.50.mc  <- readRDS("../../output/pbmcCiteSeqAtlas//50percent_semisupMetacells_SCT_supStacas_lognorm/g20/seuratCombinedWNN.rds" )
+semi.sup.50.mc  <- readRDS("../../../output/pbmcCiteSeqAtlas//50percent_semisupMetacells_SCT_supStacas_lognorm/g20/seuratCombinedWNN.rds" )
 semi.sup.50.mc$pct.known = 50
 
 meta.data.all <- rbind(pbmc.combined.unsup.mc@meta.data[,c("pct.known","size","celltype.l1.5_purity","celltype.l2_purity")],
@@ -726,13 +735,17 @@ meta.data.all <- rbind(pbmc.combined.unsup.mc@meta.data[,c("pct.known","size","c
 
 pl2 <- ggplot(meta.data.all,
               aes(x= as.factor(pct.known),y=celltype.l2_purity
-              )) + geom_boxplot(fill = colorblind_pal()(8)[6],alpha = 0.5) +xlab("% Annotated cells (fine annotation)") + ylab("Fine annotation purity")  +
+              )) + geom_boxplot(fill = "#0072B2",alpha = 0.5) + #colorblind_pal()(8)[6]
+  xlab("% Annotated cells (fine annotation)") + ylab("Fine annotation purity")  +
   scale_x_discrete(limits=rev)
 pl1.5 <- ggplot(meta.data.all,aes(x= as.factor(pct.known),y=celltype.l1.5_purity)) + 
-  geom_boxplot(fill  = colorblind_pal()(8)[6],alpha = 0.5) +xlab("% Annotated cells (main annotation)") + ylab("Fine annotation purity")  +
+  geom_boxplot(fill  = "#0072B2",alpha = 0.5) + #colorblind_pal()(8)[6]
+  xlab("% Annotated cells (main annotation)") + ylab("Fine annotation purity")  +
   scale_x_discrete(limits=rev)
 
-pSize <- ggplot(meta.data.all,aes(x= as.factor(pct.known),y=size)) + geom_boxplot(fill = colorblind_pal()(8)[6],alpha = 0.5) +xlab("% Annotated cells (main annotation)") + ylab("Metacell size") +
+pSize <- ggplot(meta.data.all,aes(x= as.factor(pct.known),y=size)) + 
+  geom_boxplot(fill = "#0072B2",alpha = 0.5) + #colorblind_pal()(8)[6]
+  xlab("% Annotated cells (main annotation)") + ylab("Metacell size") +
   scale_x_discrete(limits=rev)  
 
 
@@ -746,7 +759,7 @@ purity.pct.plot <- wrap_plots(pl1.5, pl2,pSize,guide_area(),guides = "collect", 
 
 purity.pct.plot
 
-pdf("FigS6D.pdf",height=7,width=3.5)
+pdf("../../../pdf_files/FigS5/FigS5E.pdf",height=7,width=3.5)
 purity.pct.plot
 dev.off()
 ```

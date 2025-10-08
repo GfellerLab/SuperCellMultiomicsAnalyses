@@ -291,3 +291,12 @@ rule report_bm_cite_atlas_samples:
           expand("output/bmCiteSeq/SuperCellRNA/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"])
   output: "reports/bmCiteSeq/bm_cite_analysis.html"
   shell: "touch {output}"
+
+rule generate_figures_from_figure2_bm:
+  input:
+    "figures/manuscript/final_figures_Rmd/Figure2_bench_BMCiteseq.Rmd",
+    expand("output/bmCiteSeq/{inputMetacells}/g{gamma}/seurat.cite.mc.rds", gamma = ["20","50","75","100","200"], inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellADT","SuperCellRNA","seacellsRNA","seacellsADT","MetaCellRNA"]),
+    expand("output/bmCiteSeq/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
+  output: "figures/manuscript/final_figures_Rmd/Figure2_bench_BMCiteseq.html"
+  singularity: config["sif_file"]
+  shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"

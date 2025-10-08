@@ -90,7 +90,7 @@ options(bitmapType = "cairo")
 ## Cluster annotation
 ```{r fig.height=6,fig.width=8}
 
-atlas.mc <-  readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/g10_final/full_atlas_metacells_activities.rds")
+atlas.mc <-  readRDS("../output/whole_atlas/metacells_sup/g10_final/full_atlas_metacells_activities.rds")
 atlas.mc <- RenameLabels(atlas.mc)
 # atlas.mc[["RNA"]] <- JoinLayers(atlas.mc[["RNA"]] )
 
@@ -102,7 +102,7 @@ DimPlot(atlas.mc,reduction = "wnn.umap",group.by = "scATOMIC_labels",label = T,r
 
 
 ```{r fig.height=11,fig.width=18}
-annotations <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/g10_final/atlas.mc.annotations.rds")
+annotations <- readRDS("../output/whole_atlas/metacells_sup/g10_final/atlas.mc.annotations.rds")
 
 atlas.mc <- AddMetaData(atlas.mc,metadata = annotations[,c('major_cell_type',"fine_cell_type","clusters")])
 
@@ -305,7 +305,7 @@ p.fine_cell_type + NoLegend()
 
 
 ```{r fig.height=5,fig.width=10}
-sc.anno <- readRDS("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells/annotation.all.rds") #single_cell annotations saved at the beginning of metacell benchmark integration
+sc.anno <- readRDS("../output/whole_atlas/metacells/annotation.all.rds") #single_cell annotations saved at the beginning of metacell benchmark integration
 
 sc.anno$HTAN <- as.vector(sc.anno$cell_type)
 sc.anno$HTAN[sc.anno$HTAN == "Macrophages"] <- "Macro"
@@ -586,7 +586,7 @@ atlas.mc$major_cell_type <- factor(atlas.mc$major_cell_type,levels = c("Endothel
                                                                        "T/Macro_doublet",
                                                                        "Plasma/Macro_doublet"))
 
-cat(ggthemes::colorblind_pal()(8),sep = "','")
+cat(c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"),sep = "','") #ggthemes::colorblind_pal()(8)
 # major_cell_type_color <- final_palette <- c('#E69F00',"darkgrey",'#009E73','#E4C755','#0072B2','#D55E00',"#984EA3",'#56B4E9','#CC79A7','#000000' )
 # major_cell_type_color <- final_palette <- c('#E69F00',"darkgrey",'#009E73','#E4C755','#0072B2','#D55E00',"#984EA3",'#56B4E9','#CC79A7','#000000')
 major_cell_type_color_doublet <- c(major_cell_type_color,color.fine_cell_type)
@@ -669,7 +669,7 @@ fine.types <- DimPlot(atlas.mc,group.by = "fine_cell_type",reduction = "wnn.umap
    ggtitle("Fine cell types")+ theme(legend.position = "bottom")
 fine.types 
 
-pdf("figS7E",height = 9.25,width = 6.25)
+pdf("../pdf_files/figS7E",height = 9.25,width = 6.25)
 fine.types 
 dev.off()
 
@@ -684,7 +684,7 @@ dev.off()
 major.type.fig5A <- DimPlot(atlas.mc,group.by = "major_cell_type",reduction = "wnn.umap",cols = major_cell_type_color) + ggtitle("Major types") + theme(legend.position = "left")
 major.type.fig5A 
 
-pdf("fig5A.pdf",height = 3.5,width = 5)
+pdf("../pdf_files/fig5A.pdf",height = 3.5,width = 5)
 major.type.fig5A
 dev.off()
 ```
@@ -859,7 +859,7 @@ library(cowplot)
 library(patchwork)
 fig5B <- wrap_plots(c(vln.rna.final,p$patches$plot),ncol = length(genes),nrow = 2,axes = "collect",guides = "collect",heights = c(1,1.3))
 fig5B
-pdf("fig5B.pdf",height=8,width=9.5)
+pdf("../pdf_files/fig5B.pdf",height=8,width=9.5)
 fig5B
 dev.off()
 
@@ -944,7 +944,7 @@ dotplot.dc
 ```
 ```{r, fig.width=14,fig.height=4}
 
-markers.dc <-  read.csv("/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/HTAN_atlas/final_mast/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/g10_final/marker_analysis/DC+Mono_Macro//RNA_diff_res.csv",sep = ";",dec = ",")
+markers.dc <-  read.csv("../output/whole_atlas/metacells_sup/g10_final/marker_analysis/DC+Mono_Macro//RNA_diff_res.csv",sep = ";",dec = ",")
 
 markers.dc[markers.dc$cluster == "pDC",]
 wrap_plots(dotplot.lymph+ ggtitle("T/NK markers"),dotplot.dc+ ggtitle("DC markers"),widths = c(1.25,1))
@@ -1125,8 +1125,8 @@ Macro_CXCL9_CD8_prolif <- ggplot(casted.perc.ext,aes(x = Macro_CXCL9, y = CD8_pr
   scale_x_continuous(labels = scales::percent,name = "% of CD8_prolif in T/NK") +
   geom_smooth(inherit.aes = F,mapping = aes(x = Macro_CXCL9, y = CD8_prolif),method='lm', formula= y~x) +
   stat_cor(inherit.aes = F,mapping = aes(x = Macro_CXCL9, y = CD8_prolif)) + theme_classic() +
-  scale_color_manual(ggthemes::colorblind_pal()(8))+
-  scale_color_manual(values = ggthemes::colorblind_pal()(8)) 
+  scale_color_manual(c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"))+ #ggthemes::colorblind_pal()(8)
+  scale_color_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")) #ggthemes::colorblind_pal()(8)
 
 Macro_CXCL9_CD8_prolif 
 
@@ -1136,7 +1136,7 @@ Macro_CXCL9_CD4_Tfh <-  ggplot(casted.perc.ext,aes(x = Macro_CXCL9, y = CD4_Tfh,
   scale_x_continuous(labels = scales::percent,name = "% of CD4_Tfh in T/NK") +
   geom_smooth(inherit.aes = F,mapping = aes(x = Macro_CXCL9, y = CD4_Tfh),method='lm', formula= y~x) +
   stat_cor(inherit.aes = F,mapping = aes(x = Macro_CXCL9, y = CD4_Tfh)) + theme_classic()+
-  scale_color_manual(values = ggthemes::colorblind_pal()(8))
+  scale_color_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")) #ggthemes::colorblind_pal()(8)
 
 
 ```
@@ -1149,7 +1149,7 @@ Macro_CXCL9_CD4_T_prolif <-  ggplot(casted.perc.ext,aes(x = Macro_CXCL9, y = CD4
   scale_x_continuous(labels = scales::percent,name = "% of CD4_prolif in T/NK") +
   geom_smooth(inherit.aes = F,mapping = aes(x = Macro_CXCL9, y = CD4_prolif),method='lm', formula= y~x) +
   stat_cor(inherit.aes = F,mapping = aes(x = Macro_CXCL9, y = CD4_prolif)) + theme_classic()+
-  scale_color_manual(values = ggthemes::colorblind_pal()(8))
+  scale_color_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")) #ggthemes::colorblind_pal()(8)
 Macro_CXCL9_CD4_T_prolif
 ```
 ```{r fig.height=3,fig.width=3}
@@ -1158,7 +1158,7 @@ DC_RORC_ILC3_like <-  ggplot(casted.perc.ext,aes(x = DC_RORC, y = ILC3_like,col 
   scale_x_continuous(labels = scales::percent,name = "% of ILC3_like in T/NK") +
   geom_smooth(inherit.aes = F,mapping = aes(x = DC_RORC, y = ILC3_like),method='lm', formula= y~x) +
   stat_cor(inherit.aes = F,mapping = aes(x = DC_RORC, y = ILC3_like)) + theme_classic()+
-  scale_color_manual(values = ggthemes::colorblind_pal()(8))
+  scale_color_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")) #ggthemes::colorblind_pal()(8)
 DC_RORC_ILC3_like
 ```
 ```{r fig.height=3.25,fig.width=5.5}
