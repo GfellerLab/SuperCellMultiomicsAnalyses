@@ -622,6 +622,15 @@ rule bench_cite_atlas_unsupMetacells_SCT_supStacas_lognorm:
          -o output/pbmcCiteSeqAtlas/unsupMetacells_SCT_supStacas_lognorm/g20/ \
          -p 1:40 -q 1:50"
 
+rule run_edgeR_mono:
+  input: mc = "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/seuratCombinedWNN.rds"
+  output:
+    "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/edgeR_res_all.txt",
+    "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/edgeR_res_pairwise.txt"
+  singularity: sif_file_edger
+  shell: "Rscript snakemakeWorkflows/pbmcCiteSeqAtlas/R/edgeR_diff_analysis.R -c {input.mc} \
+         -o output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/"
+
 # rule cite_atlas_supMetacells_SCT_supStacas_lognorm_mean:
 #   input: "output/pbmcCiteSeqAtlas/pbmc_cite_seq_atlas_filtered.rds"
 #   output: "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm_mean/g20/seuratCombinedWNN.rds"
@@ -669,3 +678,18 @@ rule bench_cite_atlas_unsupMetacells_SCT_supStacas_lognorm:
 #   output: "reports/pbmcCiteSeqAtlas/pbmc_cite_atlas_integration_metacell_analysis.html"
 #   singularity: sif_file
 #   shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"
+
+
+rule generate_figures_from_pbmc_cite_atlas:
+  input: "figures/manuscript/final_figures_Rmd/Figure4_bench_pbmc_cite_atlas_integration_v2.Rmd",
+         "output/pbmcCiteSeqAtlas/supMetacells_SCT_unsupStacas_lognorm/g20/bench_res.rds",
+         "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/bench_res.rds",
+         "output/pbmcCiteSeqAtlas/unsupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds",
+         "output/pbmcCiteSeqAtlas/5percent_semisupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds",
+         "output/pbmcCiteSeqAtlas/20percent_semisupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds",
+         "output/pbmcCiteSeqAtlas/50percent_semisupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds",
+         "output/pbmcCiteSeqAtlas/100percent_semisupMetacells_SCT_supStacas_lognorm/g20/bench_res.rds",
+         "output/pbmcCiteSeqAtlas/singlecells_SCT_seuratRPCA_SCT/bench_res.rds"
+  output: "figures/manuscript/final_figures_Rmd/Figure4_bench_pbmc_cite_atlas_integration_v2.html"
+  singularity: sif_file
+  shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"
