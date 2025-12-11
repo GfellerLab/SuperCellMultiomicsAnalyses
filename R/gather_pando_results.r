@@ -9,7 +9,7 @@ library(dplyr)
 library(Seurat)
 library(getopt)
 
-source("R/pando_functions.r")
+source("R/functions/pando_functions.r")
 
 spec = matrix(c(
   'help',        'h', 0, "logical",   "Help about the program",
@@ -25,7 +25,7 @@ n_regions <- vector()
 n_tfs <- vector()
 p_thresh <- opt$p_thresh
 
-for(gamma in c(1, 10, 20, 30, 50, 75, 100, 200)){
+for(gamma in c(1, 10, 20, 50, 75, 100, 200)){
   if(gamma ==1){
     methods = c("sc")
   }else{
