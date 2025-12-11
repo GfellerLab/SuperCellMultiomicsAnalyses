@@ -7,6 +7,7 @@ library(future)
 library(presto)
 library(BiocParallel)
 library(SuperCell)
+library(rlang)
 
 # Increase max size limit
 # options(future.globals.maxSize = 2000 * 1024^2)  # 2 GiB
@@ -192,13 +193,18 @@ if(!use.weights){
       test.method = multimodalMarkersMethod
     }
 
-    markers.summary <- FindMultimodalMarkers.SuperCell(seurat.obj = seurat.obj, group.by = 'celltype',
-                                                       assay1 = "RNA", assay2 = "chromvar",
-                                                       min.cells.feature = 0, min.cells.group = 0,
-                                                       min.pct = 0.01, padj.cutoff = 0.05, base = 2,
-                                                       test.use = test.method,
-                                                       only.pos = T,
-                                                       fc.name1 = "avg_log2FC", fc.name2 = "avg_diff")
+    if(length(unique(seurat.obj[['celltype']])) >= 2){
+      markers.summary <- FindMultimodalMarkers.SuperCell(seurat.obj = seurat.obj, group.by = 'celltype',
+                                                         assay1 = "RNA", assay2 = "chromvar",
+                                                         min.cells.feature = 0, min.cells.group = 0,
+                                                         min.pct = 0.01, padj.cutoff = 0.05, base = 2,
+                                                         test.use = test.method,
+                                                         only.pos = T,
+                                                         fc.name1 = "avg_log2FC", fc.name2 = "avg_diff")
+    }else{
+      markers.summary <- NULL
+    }
+    
 
     saveRDS(markers.summary, paste0(opt$outdir,"/multimodalMarkers_", gsub("_", "",multimodalMarkersMethod), ".rds"))
 

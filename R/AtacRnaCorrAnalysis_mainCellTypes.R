@@ -11,8 +11,123 @@ library(SuperCell)
 # Increase max size limit
 # options(future.globals.maxSize = 2000 * 1024^2)  # 2 GiB
 # Functions ---------------------------------------------------------------
-source("R/functions/SuperCellMultiomics_functions2.R")
-
+# source("R/functions/SuperCellMultiomics_functions2.R")
+FindMultimodalMarkers.SuperCell2 <- function(seurat.obj, group.by = 'celltype',
+                                             assay1 = 'RNA', assay2 = "chromvar",
+                                             min.cells.feature = 0, min.cells.group = 0, min.pct = 0.01,
+                                             padj.cutoff = 0.05, base = 2, only.pos = T, return.thresh = 1,
+                                             logfc.threshold1 = 0.1, logfc.threshold2 = 0.1,
+                                             test.use = "survey_weighted_t", features.1 = NULL, features.2 = NULL,
+                                             fc.name1 = "avg_log2FC", fc.name2 = "avg_diff",
+                                             mean.fxn1 = NULL, mean.fxn2 = SuperCell:::weighted.mean.fxn, ...) {
+  
+  Idents(seurat.obj) <- group.by
+  markers_mod1 <- SuperCell::FindAllMarkers.SuperCell(
+    object = seurat.obj, assay = assay1,
+    min.cells.feature = min.cells.feature, features = features.1,
+    min.cells.group = min.cells.group,
+    base = base,
+    min.pct = min.pct, fc.name = fc.name1,
+    logfc.threshold = logfc.threshold1,
+    only.pos = only.pos, mean.fxn = mean.fxn1, test.use = test.use,
+    return.thresh = return.thresh, ...
+  )
+  colnames(markers_mod1) <- paste0(assay1, ".", colnames(markers_mod1))
+  
+  DefaultAssay(seurat.obj) <- assay2
+  
+  markers_mod2 <- SuperCell::FindAllMarkers.SuperCell(
+    object = seurat.obj,
+    assay = assay2,
+    min.cells.feature = min.cells.feature, features = features.2,
+    min.cells.group = min.cells.group,
+    base = base,
+    min.pct = min.pct,
+    logfc.threshold = logfc.threshold2, test.use = test.use,
+    only.pos = only.pos, fc.name = fc.name2, mean.fxn = mean.fxn2, 
+    return.thresh = return.thresh, ...
+  )
+  colnames(markers_mod2) <- paste0(assay2, ".", colnames(markers_mod2))
+  
+  # markers_mod1$gene <- markers_mod1[, paste0(assay1, ".gene")]
+  
+  if(assay1 == "chromvar"){
+    DefaultAssay(seurat.obj) <- "ATAC"
+    markers_mod1$gene <- ConvertMotifID(seurat.obj, id = markers_mod1[, paste0(assay1, ".gene")])
+  }else{
+    markers_mod1$gene <- markers_mod1[, paste0(assay1, ".gene")]
+  }
+  
+  
+  if(assay2 == "chromvar"){
+    DefaultAssay(seurat.obj) <- "ATAC"
+    markers_mod2$gene <- ConvertMotifID(seurat.obj, id = markers_mod2[, paste0(assay2, ".gene")])
+  }else{
+    markers_mod2$gene <- markers_mod2[, paste0(assay2, ".gene")]
+  }
+  
+  
+  markers.all <- vector()
+  for(celltype in unique(seurat.obj@meta.data[,group.by])){
+    # print(celltype)
+    ctmarkers_mod1 <- dplyr::filter(
+      markers_mod1,
+      !!dplyr::sym(paste0(assay1, ".cluster")) == celltype,
+      !!dplyr::sym(paste0(assay1, ".p_val_adj")) <= padj.cutoff,
+      !!dplyr::sym(paste0(assay1, ".", fc.name1)) > 0) %>%
+      dplyr::arrange(-!!dplyr::sym(paste0(assay1, ".", fc.name1)))
+    
+    ctmarkers_mod2 <- dplyr::filter(
+      markers_mod2,
+      !!dplyr::sym(paste0(assay2, ".cluster")) == celltype,
+      !!dplyr::sym(paste0(assay2, ".p_val_adj"))  <= padj.cutoff,
+      !!dplyr::sym(paste0(assay2, ".", fc.name2)) > 0) %>%
+      dplyr::arrange(-!!dplyr::sym(paste0(assay2, ".", fc.name2)))
+    
+    multimodal.markers <- dplyr::inner_join(
+      x = ctmarkers_mod1,
+      y = ctmarkers_mod2,
+      by = "gene"
+    )
+    
+    X <- as(GetAssayData(seurat.obj, assay = assay1), "dgCMatrix")
+    y <- factor(ifelse(seurat.obj@meta.data[, group.by] == celltype, celltype, "other"))
+    group.size <- as.numeric(table(y))
+    n1n2 <- group.size * (ncol(X) - group.size)
+    rank_res <- presto::rank_matrix(Matrix::t(X[multimodal.markers[, paste0(assay1, ".gene")],]))
+    ustat <- presto:::compute_ustat(rank_res$X_ranked, y, n1n2, group.size)
+    auc.rna <- t(ustat/n1n2)[,1]
+    
+    X <- as(GetAssayData(seurat.obj, assay = assay2), "dgCMatrix")
+    rank_res <- presto::rank_matrix(Matrix::t(X[multimodal.markers[, paste0(assay2, ".gene")],]))
+    ustat <- presto:::compute_ustat(rank_res$X_ranked, y, n1n2, group.size)
+    auc.motif <- t(ustat/n1n2)[,1]
+    
+    multimodal.markers[, paste0(assay1, ".auc")] <- auc.rna
+    multimodal.markers[, paste0(assay2, ".auc")]<- auc.motif #unlist(lapply(auc.res, function(x) x[,"motif.auc"]))
+    multimodal.markers$auc.mean <- rowMeans(data.frame(auc.rna, auc.motif))
+    
+    multimodal.markers[, paste0(assay1, ".rpb")] <- multimodal.markers[, paste0(assay1, ".t_value")] / sqrt(multimodal.markers[, paste0(assay1, ".t_value")]^2 + multimodal.markers[, paste0(assay1, ".df")])
+    multimodal.markers[, paste0(assay2, ".rpb")] <- multimodal.markers[, paste0(assay2, ".t_value")] / sqrt(multimodal.markers[, paste0(assay2, ".t_value")]^2 + multimodal.markers[, paste0(assay2, ".df")])
+    multimodal.markers$mean.rpb <- rowMeans(multimodal.markers[, c(paste0(assay1, ".rpb"), paste0(assay2, ".rpb"))])
+    
+    multimodal.markers <- dplyr::arrange(multimodal.markers, -mean.rpb)
+    
+    if(nrow(multimodal.markers) != 0){
+      markers.all <- rbind(markers.all, multimodal.markers)
+    }
+  }
+  
+  return(
+    setNames(
+      list(
+        markers.all,
+        markers_mod1,
+        markers_mod2
+      ), nm = c("MultimodalMarkers", paste0("markers.", assay1), paste0("markers.", assay2))
+    )
+  )
+}
 
 # Parameters --------------------------------------------------------------
 
@@ -180,10 +295,12 @@ if(!use.weights){
                                                         min.cells.feature = 0, min.cells.group = 0,
                                                         min.pct = 0, padj.cutoff = 1, base = 2,
                                                         logfc.threshold1 = 0, logfc.threshold2 = 0,
-                                                        features.1 = TFs.subset, features.2 = motifs.subset,
+                                                        features.1 = TFs.subset, 
+                                                        features.2 = motifs.subset,
                                                         test.use = test.method,
                                                         only.pos = T,
                                                         fc.name1 = "avg_log2FC", fc.name2 = "avg_diff")
+
     head(markers.summary[[1]])
     saveRDS(markers.summary, paste0(opt$outdir,"/multimodalMarkers_mainCellTypes_", gsub("_", "",multimodalMarkersMethod), ".rds"))
 
