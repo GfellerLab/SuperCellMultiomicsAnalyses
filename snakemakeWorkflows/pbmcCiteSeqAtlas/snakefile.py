@@ -295,7 +295,6 @@ rule data_aggregation_pbmc_cite_atlas_seacellsADT:
           -t {params.python}"
 
 
-
 ### integration single cell CITE-atlas all samples ###
 
 # rule cite_atlas_integrated_wnn_analyzis:
@@ -626,10 +625,21 @@ rule run_edgeR_mono:
   input: mc = "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/seuratCombinedWNN.rds"
   output:
     "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/edgeR_res_all.txt",
+    "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/edgeR_res_CD14.txt",
     "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/edgeR_res_pairwise.txt"
   singularity: sif_file_edger
   shell: "Rscript snakemakeWorkflows/pbmcCiteSeqAtlas/R/edgeR_diff_analysis.R -c {input.mc} \
          -o output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/"
+
+rule run_edgeR_mono_ADT:
+  input: mc = "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/seuratCombinedWNN.rds"
+  output:
+    "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/ADT_diff/edgeR_res_all.txt",
+    "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/ADT_diff/edgeR_res_CD14.txt",
+    "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/ADT_diff/edgeR_res_pairwise.txt"
+  singularity: sif_file_edger
+  shell: "Rscript snakemakeWorkflows/pbmcCiteSeqAtlas/R/edgeR_diff_analysis.R -c {input.mc} \
+         -o output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/ADT_diff/ -a ADT"
 
 # rule cite_atlas_supMetacells_SCT_supStacas_lognorm_mean:
 #   input: "output/pbmcCiteSeqAtlas/pbmc_cite_seq_atlas_filtered.rds"

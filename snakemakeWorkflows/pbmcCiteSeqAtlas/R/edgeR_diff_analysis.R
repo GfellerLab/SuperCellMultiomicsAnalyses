@@ -9,14 +9,15 @@ source("figures/fun_r/seurat2PB.R")
 spec <- matrix(c(
   'citeSeq_data_path',  'c', 1, "character",
   'output_path',  'o', 1, "character",
-  'help',   'h', 0, "logical"
+  'help',   'h', 0, "logical",
+  'diff_assay',  'a', 1, "character"
 ), byrow = TRUE, ncol = 4)
 
 opt = getopt(spec)
 
-# opt=list()
-# opt$citeSeq_data_path = "/mnt/curnagl/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/preprint_final/manuscript_results/SuperCellMultiomicsAnalyses/output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/seuratCombinedWNN.rds"
-
+if(is.null(opt$diff_assay)){
+  opt$diff_assay <- "RNA"
+}
 # Load pbmc data ----------------------------------------------------------
 
 pbmc <- readRDS(opt$citeSeq_data_path)
@@ -83,9 +84,10 @@ mono.pbmc <-  mono.pbmc[,mono.pbmc$metacell_cluster %in% c("CD14 Mono","CD16 Mon
 
 
 # Run differential analysis using edgeR -----------------------------------
-
+print(mono.pbmc)
+print(opt$diff_assay)
 edgeR.obj <- Seurat2PB.custom(object = mono.pbmc, sample="orig.ident", 
-                              assay = "RNA", cluster="metacell_cluster")
+                              assay = opt$diff_assay, cluster="metacell_cluster")
 edgeR.obj$samples$cluster <- sapply(edgeR.obj$samples$cluster, function(i)gsub(x=i,pattern = " ",replacement = "_"))
 
 summary(edgeR.obj$samples$lib.size)
@@ -95,7 +97,7 @@ edgeR.obj$samples$time <- sapply(edgeR.obj$samples$sample, function(i) unique(mo
 edgeR.obj$samples$donor <- sapply(edgeR.obj$samples$sample, function(i) unique(mono.pbmc$donor[mono.pbmc$orig.ident == i]))
 
 
-keep.samples <- edgeR.obj$samples$lib.size > 4e4
+keep.samples <- edgeR.obj$samples$lib.size > 4e4 
 table(keep.samples)
 edgeR.obj <- edgeR.obj[, keep.samples]
 table(edgeR.obj$samples$cluster)
@@ -115,7 +117,10 @@ rna.genes <- rownames(edgeR.obj)
 cluster <- factor(edgeR.obj$samples$cluster,levels =c("CD14_Mono","CD16_Mono", "CD14_Mono_Ifn"))
 color.mds <- c("#56B4E9","#E69F00" ,"#009E73")
 names(color.mds)<- levels(cluster)
-plotMDS(edgeR.obj, pch=16, col=color.mds[cluster], main="MDS", top = 5000, gene.selection="common",) #, top = 5000, gene.selection="common"
+plotMDS(edgeR.obj, pch=16, col=color.mds[cluster], main="MDS", top = 5000, gene.selection="common",dim.plot = 1:2) #, top = 5000, gene.selection="common"
+legend("bottomleft", legend=levels(cluster), pch=16, cex=0.8)
+
+plotMDS(edgeR.obj, pch=16, col=color.mds[cluster], main="MDS", top = 5000, gene.selection="common",dim.plot = c(1,3)) #, top = 5000, gene.selection="common"
 legend("bottomleft", legend=levels(cluster), pch=16, cex=0.8)
 
 time <- factor(edgeR.obj$samples$time)
@@ -125,24 +130,28 @@ names(color.mds)<- levels(time)
 plotMDS(edgeR.obj, pch=16, col=color.mds[time], main="MDS", top = 5000, gene.selection="common",) #, top = 5000, gene.selection="common"
 legend("bottomleft", legend=levels(time), pch=16, cex=0.8)
 
+# color.mds <-color_celltype
+# names(color.mds)<- levels(donor)
+# plotMDS(edgeR.obj, pch=16, col=color.mds[donor], main="MDS", top = 5000, gene.selection="common",) #, top = 5000, gene.selection="common"
+# legend("bottomleft", legend=levels(donor), pch=16, cex=0.8)
 
 sample <- factor(edgeR.obj$samples$sample)
 time <- factor(edgeR.obj$samples$time)
 donor <- factor(edgeR.obj$samples$donor)
 
+Group <- factor(paste(cluster,time,sep="."), levels = unique(paste(cluster,time,sep=".")))
 
-# design <- model.matrix(~ 0 + cluster*time + donor  ) 
-design <- model.matrix(~ 0 + cluster:time + donor) 
-# design <- model.matrix(~ 0 + time:cluster + donor) 
-# design <- model.matrix(~ donor + cluster*time ) 
-# design <- model.matrix(~ donor + cluster ) 
-# design <- model.matrix(~ donor + cluster:time )
-# design <- model.matrix(~ 0 + time:cluster + donor)
-# design <- model.matrix(~ 0 + donor + time:cluster )
-# design <- model.matrix(~ 0 + cluster + time + donor) ??
-# design <- model.matrix(~ 0 + cluster * time + donor) ??
 
-# colnames(design)[1] <- "Int"
+###########################################################################
+###########################################################################
+###                                                                     ###
+###                            ALL MONOCYTES                            ###
+###                                                                     ###
+###########################################################################
+###########################################################################
+
+# design <- model.matrix(~ 0 + cluster*time + donor  )
+design <- model.matrix(~ donor + Group)
 head(design)
 
 edgeR.obj <- estimateDisp(edgeR.obj, design, robust=TRUE)
@@ -154,34 +163,105 @@ fit <- glmQLFit(edgeR.obj, design, robust=TRUE)
 gc()
 plotQLDisp(fit)
 
-
 # Define contrasts for each cluster
 colnames(design) <- make.names(colnames(design))
 
 contrasts <- makeContrasts(
-  CD14_Mono_vs_All = clusterCD14_Mono - (clusterCD16_Mono + clusterCD14_Mono_Ifn) / 2,
-  CD16_Mono_vs_All = clusterCD16_Mono - (clusterCD14_Mono + clusterCD14_Mono_Ifn) / 2,
-  CD14_Mono_Ifn_vs_All = clusterCD14_Mono_Ifn - (clusterCD14_Mono + clusterCD16_Mono) / 2,
+  # differences of each cell type vs others at T0
+  CD14_Mono_vs_All_T0     = -(GroupCD16_Mono.0 + GroupCD14_Mono_Ifn.0)/2,
+  CD16_Mono_vs_All_T0     =  GroupCD16_Mono.0 - (GroupCD14_Mono_Ifn.0)/2,
+  CD14_Mono_Ifn_vs_All_T0 =  GroupCD14_Mono_Ifn.0 - (GroupCD16_Mono.0)/2,
+  # differences of each cell type vs others at T2
+  CD14_Mono_vs_All_T2     =  GroupCD14_Mono.2     - (GroupCD16_Mono.2     + GroupCD14_Mono_Ifn.2)/2,
+  CD16_Mono_vs_All_T2     =  GroupCD16_Mono.2     - (GroupCD14_Mono.2     + GroupCD14_Mono_Ifn.2)/2,
+  CD14_Mono_Ifn_vs_All_T2 =  GroupCD14_Mono_Ifn.2 - (GroupCD14_Mono.2     + GroupCD16_Mono.2)/2,
+  # differences of each cell type vs others at T7
+  CD14_Mono_vs_All_T7     =  GroupCD14_Mono.7     - (GroupCD16_Mono.7     + GroupCD14_Mono_Ifn.7)/2,
+  CD16_Mono_vs_All_T7     =  GroupCD16_Mono.7     - (GroupCD14_Mono.7     + GroupCD14_Mono_Ifn.7)/2,
+  CD14_Mono_Ifn_vs_All_T7 =  GroupCD14_Mono_Ifn.7 - (GroupCD14_Mono.7     + GroupCD16_Mono.7)/2,
   levels = design
 )
 
-# Test for Cluster1 markers
-results <- glmQLFTest(fit, contrast = contrasts[,"CD14_Mono_Ifn_vs_All"])
+# Extract significant markers
+results <- glmQLFTest(fit, contrast = contrasts[,"CD14_Mono_Ifn_vs_All_T0"])
+res.all.genes.t0 <- topTags(results, n = Inf, sort.by = "PValue")$table
+res.all.genes.t0$timepoint <- "t0"
 
+res.t0 <- res.all.genes.t0[(res.all.genes.t0$FDR < 0.05 & abs(res.all.genes.t0$logFC) >0.25) & res.all.genes.t0$logCPM>4,]
+res.t0 <- res.t0[order(res.t0$logFC, decreasing = T), ]
+dim(res.t0)
+write.table(res.all.genes.t0, file = paste0(opt$output_path, "/edgeR_res_all_t0.txt"), quote = F, row.names = F, col.names = T, sep = "\t")
 
-# Extract significant markers for each cluster
+results <- glmQLFTest(fit, contrast = contrasts[,"CD14_Mono_Ifn_vs_All_T2"])
+res.all.genes.t2 <- topTags(results, n = Inf, sort.by = "PValue")$table
+res.all.genes.t2$timepoint <- "t2"
+
+res.t2 <- res.all.genes.t2[(res.all.genes.t2$FDR < 0.05 & abs(res.all.genes.t2$logFC) >0.25) & res.all.genes.t2$logCPM>4,]
+res.t2 <- res.t2[order(res.t2$logFC, decreasing = T), ]
+dim(res.t2)
+write.table(res.all.genes.t2, file = paste0(opt$output_path, "/edgeR_res_all_t2.txt"), quote = F, row.names = F, col.names = T, sep = "\t")
+
+results <- glmQLFTest(fit, contrast = contrasts[,"CD14_Mono_Ifn_vs_All_T7"])
+res.all.genes.t7 <- topTags(results, n = Inf, sort.by = "PValue")$table
+res.all.genes.t7$timepoint <- "t7"
+
+res.t7 <- res.all.genes.t7[(res.all.genes.t7$FDR < 0.05 & abs(res.all.genes.t7$logFC) >0.25) & res.all.genes.t7$logCPM>4,]
+res.t7 <- res.t7[order(res.t7$logFC, decreasing = T), ]
+dim(res.t7)
+write.table(res.all.genes.t7, file = paste0(opt$output_path, "/edgeR_res_all_t7.txt"), quote = F, row.names = F, col.names = T, sep = "\t")
+
+# save most differential genes in all timepoints in a file
+combined.res <- rbind(res.t0, res.t2, res.t7)
+combined.res$annotation <- "other"
+# save timepoint specific genes
+t0.specific <- res.t0$gene[!res.t0$gene %in% c(res.t2$gene, res.t7$gene)]
+length(t0.specific)
+t2.specific <- res.t2$gene[!res.t2$gene %in% c(res.t0$gene, res.t7$gene)]
+length(t2.specific)
+t7.specific <- res.t7$gene[!res.t7$gene %in% c(res.t2$gene, res.t0$gene)]
+length(t7.specific)
+
+# identify the DEGs in common between the 3 timepoints
+common_DEGs <- Reduce(intersect, list(
+  res.t0$gene,
+  res.t2$gene,
+  res.t7$gene
+))
+length(common_DEGs)
+combined.res$annotation[combined.res$gene %in% t0.specific] <- "t0_specific"
+combined.res$annotation[combined.res$gene %in% t2.specific] <- "t2_specific"
+combined.res$annotation[combined.res$gene %in% t7.specific] <- "t7_specific"
+combined.res$annotation[combined.res$gene %in% common_DEGs] <- "common"
+
+write.table(combined.res, file = paste0(opt$output_path, "/edgeR_res_all_summary.txt"), quote = F, row.names = F, col.names = T, sep = "\t")
+
+# Get genes differentially expressed between CD14_Ifn and the other monocytes at any timepoint
+results <- glmQLFTest(fit, contrast = contrasts[,c("CD14_Mono_Ifn_vs_All_T0", "CD14_Mono_Ifn_vs_All_T2", "CD14_Mono_Ifn_vs_All_T7")])
 res.all.genes <- topTags(results, n = Inf, sort.by = "PValue")$table
-write.table(res.all.genes, file = paste0(opt$output_path, "/edgeR_res_all.txt"), quote = F, row.names = F, col.names = T, sep = "\t")
-res <- res.all.genes[(res.all.genes$FDR < 0.05 & res.all.genes$logFC >0.25)&res.all.genes$logCPM>4,]
-res
+res.all.genes$minFC <- matrixStats::rowMins(abs(as.matrix(res.all.genes[, c("logFC.CD14_Mono_Ifn_vs_All_T0", "logFC.CD14_Mono_Ifn_vs_All_T2", "logFC.CD14_Mono_Ifn_vs_All_T7")])))
+res.all.genes$meanFC <- rowMeans(as.matrix(res.all.genes[, c("logFC.CD14_Mono_Ifn_vs_All_T0", "logFC.CD14_Mono_Ifn_vs_All_T2", "logFC.CD14_Mono_Ifn_vs_All_T7")]))
 
+res.allT <- res.all.genes[(res.all.genes$FDR < 0.05 & abs(res.all.genes$minFC) >0.25)&res.all.genes$logCPM>4,]
+res.allT <- res.allT[order(res.allT$meanFC, decreasing = T), ]
+length(res.allT$gene)
+
+# check that most of genes differentially expressed in any of the 3 timepoints are actually aprt of the DEGs found at a particular time point
+summary(res.allT$gene %in% c(res.t0$gene, res.t2$gene, res.t7$gene))
+
+write.table(res.all.genes, file = paste0(opt$output_path, "/edgeR_res_all.txt"), quote = F, row.names = F, col.names = T, sep = "\t")
+
+# save edgeR data 
+lcpm <- cpm(edgeR.obj, log=TRUE, normalized.lib.sizes = T)
+annot <- data.frame(cluster=cluster,
+                    timepoint = paste0("timepoint_", time))
+rownames(annot) <- colnames(edgeR.obj)
+save(lcpm, annot, file = paste0(opt$output_path, "edgeR_data.rdata"))
 
 # Pairwise comparisons ----------------------------------------------------
 
-
 contrasts <- makeContrasts(
-  CD14_Mono_Ifn_vs_CD14_Mono = clusterCD14_Mono_Ifn - clusterCD14_Mono,
-  CD14_Mono_Ifn_vs_CD16_Mono = clusterCD14_Mono_Ifn - clusterCD16_Mono,
+  CD14_Mono_Ifn_vs_CD14_Mono = GroupCD14_Mono_Ifn.0,
+  CD14_Mono_Ifn_vs_CD16_Mono = GroupCD14_Mono_Ifn.0 - GroupCD16_Mono.0,
   levels = design
 )
 
@@ -203,3 +283,123 @@ res_pairwise <- res_pairwise[order(res_pairwise$max_FDR,decreasing = F),]
 res_pairwise <- res_pairwise[(res_pairwise$max_FDR< 0.05 & res_pairwise$logCPM_vs_CD14>4)&res_pairwise$logCPM_vs_CD16>4,]
 res_pairwise
 write.table(res_pairwise, file = paste0(opt$output_path, "/edgeR_res_pairwise.txt"), quote = F, row.names = F, col.names = T, sep = "\t")
+
+
+###########################################################################
+###########################################################################
+###                                                                     ###
+###                         ONLY CD14 MONOCYTES                         ###
+###                                                                     ###
+###########################################################################
+###########################################################################
+
+edgeR.obj <- edgeR.obj[, cluster != "CD16_Mono"]
+
+cluster <- factor(edgeR.obj$samples$cluster,levels =c("CD14_Mono", "CD14_Mono_Ifn"))
+sample <- factor(edgeR.obj$samples$sample)
+time <- factor(edgeR.obj$samples$time)
+donor <- factor(edgeR.obj$samples$donor)
+
+Group <- factor(paste(cluster,time,sep="."), levels = unique(paste(cluster,time,sep=".")))
+
+design <- model.matrix(~ donor + Group)
+head(design)
+
+edgeR.obj <- estimateDisp(edgeR.obj, design, robust=TRUE)
+edgeR.obj$common.dispersion
+gc()
+plotBCV(edgeR.obj)
+
+fit <- glmQLFit(edgeR.obj, design, robust=TRUE)
+gc()
+plotQLDisp(fit)
+
+# Define contrasts for each cluster
+colnames(design) <- make.names(colnames(design))
+
+contrasts <- makeContrasts(
+  # differences of each cell type vs others at T0
+  CD14_Mono_Ifn_vs_CD14_Mono_T0 =  GroupCD14_Mono_Ifn.0,
+  # differences of each cell type vs others at T2
+  CD14_Mono_Ifn_vs_CD14_Mono_T2 =  GroupCD14_Mono_Ifn.2 - GroupCD14_Mono.2,
+  # differences of each cell type vs others at T7
+  CD14_Mono_Ifn_vs_CD14_Mono_T7 = GroupCD14_Mono_Ifn.7 - GroupCD14_Mono.7,
+  levels = design
+)
+
+# Extract significant markers
+results <- glmQLFTest(fit, contrast = contrasts[,"CD14_Mono_Ifn_vs_CD14_Mono_T0"])
+res.all.genes.t0 <- topTags(results, n = Inf, sort.by = "PValue")$table
+res.all.genes.t0$timepoint <- "t0"
+
+res.t0 <- res.all.genes.t0[(res.all.genes.t0$FDR < 0.05 & abs(res.all.genes.t0$logFC) >0.25) & res.all.genes.t0$logCPM>4,]
+res.t0 <- res.t0[order(res.t0$logFC, decreasing = T), ]
+dim(res.t0)
+write.table(res.all.genes.t0, file = paste0(opt$output_path, "/edgeR_res_CD14_t0.txt"), quote = F, row.names = F, col.names = T, sep = "\t")
+
+results <- glmQLFTest(fit, contrast = contrasts[,"CD14_Mono_Ifn_vs_CD14_Mono_T2"])
+res.all.genes.t2 <- topTags(results, n = Inf, sort.by = "PValue")$table
+res.all.genes.t2$timepoint <- "t2"
+
+res.t2 <- res.all.genes.t2[(res.all.genes.t2$FDR < 0.05 & abs(res.all.genes.t2$logFC) >0.25) & res.all.genes.t2$logCPM>4,]
+res.t2 <- res.t2[order(res.t2$logFC, decreasing = T), ]
+dim(res.t2)
+write.table(res.all.genes.t2, file = paste0(opt$output_path, "/edgeR_res_CD14_t2.txt"), quote = F, row.names = F, col.names = T, sep = "\t")
+
+results <- glmQLFTest(fit, contrast = contrasts[,"CD14_Mono_Ifn_vs_CD14_Mono_T7"])
+res.all.genes.t7 <- topTags(results, n = Inf, sort.by = "PValue")$table
+res.all.genes.t7$timepoint <- "t7"
+
+res.t7 <- res.all.genes.t7[(res.all.genes.t7$FDR < 0.05 & abs(res.all.genes.t7$logFC) >0.25) & res.all.genes.t7$logCPM>4,]
+res.t7 <- res.t7[order(res.t7$logFC, decreasing = T), ]
+dim(res.t7)
+write.table(res.all.genes.t7, file = paste0(opt$output_path, "/edgeR_res_CD14_t7.txt"), quote = F, row.names = F, col.names = T, sep = "\t")
+
+# save most differential genes in all timepoints in a file
+combined.res <- rbind(res.t0, res.t2, res.t7)
+combined.res$annotation <- "other"
+# save timepoint specific genes
+t0.specific <- res.t0$gene[!res.t0$gene %in% c(res.t2$gene, res.t7$gene)]
+length(t0.specific)
+t2.specific <- res.t2$gene[!res.t2$gene %in% c(res.t0$gene, res.t7$gene)]
+length(t2.specific)
+t7.specific <- res.t7$gene[!res.t7$gene %in% c(res.t2$gene, res.t0$gene)]
+length(t7.specific)
+
+# identify the DEGs in common between the 3 timepoints
+common_DEGs <- Reduce(intersect, list(
+  res.t0$gene,
+  res.t2$gene,
+  res.t7$gene
+))
+length(common_DEGs)
+combined.res$annotation[combined.res$gene %in% t0.specific] <- "t0_specific"
+combined.res$annotation[combined.res$gene %in% t2.specific] <- "t2_specific"
+combined.res$annotation[combined.res$gene %in% t7.specific] <- "t7_specific"
+combined.res$annotation[combined.res$gene %in% common_DEGs] <- "common"
+
+write.table(combined.res, file = paste0(opt$output_path, "/edgeR_res_CD14_summary.txt"), quote = F, row.names = F, col.names = T, sep = "\t")
+
+# Get genes differentially expressed between CD14_Ifn and the other monocytes at any timepoint
+results <- glmQLFTest(fit, contrast = contrasts[,c("CD14_Mono_Ifn_vs_CD14_Mono_T0", "CD14_Mono_Ifn_vs_CD14_Mono_T2", "CD14_Mono_Ifn_vs_CD14_Mono_T7")])
+res.all.genes <- topTags(results, n = Inf, sort.by = "PValue")$table
+res.all.genes$minFC <- matrixStats::rowMins(abs(as.matrix(res.all.genes[, c("logFC.CD14_Mono_Ifn_vs_CD14_Mono_T0", "logFC.CD14_Mono_Ifn_vs_CD14_Mono_T2", "logFC.CD14_Mono_Ifn_vs_CD14_Mono_T7")])))
+res.all.genes$meanFC <- rowMeans(as.matrix(res.all.genes[, c("logFC.CD14_Mono_Ifn_vs_CD14_Mono_T0", "logFC.CD14_Mono_Ifn_vs_CD14_Mono_T2", "logFC.CD14_Mono_Ifn_vs_CD14_Mono_T7")]))
+
+res.allT <- res.all.genes[(res.all.genes$FDR < 0.05 & abs(res.all.genes$minFC) >0.25)&res.all.genes$logCPM>4,]
+res.allT <- res.allT[order(res.allT$meanFC, decreasing = T), ]
+length(res.allT$gene)
+
+# check that most of genes differentially expressed in any of the 3 timepoints are actually aprt of the DEGs found at a particular time point
+summary(res.allT$gene %in% c(res.t0$gene, res.t2$gene, res.t7$gene))
+
+write.table(res.all.genes, file = paste0(opt$output_path, "/edgeR_res_CD14.txt"), quote = F, row.names = F, col.names = T, sep = "\t")
+
+# save edgeR data 
+lcpm <- cpm(edgeR.obj, log=TRUE, normalized.lib.sizes = T)
+annot <- data.frame(cluster=cluster,
+                    timepoint = paste0("timepoint_", time))
+rownames(annot) <- colnames(edgeR.obj)
+save(lcpm, annot, file = paste0(opt$output_path, "edgeR_data_CD14.rdata"))
+
+
