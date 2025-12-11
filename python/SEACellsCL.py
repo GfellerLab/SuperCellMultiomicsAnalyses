@@ -6,7 +6,7 @@ import scanpy as sc
 import os
 import sys, getopt
 from pathlib import Path
-np.random.seed(123456)
+np.random.seed(1234)
 
 def main(argv):
     matrixFile = ''

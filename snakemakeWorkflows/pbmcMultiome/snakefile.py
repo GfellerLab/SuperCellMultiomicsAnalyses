@@ -297,36 +297,36 @@ rule mc_metrics_computation:
 
 
 
-rule metacell_identification_pbmc_seacellsRNA_testRepro:
-  input:
-        singlecells = "output/pbmcMultiome/singlecells_analysis/seurat.RNA.h5ad"
-  output: "output/pbmcMultiome/test_seacellsRNA_rep/g{gamma}/rep{rep}/seacellMemberships.csv"
-  singularity: config["sif_file"]
-  shell: "python3 python/SEACellsCL.py -i {input.singlecells} \
-          -o output/pbmcMultiome/test_seacellsRNA_rep/g{wildcards.gamma}/rep{wildcards.rep}/ \
-          -d 1:40 -r pca -g {wildcards.gamma}"
-
-rule data_aggregation_pbmc_seacellsRNA_testRepro:
-  input:
-        singlecells = "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds",
-        memberships = "output/pbmcMultiome/test_seacellsRNA_rep/g{gamma}/rep{rep}/seacellMemberships.csv"
-  output: "output/pbmcMultiome/test_seacellsRNA_rep/g{gamma}/rep{rep}/seurat.multiome.mc.rds"
-  singularity: config["sif_file"]
-  params: workdir = wdir
-  shell: "export PATH={params.workdir}/config/bin/htslib-1.16/bin:$PATH;\
-          Rscript R/SCimplify10xMultiome_v5_CL.R -i {input.singlecells} -c {input.memberships} \
-          -o output/pbmcMultiome/test_seacellsRNA_rep/g{wildcards.gamma}/rep{wildcards.rep}/ \
-          -f -g {wildcards.gamma} -x SEACell-"
-rule mc_metrics_computation_testRepro:
-  input:
-        singlecells = "output/pbmcMultiome/singlecells_analysis/seurat.multiome.activities.rds",
-        metacells = "output/pbmcMultiome/test_seacellsRNA_rep/g{gamma}/rep{rep}/seurat.multiome.mc.rds"
-  output: "output/pbmcMultiome/test_seacellsRNA_rep/g{gamma}/rep{rep}/repro.seurat.multiome.mcMetrics.rds"
-  singularity: config["sif_file"]
-  params:
-        outdir = "output/pbmcMultiome/test_seacellsRNA_rep/g{gamma}/rep{rep}/",
-        python = "/opt/conda/envs/MetacellAnalysisToolkit/bin/python"
-  shell: "Rscript R/compute_MC_metrics.R -s {input.singlecells} -o {params.outdir} -m {input.metacells} -n 1:50 -q 2:50 -e {params.python}; mv {params.outdir}seurat.multiome.mcMetrics.rds {params.outdir}repro.seurat.multiome.mcMetrics.rds"
+# rule metacell_identification_pbmc_seacellsRNA_testRepro:
+#   input:
+#         singlecells = "output/pbmcMultiome/singlecells_analysis/seurat.RNA.h5ad"
+#   output: "output/pbmcMultiome/test_seacellsRNA_rep/g{gamma}/rep{rep}/seacellMemberships.csv"
+#   singularity: config["sif_file"]
+#   shell: "python3 python/SEACellsCL.py -i {input.singlecells} \
+#           -o output/pbmcMultiome/test_seacellsRNA_rep/g{wildcards.gamma}/rep{wildcards.rep}/ \
+#           -d 1:40 -r pca -g {wildcards.gamma}"
+#
+# rule data_aggregation_pbmc_seacellsRNA_testRepro:
+#   input:
+#         singlecells = "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds",
+#         memberships = "output/pbmcMultiome/test_seacellsRNA_rep/g{gamma}/rep{rep}/seacellMemberships.csv"
+#   output: "output/pbmcMultiome/test_seacellsRNA_rep/g{gamma}/rep{rep}/seurat.multiome.mc.rds"
+#   singularity: config["sif_file"]
+#   params: workdir = wdir
+#   shell: "export PATH={params.workdir}/config/bin/htslib-1.16/bin:$PATH;\
+#           Rscript R/SCimplify10xMultiome_v5_CL.R -i {input.singlecells} -c {input.memberships} \
+#           -o output/pbmcMultiome/test_seacellsRNA_rep/g{wildcards.gamma}/rep{wildcards.rep}/ \
+#           -f -g {wildcards.gamma} -x SEACell-"
+# rule mc_metrics_computation_testRepro:
+#   input:
+#         singlecells = "output/pbmcMultiome/singlecells_analysis/seurat.multiome.activities.rds",
+#         metacells = "output/pbmcMultiome/test_seacellsRNA_rep/g{gamma}/rep{rep}/seurat.multiome.mc.rds"
+#   output: "output/pbmcMultiome/test_seacellsRNA_rep/g{gamma}/rep{rep}/repro.seurat.multiome.mcMetrics.rds"
+#   singularity: config["sif_file"]
+#   params:
+#         outdir = "output/pbmcMultiome/test_seacellsRNA_rep/g{gamma}/rep{rep}/",
+#         python = "/opt/conda/envs/MetacellAnalysisToolkit/bin/python"
+#   shell: "Rscript R/compute_MC_metrics.R -s {input.singlecells} -o {params.outdir} -m {input.metacells} -n 1:50 -q 2:50 -e {params.python}; mv {params.outdir}seurat.multiome.mcMetrics.rds {params.outdir}repro.seurat.multiome.mcMetrics.rds"
 
 ####################################################################################################################################
 ################################################ Test semi-supervised  #############################################################

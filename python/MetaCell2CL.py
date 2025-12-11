@@ -11,7 +11,7 @@ from math import hypot
 from scipy import sparse
 import sys, getopt
 from pathlib import Path
-np.random.seed(123456)
+np.random.seed(1234)
 
 def main(argv):
     matrixFile = ''

@@ -3,8 +3,10 @@ description: |
 
 author: "Leonard Herault"
 
-sif_file: "/scratch/agabrie4/supercell_v2/manuscript_results/SuperCellMultiomicsAnalyses/config/supercell_multiomics_v2.sif"
-singularity_prefix: "/scratch/agabrie4/supercell_v2/manuscript_results/SuperCellMultiomicsAnalyses/"
+sif_file: "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/preprint_final/manuscript_results/SuperCellMultiomicsAnalyses/config/supercell_multiomics_v2.sif"
+sif_file_edger: "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/preprint_final/manuscript_results/SuperCellMultiomicsHTAN/config_files/edger_v1.sif"
+#sif_file_seacell: "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/preprint_final/manuscript_results/SuperCellMultiomicsAnalyses/config/seacells_v1.sif"
+singularity_prefix: "/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/preprint_final/manuscript_results/SuperCellMultiomicsAnalyses/"
 
 seuratDatasets : ["bmcite","pbmcMultiome"]
 
