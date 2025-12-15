@@ -189,7 +189,11 @@ rule generate_figures_from_figure3:
         expand("output/hspcMultiomePersad/{inputMetacells}/g{gamma}/CorrTables.rds", gamma = GAMMA, inputMetacells = ['SuperCellMulti',"randomMetacells"]),
         expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/multimodalMarkers_surveyweightedt.rds", gamma = GAMMA, inputMetacells = ['SuperCellMulti',"randomMetacells"]),
         "output/pbmcMultiome/singlecells_analysis/multimodalMarkers_mainCellTypes_ttest.rds",
-        "output/pbmcMultiome/SuperCellMulti/pando_metrics_summary_p_thresh0.1.RData"
+        "output/pbmcMultiome/SuperCellMulti/pando_metrics_summary_p_thresh0.1.RData",
+        "output/pbmcMultiome/SuperCellMulti/pando_metrics_summary_p_thresh0.05.RData",
+        "output/pbmcCiteSeqAtlas/P1_0/SuperCellMulti/g10/corrTablePearson.csv",
+        "output/pbmcCiteSeqAtlas/P1_0/randomMetacells/g10/corrTablePearson.csv",
+        expand("output/bmCiteSeq/{inputMetacells}/g{gamma}/corrTablePearson.csv", gamma = GAMMA, inputMetacells = ['SuperCellMulti',"randomMetacells"])
   output: "figures/manuscript/final_figures_Rmd/figure_3_intermodality_v2.html"
   singularity: config["sif_file"]
   shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"
@@ -197,6 +201,8 @@ rule generate_figures_from_figure3:
 rule generate_figures_from_figureS4:
   input: "figures/manuscript/final_figures_Rmd/figure_S4_intermodality.Rmd",
         "output/hspcMultiomePersad/singlecells_analysis/seurat.multiome.activities.rds",
+        "output/pbmcCiteSeqAtlas/P1_0/SuperCellMulti/g10/corrTablePearson.csv",
+        "output/pbmcCiteSeqAtlas/P1_0/randomMetacells/g10/corrTablePearson.csv",
         expand("output/hspcMultiomePersad/{inputMetacells}/g{gamma}/CorrTables.rds", gamma = GAMMA, inputMetacells = ['SuperCellMulti',"randomMetacells"]),
         expand("output/hspcMultiomePersad/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells"])
   output: "figures/manuscript/final_figures_Rmd/figure_S4_intermodality.html"

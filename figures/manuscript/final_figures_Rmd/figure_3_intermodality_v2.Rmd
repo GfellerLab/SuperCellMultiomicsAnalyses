@@ -140,7 +140,7 @@ w.cor.pearson
 
 ```{r}
 corTableAll <- w.cor.pearson
-for (g in c("20","50","75","100","200")){
+for (g in c("10","20","50","75","100","200")){
   for (i in c('SuperCellMulti',"randomMetacells")){
     file <- paste0("../../../output/bmCiteSeq/",
                    i,"/g",
@@ -183,7 +183,7 @@ for (g in c("20","50","75","100","200")){
 
 
 corTableAll$gene <- stringr::str_split_fixed(corTableAll$feature2,pattern = "_",2)[,2]
-corTableAll$gamma <- factor(corTableAll$gamma,level = c("1","20","50","75","100","200"))
+corTableAll$gamma <- factor(corTableAll$gamma,level = c("1","10","20","50","75","100","200"))
 corTableAll$method <- factor(corTableAll$input,level = rev(c("Metacells","Random-grouping","Down-sampling","Single-cells")))
 
 table(corTableAll$input,corTableAll$gamma)

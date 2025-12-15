@@ -294,6 +294,53 @@ rule data_aggregation_pbmc_cite_atlas_seacellsADT:
           -y SEACells_ADT -z {input.gene_protein}\
           -t {params.python}"
 
+### run of Supercellv2 for gamma 10
+
+rule metacell_identification_pbmc_cite_atlas_g10:
+  input:
+        gene_protein = "input/pbmcCiteSeqAtlas/gene_protein.csv",
+        singlecells = "output/pbmcCiteSeqAtlas/{pbmcCiteSmp}/singlecells_analysis/seurat_multimodal.rds"
+  output: "output/pbmcCiteSeqAtlas/{pbmcCiteSmp}/SuperCellMulti/g10/SuperCellHierarchy.rds"
+  benchmark: "benchmark/pbmcCiteSeqAtlas/{pbmcCiteSmp}/SuperCellMulti/g10/SuperCellHierarchy.txt"
+  singularity: sif_file
+  params: python = "/opt/conda/envs/MetacellAnalysisToolkit/bin/python3.9"
+  shell: "Rscript R/SCimplifyCiteSeq_v5_CL.R -i {input.singlecells} \
+          -o output/pbmcCiteSeqAtlas/{wildcards.pbmcCiteSmp}/SuperCellMulti/g10/ \
+          -p 1:40 -q 1:50 -v 1:40 -w 1:50 -r SCT -e TRUE -k 30 -g 10 \
+          -t {params.python} -s SuperCellHierarchy"
+
+rule data_aggregation_pbmc_cite_atlas_g10:
+  input:
+        singlecells = "output/pbmcCiteSeqAtlas/{pbmcCiteSmp}/singlecells_analysis/seuratWNN.rds",
+        hierarchy = "output/pbmcCiteSeqAtlas/{pbmcCiteSmp}/SuperCellMulti/g10/SuperCellHierarchy.rds",
+        gene_protein = "input/pbmcCiteSeqAtlas/gene_protein.csv"
+  output: "output/pbmcCiteSeqAtlas/{pbmcCiteSmp}/SuperCellMulti/g10/seurat.cite.mc.rds",
+          "output/pbmcCiteSeqAtlas/{pbmcCiteSmp}/SuperCellMulti/g10/metaData.csv",
+          "output/pbmcCiteSeqAtlas/{pbmcCiteSmp}/SuperCellMulti/g10/corrTablePearson.csv"
+  singularity: sif_file
+  params: workdir = wdir,
+          python = "/opt/conda/envs/MetacellAnalysisToolkit/bin/python3.9"
+  shell: "Rscript R/SCimplifyCiteSeq_v5_CL.R -i {input.singlecells} -m {input.hierarchy} \
+          -o output/pbmcCiteSeqAtlas/{wildcards.pbmcCiteSmp}/SuperCellMulti/g10/ \
+          -g 10 \
+          -y SuperCell_Multi \
+          -z {input.gene_protein}\
+          -t {params.python}\
+          -s seurat"
+
+rule random_metacell_pbmc_cite_atlas_g10:
+  input:
+        singlecells = "output/pbmcCiteSeqAtlas/{pbmcCiteSmp}/singlecells_analysis/seuratWNN.rds",
+        gene_protein = "input/pbmcCiteSeqAtlas/gene_protein.csv"
+  output: "output/pbmcCiteSeqAtlas/{pbmcCiteSmp}/randomMetacells/g10/metaData.csv",
+          "output/pbmcCiteSeqAtlas/{pbmcCiteSmp}/randomMetacells/g10/corrTablePearson.csv"
+  singularity: sif_file
+  params: python = "/opt/conda/envs/MetacellAnalysisToolkit/bin/python3.9"
+  shell: "Rscript R/SCimplifyCiteSeq_v5_CL.R -i {input.singlecells} \
+          -o output/pbmcCiteSeqAtlas/{wildcards.pbmcCiteSmp}/randomMetacells/g10/ \
+          -d TRUE -v 1:40 -w 1:50 -e TRUE -g 10 \
+          -y randomMetacells -z {input.gene_protein}\
+          -t {params.python}"
 
 ### integration single cell CITE-atlas all samples ###
 

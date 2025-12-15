@@ -25,6 +25,11 @@ sif_file_edger = config["sif_file_edger"]
 include: "snakemakeWorkflows/pbmcMultiome/snakefile.py"
 include: "snakemakeWorkflows/bmCiteSeq/snakefile.py"
 include: "snakemakeWorkflows/hspcMultiomePersad/snakefile.py"
+wildcard_constraints:
+    gamma="(?!10$)\\d+"
+ruleorder: metacell_identification_pbmc_cite_atlas_g10 > metacell_identification_pbmc_cite_atlas
+ruleorder: data_aggregation_pbmc_cite_atlas_g10 > data_aggregation_pbmc_cite_atlas
+ruleorder: random_metacell_pbmc_cite_atlas_g10 > random_metacell_pbmc_cite_atlas
 include: "snakemakeWorkflows/pbmcCiteSeqAtlas/snakefile.py"
 
 
