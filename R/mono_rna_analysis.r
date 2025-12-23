@@ -17,14 +17,6 @@ library(rtracklayer)
 
 # Parameters --------------------------------------------------------------
 
-# output_path <- "/mnt/curnagl/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/preprint_final/manuscript_results/RNA_data/preprocessing_results/"
-# dir.create(output_path)
-# input_data_salmon <- "/mnt/curnagl/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/preprint_final/manuscript_results/RNA_data/preprocessing_results/star_salmon/"
-# sample_sheet <- "/mnt/curnagl/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/preprint_final/manuscript_results/RNA_data/samplesheet.csv"
-# sinature_path <- "/mnt/curnagl/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/preprint_final/manuscript_results/SuperCellMultiomicsHTAN/data/"
-# citeseq_mono_markers <- "/mnt/curnagl//work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/preprint_final/manuscript_results/SuperCellMultiomicsAnalyses/output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/edgeR_res_CD14_t0.txt"
-# htan_mac_markers <- "/mnt/curnagl//work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/preprint_final/manuscript_results/SuperCellMultiomicsHTAN/output/whole_atlas/metacells_sup/g10_final/marker_analysis/Mono_Macro/RNA_diff_res.csv"
-
 # output_path <- "/mnt/curnagl/work/FAC/FBM/LLB/dgfeller/scrnaseq/agabrie4/supercellV2/preprint_final/manuscript_results/RNA_data/downstream_analyses/"
 # dir.create(output_path)
 # dir.create(paste0(output_path, "/figures/"))
@@ -94,13 +86,6 @@ rownames(counts_salmon) <- counts_salmon$gene_symbol
 counts_salmon <- counts_salmon[, -1]
 dim(counts_salmon)
 
-
-# keep <- rowSums(counts_salmon) >= 10
-# summary(keep)
-# counts_salmon <- counts_salmon[keep,]
-
-# txi <- tximport(files, type="salmon", tx2gene=tx2gene, ignoreTxVersion = TRUE) #countsFromAbundance = "lengthScaledTPM", 
-# head(txi)
 tpm_salmon <- txi$abundance
 rownames(metadata) <- metadata$sample
 
@@ -119,62 +104,12 @@ summary(keep)
 tpm_salmon_filtered <- tpm_salmon[keep, ]
 
 
-# # Load kallisto data ------------------------------------------------------
-# kallisto_counts <- paste0(output_path, "kallisto/kallisto.merged.gene_counts.rds")
-# kallisto_tpm <- paste0(output_path, "kallisto/kallisto.merged.gene_tpm.tsv")
-# 
-# # Load counts  
-# kallisto_res <- readRDS(kallisto_counts)
-# 
-# counts_kallisto <- assay(kallisto_res)
-# counts_kallisto <- counts_kallisto[, rownames(metadata)]
-# dim(counts_kallisto)
-# summary(rownames(counts_kallisto) %in% rownames(counts_salmon))
-# 
-# kallisto_res <- read.table(kallisto_tpm)
-# colnames(kallisto_res) <- kallisto_res[1,]
-# kallisto_res <- kallisto_res[-1,]
-# tpm_kallisto <- kallisto_res[, 3:ncol(kallisto_res)]
-# tpm_kallisto <- apply(tpm_kallisto, 2, as.numeric)
-# rownames(tpm_kallisto) <- kallisto_res$gene_id
-# tpm_kallisto <- tpm_kallisto[, rownames(metadata)]
-# head(colSums(tpm_kallisto))
-# 
-# # get gene infos
-# gene_matching <- data.frame(row.names = kallisto_res$gene_id, 
-#                             ensembl_id = kallisto_res$gene_id, 
-#                             symbol = kallisto_res$gene_name)
-# gene_matching$nbcounts <- rowSums(counts_kallisto)[rownames(gene_matching)]
-# summary(duplicated(gene_matching$symbol))
-# 
-# # remove lowly expressed genes
-# keep <- rowSums(counts_kallisto) >= 10
-# summary(keep)
-# counts_kallisto <- counts_kallisto[keep,]
-# dim(counts_kallisto)
-# 
-# tpm_kallisto <- tpm_kallisto[keep,]
-# gene_matching <- gene_matching[keep,]
-# 
-# 
-# tpm_with_names <- cbind(tpm_kallisto, gene_matching)
-# tpm_kallisto <- tpm_with_names %>%
-#   group_by(symbol) %>%
-#   summarise(across(where(is.numeric), mean, na.rm = TRUE))
-# tpm_kallisto <- as.data.frame(tpm_kallisto)
-# rownames(tpm_kallisto) <- tpm_kallisto$symbol
-# tpm_kallisto <- tpm_kallisto[, -c(1,ncol(tpm_kallisto))]
-
-
 # Downstream analyses -----------------------------------------------------
 counts <- counts_salmon
 pdata <- counts %>% 
   gather(key = Sample, value = Count)
 head(pdata)
-# ggplot(pdata) +
-#   geom_density(aes(x = Count, color = Sample)) +
-#   xlab("Raw expression counts") +
-#   ylab("Number of genes")
+
 ggplot(pdata) +
   geom_density(aes(x = Count, color = Sample)) +
   facet_wrap(~ Sample)+
@@ -227,7 +162,6 @@ dev.off()
 
 pdf(paste0(output_path, "figures/marker_levels.pdf"))
 for(gene in c("LY6E", "CD14","FCGR3A", "SIGLEC1", "CXCL10")){
-  # id <- unlist(as.vector(unique(tx2gene[which(tx2gene$gene_symbol == gene),"gene_ID"])))
   pData <- as.data.frame(t(tpm))
   pData$group <- factor(metadata$group, levels = c("DN", "LY6E", "CD169", "DP"))
   pData$sample <- metadata$sample
@@ -264,20 +198,6 @@ descriminative_colors <- c("DN"="#ccebc5ff", "CD169" = "#6a1b9aff", "LY6E" = "#0
                            "DP" = "#b20000ff")
 
 
-# metadata[, "group"] <- plyr::revalue(metadata[, "group"], replace = c("DN" = "LY6E-,CD169-",  
-#                                                                       "LY6E" = "LY6E+,CD169-",
-#                                                                       "CD169" = "LY6E-,CD169+", 
-#                                                                       "DP" = "LY6E+,CD169+"))
-# split.vector <- factor(metadata[, "group"], 
-#                        levels = c("LY6E-,CD169-",  "LY6E+,CD169-","LY6E-,CD169+", "LY6E+,CD169+"))
-# conditions <- metadata$group
-# comp_list = list(c("LY6E-,CD169-", "LY6E-,CD169+"),c("LY6E-,CD169-", "LY6E+,CD169-"), c("LY6E-,CD169-", "LY6E+,CD169+"), c("LY6E-,CD169+", "LY6E+,CD169-"),
-#                  c("LY6E-,CD169+", "LY6E+,CD169+"),c("LY6E+,CD169-", "LY6E+,CD169+"))
-# 
-# descriminative_colors <- c("LY6E-,CD169-"="#3288bdff", "LY6E-,CD169+" = "yellow", "LY6E+,CD169-" = "orange",
-#                            "LY6E+,CD169+" = "#d90017ff")
-
-
 donor <- metadata$donor
 groups <- unique(conditions)
 
@@ -291,7 +211,6 @@ y <- estimateDisp(y, design)
 fit <- glmQLFit(y, design)
 
 contrasts <- makeContrasts(
-  # differences of each cell type vs others at T0
   CD169_vs_DN     = conditionsCD169,
   LY6E_vs_DN     =  conditionsLY6E,
   DP_vs_DN =  conditionsDP,
@@ -312,13 +231,12 @@ for(c in colnames(contrasts)){
   res.all$gene_symbol <- rownames(res.all)
   summary_df_degs <- rbind(summary_df_degs, res.all)
 }
-# summary_df_degs$gene_symbol <- gene_matching[summary_df_degs$gene_id, "gene_symbol"]
+
 summary_df_degs_signif <- summary_df_degs[summary_df_degs$FDR <= 0.05, ]
-# summary_df_degs_signif$gene_symbol <- gene_matching[summary_df_degs_signif$gene_id, "gene_symbol"]
 DEGs <- unique(summary_df_degs_signif$gene_symbol)
-DEGs2 <- unique(summary_df_degs_signif$gene_symbol[summary_df_degs_signif$group1 == "DP" & summary_df_degs_signif$group2 == "DN"])
-summary(DEGs %in% DEGs2)
-DEGs[!DEGs %in% DEGs2]
+# DEGs2 <- unique(summary_df_degs_signif$gene_symbol[summary_df_degs_signif$group1 == "DP" & summary_df_degs_signif$group2 == "DN"])
+# summary(DEGs %in% DEGs2)
+# DEGs[!DEGs %in% DEGs2]
 
 DEGs <- DEGs[DEGs %in% protein_coding_genes$gene_name]
 
@@ -341,8 +259,8 @@ get_pval <- function(group1, group2, deg_res, genes){
   is_sig = pval < 0.05
   pch = rep("*", length(pval))
   pch[!is_sig] = NA#"ns"
-  pch[pval<0.005] = "**"
-  pch[pval<0.0005] = "***"
+  pch[pval<0.01] = "**"
+  pch[pval<0.001] = "***"
   
   return(list(pval, pch))
 }
@@ -369,13 +287,11 @@ ht_DEGs <- ComplexHeatmap::Heatmap(t(scale(t(norm_data[DEGs,]))), column_split =
 
 lgd_pvalue = Legend(title = "p-value", col_fun = pvalue_col_fun, at = c(0, 1, 2, 3),
                     labels = c("1", "0.1", "0.01", "0.001"))
-lgd_sig = Legend(pch = c("*","**","***"), type = "points", labels = c("< 0.05", "< 0.005", "< 0.0005"))
+lgd_sig = Legend(pch = c("*","**","***"), type = "points", labels = c("< 0.05", "< 0.01", "< 0.001"))
 
 pdf(paste0(output_path, "figures/DEGS_heatmap_DPvsRest.pdf"), h=10, w=7)
-# ComplexHeatmap::draw(ht, column_title="DEGs", annotation_legend_list = list( lgd_sig))
 ComplexHeatmap::draw(ht_DEGs, column_title="DEGs", annotation_legend_list = list( lgd_pvalue,lgd_sig),
                      padding = unit(c(12, 2, 12, 2), "mm"))
-
 dev.off()
 
 
@@ -393,9 +309,6 @@ rowAnn = rowAnnotation(
   annotation_name_rot  = 45 , annotation_name_offset = unit(2, "mm")
 )
 
-
-# draw(ht, annotation_legend_list = list(lgd_pvalue, lgd_sig))
-
 ht_DEGs <- ComplexHeatmap::Heatmap(t(scale(t(norm_data[DEGs,]))), column_split = split.vector,
                                    top_annotation = colAnn, right_annotation = rowAnn,name = "DEGs Exp.",
                                    column_title = NULL, cluster_columns = F,cluster_rows = T,
@@ -407,7 +320,7 @@ ht_DEGs <- ComplexHeatmap::Heatmap(t(scale(t(norm_data[DEGs,]))), column_split =
 lgd_pvalue = Legend(title = "p-value", col_fun = pvalue_col_fun, at = c(0, 1, 2, 3),
                     labels = c("1", "0.1", "0.01", "0.001"))
 # and one for the significant p-values
-lgd_sig = Legend(pch = c("*","**","***"), type = "points", labels = c("< 0.05", "< 0.005", "< 0.0005"))
+lgd_sig = Legend(pch = c("*","**","***"), type = "points", labels = c("< 0.05", "< 0.01", "< 0.001"))
 
 pdf(paste0(output_path, "figures/DEGS_heatmap_DNvsRest.pdf"), h=10, w=7)
 # ComplexHeatmap::draw(ht, column_title="DEGs", annotation_legend_list = list( lgd_sig))
@@ -451,33 +364,6 @@ htan_mac <- htan_mac[htan_mac$FDR < 0.05 & (htan_mac$logFC > 0.8 & htan_mac$logC
 atlas_genesets <- list(CD14_Ifn = citeSeq_mono$gene,
                        Macro_CXCL9 = htan_mac$gene)
 
-# as.data.frame(msigdbr::msigdbr_collections())
-# hallmarks_genesets = msigdbr(species = "human", category = "H")
-# head(hallmarks_genesets)
-# hallmarks_genesets <- split(hallmarks_genesets$human_gene_symbol, hallmarks_genesets$gs_name)
-# hallmarks_genesets <- Filter(function(x) length(x) >= 10 & length(x) < 1000, hallmarks_genesets)
-# 
-# C7vax_genesets = msigdbr(species = "human", category = "C7", subcategory = "VAX")
-# head(C7vax_genesets)
-# C7vax_genesets <- split(C7vax_genesets$human_gene_symbol, C7vax_genesets$gs_name)
-# C7vax_genesets <- Filter(function(x) length(x) >= 10 & length(x) < 1000, C7vax_genesets)
-# 
-# reactome_genesets = msigdbr(species = "human", category = "C2", subcategory = "CP:REACTOME")
-# head(reactome_genesets)
-# reactome_genesets <- split(reactome_genesets$human_gene_symbol, reactome_genesets$gs_name)
-# reactome_genesets <- Filter(function(x) length(x) >= 10 & length(x) < 1000, reactome_genesets)
-# 
-# kegg_genesets = msigdbr(species = "human", category = "C2", subcategory = "CP:KEGG")
-# head(kegg_genesets)
-# kegg_genesets <- split(kegg_genesets$human_gene_symbol, kegg_genesets$gs_name)
-# kegg_genesets <- Filter(function(x) length(x) >= 10 & length(x) < 1000, kegg_genesets)
-# 
-# C7imm_genesets = msigdbr(species = "human", category = "C7", subcategory = "IMMUNESIGDB")
-# head(C7imm_genesets)
-# C7imm_genesets <- split(C7imm_genesets$human_gene_symbol, C7imm_genesets$gs_name)
-# C7imm_genesets <- Filter(function(x) length(x) >= 10 & length(x) < 1000, C7imm_genesets)
-# 
-# all_genesets <- c(reactome_genesets, kegg_genesets, hallmarks_genesets)
 all_genesets_symbols <- c(public_genesets,atlas_genesets)
 
 # Run GSVA ----------------------------------------------------------------
@@ -501,9 +387,6 @@ for(score in names(all_genesets_symbols)){
     labs(title = score, x = "Group", y = "Signature") +
     theme_minimal() +
     theme()
-  # print(scores_plots[[score]])
-  
-  
 }
 
 
@@ -514,7 +397,7 @@ dev.off()
 
 head(allScores)
 summary(colnames(allScores) == rownames(metadata))
-# 
+ 
 # # Heatmap plots -----------------------------------------------------------
 # split.vector <- factor(conditions, levels = c("DN", "LY6E", "CD169",  "DP"))
 # 
@@ -607,8 +490,8 @@ get_pval_sig <- function(group1, group2, deg_res, genes){
   is_sig = pval < 0.05
   pch = rep("*", length(pval))
   pch[!is_sig] = NA#"ns"
-  pch[pval<0.005] = "**"
-  pch[pval<0.0005] = "***"
+  pch[pval<0.01] = "**"
+  pch[pval<0.001] = "***"
   
   return(list(pval, pch))
 }
@@ -634,56 +517,13 @@ ht_signature <- ComplexHeatmap::Heatmap(t(scale(t(allScores))), column_split = s
 
 lgd_pvalue = Legend(title = "p-value", col_fun = pvalue_col_fun, at = c(0, 1, 2, 3),
                     labels = c("1", "0.1", "0.01", "0.001"))
-lgd_sig = Legend(pch = c("*","**","***"), type = "points", labels = c("< 0.05", "< 0.005", "< 0.0005"))
+lgd_sig = Legend(pch = c("*","**","***"), type = "points", labels = c("< 0.05", "< 0.01", "< 0.001"))
 
 pdf(paste0(output_path, "figures/Sig_heatmap.pdf"))
 ComplexHeatmap::draw(ht_signature, column_title="Signatures", annotation_legend_list = list( lgd_pvalue,lgd_sig),
                      padding = unit(c(12, 2, 12, 2), "mm"))
 
 dev.off()
-
-# 
-# rowAnn = rowAnnotation(
-#   DP_vs_DN = anno_simple(-log10(get_pval(group1 = "DP", group2 = "DN", deg_res = summary_df_degs, genes = DEGs)[[1]]), 
-#                           col = pvalue_col_fun, gp = gpar(col = "black"),pch = get_pval(group1 = "DP", group2 = "DN", deg_res = summary_df_degs, genes = DEGs)[[2]]),
-#   DP_vs_LY6E = anno_simple(-log10(get_pval(group1 = "DP", group2 = "LY6E", deg_res = summary_df_degs, genes = DEGs)[[1]]), 
-#                            col = pvalue_col_fun,gp = gpar(col = "black"), pch = get_pval(group1 = "DP", group2 = "LY6E", deg_res = summary_df_degs, genes = DEGs)[[2]]),
-#   DP_vs_CD169 = anno_simple(-log10(get_pval(group1 = "DP", group2 = "CD169", deg_res = summary_df_degs, genes = DEGs)[[1]]), 
-#                             col = pvalue_col_fun, gp = gpar(col = "black"),pch = get_pval(group1 = "DP", group2 = "CD169", deg_res = summary_df_degs, genes = DEGs)[[2]]),
-#   show_annotation_name = FALSE
-# )
-# ht_DEGs <- ComplexHeatmap::Heatmap(t(scale(t(norm_data[DEGs,]))), column_split = split.vector,
-#                                    top_annotation = colAnn, right_annotation = rowAnn,name = "DEGs Exp.",
-#                                    column_title = NULL, cluster_columns = F,cluster_rows = T,
-#                                    col = circlize::colorRamp2(c(-2, -1, 0 , 1, 2), c("#1F5FA9", "#74C4EA","white","#F4BA58","#A03124")),
-#                                    show_column_names = F, show_row_names = T,
-#                                    rect_gp = grid::gpar(col = "black", lwd = 0.5),
-#                                    row_names_gp = grid::gpar(fontsize = 10))
-
-
-# # Comparing DP vs the other instead of DN vs the other:
-# 
-# rowAnn = rowAnnotation(
-#   `LY6E+,CD169-` = anno_simple(-log10(get_pval(group1 = "LY6E", group2 = "DN", deg_res = summary_df_degs, genes = DEGs)[[1]]), 
-#                                col = pvalue_col_fun, gp = gpar(col = "black"),pch = get_pval(group1 = "LY6E", group2 = "DN", deg_res = summary_df_degs, genes = DEGs)[[2]]),
-#   `LY6E-,CD169+` = anno_simple(-log10(get_pval(group1 = "CD169", group2 = "DN", deg_res = summary_df_degs, genes = DEGs)[[1]]), 
-#                                col = pvalue_col_fun,gp = gpar(col = "black"), pch = get_pval(group1 = "CD169", group2 = "DN", deg_res = summary_df_degs, genes = DEGs)[[2]]),
-#   `LY6E+,CD169+` = anno_simple(-log10(get_pval(group1 = "DP", group2 = "DN", deg_res = summary_df_degs, genes = DEGs)[[1]]), 
-#                                col = pvalue_col_fun, gp = gpar(col = "black"),pch = get_pval(group1 = "DP", group2 = "DN", deg_res = summary_df_degs, genes = DEGs)[[2]]),
-#   annotation_name_side = "top",   
-#   annotation_name_rot  = 45 , annotation_name_offset = unit(2, "mm")
-# )
-# 
-# 
-# # draw(ht, annotation_legend_list = list(lgd_pvalue, lgd_sig))
-# 
-# ht_DEGs <- ComplexHeatmap::Heatmap(t(scale(t(norm_data[DEGs,]))), column_split = split.vector,
-#                                    top_annotation = colAnn, right_annotation = rowAnn,name = "DEGs Exp.",
-#                                    column_title = NULL, cluster_columns = F,cluster_rows = T,
-#                                    col = circlize::colorRamp2(c(-2, -1, 0 , 1, 2), c("#1F5FA9", "#74C4EA","white","#F4BA58","#A03124")),
-#                                    show_column_names = F, show_row_names = T, 
-#                                    rect_gp = grid::gpar(col = "black", lwd = 0.5),
-#                                    row_names_gp = grid::gpar(fontsize = 8))
 
 rowAnn_sig = rowAnnotation(
   `LY6E+,CD169-` = anno_simple(-log10(get_pval_sig(group1 = "LY6E", group2 = "DN", deg_res = summary_df_sig, genes = rownames(allScores))[[1]]), 
@@ -715,157 +555,3 @@ summary_df_degs$group1 <- plyr::revalue(summary_df_degs$group1, replace = c("CD1
 summary_df_degs$group2 <- plyr::revalue(summary_df_degs$group2, replace = c("CD169" = "LY6E-,CD169+", "LY6E" = "LY6E+,CD169-", "DP" = "LY6E+,CD169+", "DN" = "LY6E-,CD169-" ))
 write.table(summary_df_degs, file = paste0(output_path, "DEGs_res.txt"), sep = "\t", row.names = F, col.names = T, quote = F)
 
-# To Remove ---------------------------------------------------------------
-
-# print(ggplot(pData, aes(x = group, y = .data[[gene]])) +
-#         geom_boxplot() +
-#         labs(title = gene,
-#              x = "Group", y = "Expression (TPM)") +
-#         theme_minimal())
-# 
-
-# print(ggplot(pData, aes(x = group, y = .data[[gene]])) +
-#   geom_boxplot(outlier.shape = NA, alpha = 0.3) +   # boxplots, but don't double-plot outliers
-#   geom_jitter(width = 0, size = 2, alpha = 0.7) + # all data points
-#   geom_line(aes(group = donor, color = donor), alpha = 1) + # connect same sample
-#   labs(title = gene,
-#        x = "Group",
-#        y = "Expression (TPM)") +
-#   theme_minimal() +
-#   theme() + #legend.position = "none"
-#   stat_compare_means(comparisons =combn(levels(factor(pData$group)), 2, simplify = FALSE),
-#                      method = "wilcox.test",
-#                      paired = T,         # set TRUE if truly paired across those groups
-#                      label = "p.format"))  # or "p.signif" 
-
-# pData <- as.data.frame(t(norm_data))
-# pData$group <- metadata$group
-# pData$sample <- metadata$sample
-# print(ggplot(pData, aes(x = sample, y = .data[[id]])) +
-#   geom_bar(stat = "identity") +
-#   labs(title = gene,
-#        x = "Group", y = "log(TPM+1)") +
-#   theme_minimal())
-# dds <- DESeqDataSetFromTximport(txi,
-#                                 colData = metadata %>% column_to_rownames("sample"), 
-#                                 design = ~ group)
-# 
-# keep <- rowSums(counts(dds)) >= 10
-# summary(keep)
-# dds <- dds[keep,]
-# dds <- estimateSizeFactors(dds)
-# rld <- rlog(dds, blind=TRUE)
-# plotPCA(rld, intgroup="group", ntop = 1000)
-
-
-# DEGs using limma --------------------------------------------------------
-# 
-# dge <- DGEList(counts=counts_salmon, samples = metadata)
-# keep <- filterByExpr(dge)
-# dge <- dge[keep, , keep.lib.sizes=FALSE]
-# dge <- calcNormFactors(dge)
-# 
-# v <- voom(dge, design, plot=TRUE)
-# ct <- factor(metadata$group)
-# design <- model.matrix(~0+ct)
-# colnames(design) <- levels(ct)
-# dupcor <- duplicateCorrelation(v,design,block=donor)
-# dupcor$consensus.correlation
-# 
-# fit <- lmFit(v, design, block=donor, correlation = dupcor$consensus.correlation)
-# 
-# contrasts <- makeContrasts(
-#   CD169_vs_DN     = CD169 - DN,
-#   LY6E_vs_DN     =  LY6E - DN,
-#   DP_vs_DN =  DP - DN,
-#   LY6E_vs_CD169     =   LY6E - CD169,
-#   DP_vs_CD169     =  DP - CD169,
-#   DP_vs_LY6E =  DP - LY6E,
-#   levels = design
-# )
-# 
-# fit2 <- contrasts.fit(fit, contrasts)
-# fit2 <- eBayes(fit2, trend=TRUE)
-# # summary(decideTests(fit2, method="global"))
-# summary_df <- vector()
-# for(c in colnames(contrasts)){
-#   res.all = topTable(fit2, coef=c)
-#   res.all$group1 <- strsplit(c,"_vs_")[[1]][1]
-#   res.all$group2 <- strsplit(c,"_vs_")[[1]][2]
-#   res.all$gene_id <- rownames(res.all)
-#   summary_df <- rbind(summary_df, res.all)
-# }
-# summary_df_signif <- summary_df[summary_df$adj.P.Val <= 0.05, ]
-# summary_df_signif$gene_symbol <- gene_matching[summary_df_signif$gene_id, "gene_symbol"]
-# 
-# DEGs <- unique(summary_df_signif$gene_symbol)
-# DEGs2 <- unique(summary_df_signif$gene_symbol[summary_df_signif$group1 == "DP" & summary_df_signif$group2 == "DN"])
-# summary(DEGs %in% DEGs2)
-# DEGs[!DEGs %in% DEGs2]
-# 
-# colours <- list('Condition' = descriminative_colors)
-# colAnn <- ComplexHeatmap::HeatmapAnnotation(df = data.frame(Condition =  split.vector),
-#                                             which = 'col',
-#                                             col = colours)
-# ht <- ComplexHeatmap::Heatmap(t(scale(t(norm_data[DEGs,]))), column_split = split.vector,
-#                               top_annotation = colAnn, # right_annotation = rowAnn,
-#                               column_title = NULL, cluster_columns = F,cluster_rows = T,
-#                               col = circlize::colorRamp2(c(-2, -1, 0 , 1, 2), c("#1F5FA9", "#74C4EA","white","#F4BA58","#A03124")),
-#                               show_column_names = F, show_row_names = T,
-#                               rect_gp = grid::gpar(col = "black", lwd = 0.5),
-#                               row_names_gp = grid::gpar(fontsize = 8))
-# ComplexHeatmap::draw(ht, column_title="DEGs")
-
-
-
-
-# # Catch salmon counts -----------------------------------------------------
-# catch <- catchSalmon(paths = paste0(input_data_salmon, metadata$sample))
-# scaled.counts <- catch$counts/catch$annotation$Overdispersion
-# samples <- sapply(colnames(scaled.counts), function(i) unlist(strsplit(basename(i), "_"))[[1]])
-# 
-# y <- DGEList(counts = scaled.counts,
-#              samples = metadata[samples,],
-#              group = metadata[samples,"Group"],
-#              genes = catch$annotation)
-# 
-# 
-# head(y$genes)
-# 
-# require(AnnotationHub)
-# ah <- AnnotationHub()
-# edb <- ah[['AH78783']]
-# edb.info <- select(edb,keys(edb),c("TXIDVERSION","TXBIOTYPE","SYMBOL"))
-# 
-# edb.info <- edb.info[match(rownames(y),edb.info$TXIDVERSION),]
-# y$genes <- cbind(y$genes,edb.info[,-c(1,2)])
-# head(y$genes)
-# 
-# keep <- filterByExpr(y)
-# table(keep)
-# y <- y[keep, , keep.lib.sizes=FALSE]
-# 
-# y <- normLibSizes(y)
-# y$samples
-# 
-# plotMDS(y, col = c(1:2)[y$samples$group], labels = y$samples$Sample, xlim = c(-4,4))
-# 
-# design <- model.matrix(~ 0 + group, data = y$samples)
-# colnames(design) <- gsub("group", "", colnames(design))
-# design
-# 
-# y <- estimateDisp(y, design, robust=TRUE)
-# y$common.dispersion
-# plotBCV(y)
-# 
-# fit <- glmQLFit(y, design, robust=TRUE)
-# plotQLDisp(fit)
-# 
-# contr <- makeContrasts(KO - WT, levels=design)
-# qlf <- glmQLFTest(fit, contrast=contr)
-# 
-# is.de <- decideTests(qlf, p.value=0.05)
-# summary(is.de)
-# 
-# tt <- as.data.frame(topTags(qlf, n = Inf,p.value =  0.05))
-# head(tt)
