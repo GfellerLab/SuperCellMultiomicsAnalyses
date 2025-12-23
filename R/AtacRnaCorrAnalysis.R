@@ -30,7 +30,7 @@ print(opt)
 seurat.sc <- readRDS(opt$scSeurat)
 DefaultAssay(seurat.sc) <- "RNA"
 seurat.sc <- NormalizeData(seurat.sc)
-seurat.sc <- FindVariableFeatures(seurat.sc, nfeatures = 2000)
+seurat.sc <- FindVariableFeatures(seurat.sc, nfeatures = 4000)
 var.genes <- VariableFeatures(seurat.sc)
 saveRDS(var.genes, file = paste0(dirname(opt$scSeurat), "/hvgs.rds"))
 
