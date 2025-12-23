@@ -3,6 +3,7 @@ library(ArchR)
 library(getopt)
 library(Seurat)
 library(Signac)
+set.seed(2025)
 
 # Parameters --------------------------------------------------------------
 
@@ -64,9 +65,23 @@ if(!opt$genomeVersion %in% c("hg38", "hg19", "mm10")){
 seurat.obj <- readRDS(opt$inputSeurat)
 
 fragments_file <- Fragments(seurat.obj[[opt$ATACassay]])
+
 if(length(fragments_file[[1]]@path) == 0){
   stop("Please add a fragments object to your ChromatinAssay within seurat")
 }
+
+if(!file.exists(fragments_file[[1]]@path)){
+  DefaultAssay(seurat.obj) <- opt$ATACassay
+  new_fragments <- CreateFragmentObject(
+    path = paste0("input/", strsplit(fragments_file[[1]]@path, "input/")[[1]][2]),
+    cells = colnames(seurat.obj)
+  )
+  Fragments(seurat.obj[[opt$ATACassay]]) <- NULL
+  Fragments(seurat.obj[[opt$ATACassay]]) <- new_fragments
+  
+  fragments_file[[1]]@path <- normalizePath(paste0("input/", strsplit(fragments_file[[1]]@path, "input/")[[1]][2]))
+}
+
 
 
 ############################################################################
