@@ -1,0 +1,65 @@
+# Use Ubuntu 22.04 as the base image
+FROM ubuntu:22.04
+
+# Avoid prompts from apt
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install common dependencies, Python, and R
+#RUN apt-get update && apt-get install -y \
+#    software-properties-common \
+#    dirmngr \
+#    wget \
+#    curl \
+#    libcurl4-openssl-dev \
+#    libssl-dev \
+#    libxml2-dev \
+#    libcairo2-dev \
+#    libxt-dev \
+#    libgsl-dev \
+#    libgit2-dev \
+#    git \
+#    cmake \
+#    python3 \
+#    python3-pip \
+#    python3-venv \
+#    && apt-get clean \
+#    && rm -rf /var/lib/apt/lists/*
+#dpkg-query -W -f='${Package}=${Version}\n' > package_list.txt
+#mv package_list.txt /tmp/package_list.txt
+
+COPY package_list.txt /tmp/package_list.txt
+RUN apt-get update && apt-get install -y $(cat /tmp/package_list.txt) && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y tzdata
+RUN ln -sf /usr/share/zoneinfo/Europe/Zurich /etc/localtime
+RUN echo "Europe/Zurich" > /etc/timezone
+
+# Set environment variables for Conda
+ENV CONDA_DIR=/opt/conda
+ENV PATH="$CONDA_DIR/bin:$PATH"
+
+# Download and install Miniconda
+RUN wget -O miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-py39_25.1.1-0-Linux-x86_64.sh && \
+    bash miniconda.sh -b -p $CONDA_DIR && \
+    rm miniconda.sh
+
+# Install Mamba for faster package management
+RUN conda install -n base -c conda-forge mamba=2.0.7 -y
+
+# Copy your Conda environment file
+COPY EdgeR_env.yml /tmp/EdgeR_env.yml
+
+# Create the environment using Mamba
+RUN mamba env create -f /tmp/EdgeR_env.yml
+
+# Clean up Conda cache to reduce image size
+RUN conda clean --all -y
+
+ENV PATH=/opt/conda/envs/EdgeR/bin:$PATH
+
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN conda clean --all -y
+RUN rm -rf /opt/conda/pkgs/*
+
+CMD ["bash"]

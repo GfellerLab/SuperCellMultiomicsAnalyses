@@ -1,0 +1,19 @@
+name: EdgeR
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - r-seurat=5.1.0
+  - r-signac=1.14.0
+  - bioconductor-edger=4.4.0
+  - r-getopt=1.20.4
+  - r-argparse=2.2.5
+  - bioconductor-motifmatchr=1.28.0
+  - bioconductor-chromvar=1.28.0
+  - bioconductor-bsgenome.hsapiens.ucsc.hg38=1.4.5
+  - bioconductor-ensdb.hsapiens.v86=2.99.0
+  - bioconductor-ensdb.mmusculus.v79=2.99.0
+  - bioconductor-tfbstools=1.44.0
+  - bioconductor-biovizbase=1.54.0
+  - r-ggsignif=0.6.4
