@@ -6,6 +6,7 @@ library(getopt)
 library(dplyr)
 library(SuperCell)
 library(ggplot2)
+set.seed(2026)
 
 
 spec = matrix(c(

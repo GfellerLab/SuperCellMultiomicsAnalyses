@@ -21,6 +21,7 @@ library(purrr)
 library("stringr")
 library(decoupleR)
 library(cowplot)
+set.seed(2026)
 
 opt <- list()
 opt$resdir <- "../../../output/"
@@ -40,7 +41,7 @@ pbmc.cite.sc <- readRDS("../../../output/pbmcCiteSeqAtlas/P1_0/singlecells_analy
 
 addCellType <- function(pbmc) {
   pbmc$celltype <- as.vector(pbmc$celltype.l1.5)
-  
+
   return(pbmc)
 }
 
@@ -80,7 +81,7 @@ pbmc.cite.sc$size <- 1
 w.cor.pearson <- FeatureFeaturePlot.SuperCell(seurat.obj = pbmc.cite.sc,
                                                      feature.x = genes.to.prot$gene.name,
                                                      feature.y = genes.to.prot$X.protein,
-                                                     assays = c("RNA","ADT"), 
+                                                     assays = c("RNA","ADT"),
                                                      is.normalized = T,
                                                      plot = F)
 
@@ -94,6 +95,7 @@ w.cor.pearson
 ```{r}
 corTableAll <- w.cor.pearson
 for (g in c("10","20","50","75","100","200")){
+  print(g)
   for (i in c('SuperCellMulti',"randomMetacells")){
     file <- paste0("../../../output/pbmcCiteSeqAtlas/P1_0/",
                    i,"/g",
@@ -105,32 +107,33 @@ for (g in c("10","20","50","75","100","200")){
       if (i == 'randomMetacells') {i <- "Random-grouping"}
       corTable$input <- i
       print(i)
+      print(anyNA(corTable$feature1))
       corTable$gamma <- g
       corTableAll <- rbind(corTable,corTableAll)
     }
   }
-  
+  print(head(corTableAll))
   ## subsampling
-  
-  
+
+
   sub.cells <- sample(colnames(pbmc.cite.sc),size = floor(ncol(pbmc.cite.sc)/as.numeric(g)),replace = F)
   pbmc.cite.sub <- subset(pbmc.cite.sc,cells = sub.cells)
   pbmc.cite.sub$size = 1
   w.cor <- FeatureFeaturePlot.SuperCell(seurat.obj = pbmc.cite.sub,
                                                feature.x = feature_x,
                                                feature.y = feature_y,
-                                               assays = c("RNA","ADT"), 
+                                               assays = c("RNA","ADT"),
                                                is.normalized = F,
                                                cluster = "celltype",
                                                plot = F)
-  
+
   w.cor$input <- "Down-sampling"
   w.cor$gamma <- g
   w.cor$origIdent <- pbmc.cite.sub$orig.ident[1]
-  
+
   corTableAll <- rbind(corTableAll,w.cor)
-  
-  
+  print(head(corTableAll))
+
 }
 
 
@@ -147,9 +150,9 @@ corTableAll[corTableAll$w.cor<0 & corTableAll$method == "Metacells",]
 When we don't have two cells expressing the feature in both modalities to compute a correlation we set pearson r to 0
 
 ```{r fig.height=3.5,fig.width=4}
-corTableAll$w.cor[is.na(corTableAll$w.cor)] <- 0 
-boxplot.corr.pbmc.cite <- ggplot(corTableAll,aes(x=gamma,y=w.cor,fill = method)) + 
-  theme_bw() +  geom_boxplot(position = position_dodge2(preserve = "single")) + 
+corTableAll$w.cor[is.na(corTableAll$w.cor)] <- 0
+boxplot.corr.pbmc.cite <- ggplot(corTableAll,aes(x=gamma,y=w.cor,fill = method)) +
+  theme_bw() +  geom_boxplot(position = position_dodge2(preserve = "single")) +
   ylab("Weighted pearson r") +xlab(paste0("Graining level (\u03B3)")) + scale_fill_manual(values = color.methods) + theme(legend.position = "bottom") +
   guides(fill=guide_legend(ncol =2)) + theme(legend.title = element_blank()) + ggtitle("RNA-Protein Correlations")
 
@@ -200,7 +203,7 @@ corr.CD8a.mc <- FeatureScatter.SuperCell(pbmc.cite.mc,
                             round(corTableAll[(corTableAll$method == "Metacells" & corTableAll$gamma == 75) & corTableAll$gene == "CD8a","w.cor"],
                                   digits = 2)))
 corr.CD14.mc <- FeatureScatter.SuperCell(pbmc.cite.mc,
-                                         "rna_CD14","adt_CD14",group.by = "celltype", cols = color.celltypes.pbmc) + 
+                                         "rna_CD14","adt_CD14",group.by = "celltype", cols = color.celltypes.pbmc) +
   guides(
     colour = "none",fill = "none",
     size = guide_legend(title = "Size")) +
@@ -215,13 +218,13 @@ corr.CD14.mc <- FeatureScatter.SuperCell(pbmc.cite.mc,
 
 pbmc.cite.sc$size <- 1
 corr.CD8a.sc <- FeatureScatter(pbmc.cite.sc,
-                               "rna_CD8A","adt_CD8a",group.by = "celltype", cols = color.celltypes.pbmc) + 
+                               "rna_CD8A","adt_CD8a",group.by = "celltype", cols = color.celltypes.pbmc) +
   ggtitle("Single-cells",
           subtitle = paste0("pearson r = ",
                             round(corTableAll[(corTableAll$gamma == 1) & corTableAll$gene == "CD8a","w.cor"],
                                   digits = 2))) + xlab("RNA CD8A") +ylab("Protein CD8A")
 corr.CD14.sc <- FeatureScatter(pbmc.cite.sc,
-                               "rna_CD14","adt_CD14",group.by = "celltype", cols = color.celltypes.pbmc)   + 
+                               "rna_CD14","adt_CD14",group.by = "celltype", cols = color.celltypes.pbmc)   +
   ggtitle("Single-cells",
           subtitle = paste0("pearson r = ",
                             round(corTableAll[(corTableAll$gamma == 1) & corTableAll$gene == "CD14","w.cor"],
@@ -235,7 +238,7 @@ dev.off()
 ```{r}
 # library(gprofiler2)
 # corTableAll$gene
-# 
+#
 # neg.cor.prot.rna <- corTableAll[(corTableAll$gamma == 75) & corTableAll$w.cor < -0.01 ,"gene"]
 # all.genes <- unique(corTableAll$gene)
 # gres <- gprofiler2::gost(query = neg.cor.prot.rna,organism = "hsapiens",significant = T,custom_bg = all.genes,user_threshold = 0.5)
@@ -302,33 +305,33 @@ for (g in c("10","20","50","75","100","200")){
       corTable$gamma <- g
       corTable$gene <- str_split_fixed(corTable$feature1,pattern = "_",n = 2)[,2]
       corTable <- corTable[corTable$gene %in% features.ga.rna.hspc,]
-      
+
       corTableAll <- rbind(corTable,corTableAll)
     }
   }
-  
+
   ## subsampling
-  
-  
+
+
   sub.cells <- sample(colnames(hspc.sc),size = floor(ncol(hspc.sc)/as.numeric(g)),replace = F)
   hspc.sub <- subset(hspc.sc,cells = sub.cells)
   hspc.sub$size = 1
   w.cor <- FeatureFeaturePlot.SuperCell(seurat.obj  = hspc.sub,
                                         feature.x  = features.ga.rna.hspc,
                                         feature.y  = features.ga.rna.hspc,
-                                        assays = c("GA_Signac","RNA"), 
+                                        assays = c("GA_Signac","RNA"),
                                         is.normalized = F,
                                         cluster = "celltype",
                                         plot = F)
-  
-  
+
+
   w.cor$input <- "Down-sampling"
   w.cor$gamma <- g
   w.cor$gene <- str_split_fixed(w.cor$feature1,pattern = "_",n = 2)[,2]
-  
+
   corTableAll <- rbind(corTableAll,w.cor)
-  
-  
+
+
 }
 
 
@@ -346,9 +349,9 @@ table(corTableAll[corTableAll$method == "Metacells" & corTableAll$gamma == 75,]$
 When we don't have two cells expressing the feature in both modalities to compute a correlation we set pearson r to 0
 
 ```{r fig.height=3.5,fig.width=4}
-corTableAll$w.cor[is.na(corTableAll$w.cor)] <- 0 
-boxplot.corr.hspc <- ggplot(corTableAll,aes(x=gamma,y=w.cor,fill = method)) + 
-  theme_bw() +  geom_boxplot(position = position_dodge2(preserve = "single")) + 
+corTableAll$w.cor[is.na(corTableAll$w.cor)] <- 0
+boxplot.corr.hspc <- ggplot(corTableAll,aes(x=gamma,y=w.cor,fill = method)) +
+  theme_bw() +  geom_boxplot(position = position_dodge2(preserve = "single")) +
   ylab("Weighted pearson r") +xlab(paste0("Graining level (\u03B3)")) + scale_fill_manual(values = color.methods) + theme(legend.position = "bottom") +
   guides(fill=guide_legend(ncol =2)) + theme(legend.title  = element_blank()) + ggtitle("ATAC-RNA correlations")
 
@@ -392,13 +395,13 @@ corr.FLT3.mc <- FeatureScatter.SuperCell(hspc.mc,
 
 hspc.sc$size <- 1
 corr.GATA1.sc <- FeatureScatter(hspc.sc,"gasignac_GATA1",
-                               "rna_GATA1",group.by = "celltype", cols = color.celltypes.hspc) + 
+                               "rna_GATA1",group.by = "celltype", cols = color.celltypes.hspc) +
   ggtitle("Single-cells",
           subtitle = paste0("pearson r = ",
                             round(corTableAll[(corTableAll$gamma == 1) & corTableAll$feature1 == "rna_GATA1","w.cor"],
                                   digits = 2))) + xlab("ATAC GATA1") +ylab("RNA GATA1")
 corr.FLT3.sc <- FeatureScatter(hspc.sc,
-                               "gasignac_FLT3","rna_FLT3",group.by = "celltype", cols = color.celltypes.hspc)   + 
+                               "gasignac_FLT3","rna_FLT3",group.by = "celltype", cols = color.celltypes.hspc)   +
   ggtitle("Single-cells",
           subtitle = paste0("pearson r = ",
                             round(corTableAll[(corTableAll$gamma == 1) & corTableAll$feature1 == "rna_FLT3","w.cor"],
@@ -438,7 +441,7 @@ saveRDS(corTableAll,"../../../output/tables/figS4_corrtables_rna_atac_hspc.rds")
 ```
 ```{r}
 library(gprofiler2)
-neg.cor.ga.rna <- unique(corTableAll[(corTableAll$gamma == 75) & corTableAll$w.cor < 0 ,"gene"])
+neg.cor.ga.rna <- unique(corTableAll[(corTableAll$gamma == 75) & corTableAll$w.cor < 0 & corTableAll$method == "Metacells" ,"gene"])
 # all.genes <- rownames(pbmc.mc[["GA_Signac"]])
 all.genes <- unique(corTableAll$gene)
 gres <- gprofiler2::gost(query = list("weighted r < 0, HSPC metacells (\u03B3 = 75)"=neg.cor.ga.rna),organism = "hsapiens",significant = T,custom_bg = all.genes,user_threshold = 0.05,evcodes = TRUE)
@@ -452,13 +455,16 @@ gres$result$dataset <- "HSPC"
 ```{r}
 library(gprofiler2)
 corTableAll.pbmc <- readRDS("../../../output/tables/fig4_corrtables_rna_atac_pbmc.rds")
-neg.cor.ga.rna <- unique(corTableAll.pbmc[(corTableAll.pbmc$gamma == 75) & corTableAll.pbmc$w.cor < 0 ,"gene"])
+neg.cor.ga.rna <- unique(corTableAll.pbmc[(corTableAll.pbmc$gamma == 75) & corTableAll.pbmc$w.cor < 0 & corTableAll.pbmc$method == "Metacells" ,"gene"])
 # all.genes <- rownames(pbmc.mc[["GA_Signac"]])
 all.genes <- unique(corTableAll.pbmc$gene)
 gres.pbmc <- gprofiler2::gost(query = list("weighted r < 0, PBMC metacells (\u03B3 = 75)"=neg.cor.ga.rna),organism = "hsapiens",significant = T,custom_bg = all.genes,user_threshold = 0.05,evcodes = TRUE)
 unique(gres.pbmc$result$source)
-gres.pbmc$result[order(gres.pbmc$result$p_value),]
-gres.pbmc$result$dataset <- "PBMC"
+if(!is.null(gres.pbmc$result) ){
+  gres.pbmc$result[order(gres.pbmc$result$p_value),]
+  gres.pbmc$result$dataset <- "PBMC"
+}
+
 
 ```
 
@@ -471,8 +477,8 @@ pdf(file = "../../../pdf_files/FigS4/figS4H.pdf",height = 3.5,width=8)
 ggplot(gres.all,aes(x= term_source,y=-log10(p_value),fill = dataset)) +
   geom_bar(stat = "identity",colour  = "black") + theme_bw() + theme(axis.title.y = element_blank()) +
   geom_hline(yintercept = -log10(0.05),linetype = "dashed",color = 'red',size = 1.24)+
-  coord_flip() + 
-  scale_fill_manual(values = scales::grey_pal(0,1)(10)[c(3,8)]) + 
+  coord_flip() +
+  scale_fill_manual(values = scales::grey_pal(0,1)(10)[c(3,8)]) +
   ggtitle("Functional enrichments of ATAC-RNA \nanticorrelated genes")
 dev.off()
 ```
@@ -485,10 +491,10 @@ corTableAllDatasets <- corTableAllDatasets[corTableAll$method %in% c("Single-cel
 
 
 ```{r fig.height=2.5,fig.width=4}
-corTableAllDatasets$w.cor[is.na(corTableAllDatasets$w.cor)] <- 0 
-boxplot.corr.datasets <- ggplot(corTableAllDatasets,aes(x=gamma,y=w.cor,fill = Dataset)) + 
-  theme_bw() +  geom_boxplot() + 
-  ylab("Weighted pearson r") +xlab(paste0("Graining level (\u03B3)")) + 
+corTableAllDatasets$w.cor[is.na(corTableAllDatasets$w.cor)] <- 0
+boxplot.corr.datasets <- ggplot(corTableAllDatasets,aes(x=gamma,y=w.cor,fill = Dataset)) +
+  theme_bw() +  geom_boxplot() +
+  ylab("Weighted pearson r") +xlab(paste0("Graining level (\u03B3)")) +
   scale_fill_manual(values = scales::grey_pal(0,1)(10)[c(3,8)]) + NoLegend()+
   guides(fill=guide_legend(ncol =1)) + theme(legend.title  = element_blank()) + ggtitle("ATAC-RNA correlations")
 
@@ -1423,4 +1429,3 @@ dev.off()
 <!-- dev.off() -->
 
 <!-- ``` -->
-

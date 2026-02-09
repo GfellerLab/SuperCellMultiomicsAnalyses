@@ -21,7 +21,7 @@ library(purrr)
 library("stringr")
 library(decoupleR)
 library(cowplot)
-
+set.seed(2026)
 ```
 ```{r}
 library(Cairo)
@@ -141,6 +141,7 @@ w.cor.pearson
 ```{r}
 corTableAll <- w.cor.pearson
 for (g in c("10","20","50","75","100","200")){
+  print(g)
   for (i in c('SuperCellMulti',"randomMetacells")){
     file <- paste0("../../../output/bmCiteSeq/",
                    i,"/g",
@@ -155,6 +156,7 @@ for (g in c("10","20","50","75","100","200")){
       corTable$gamma <- g
       corTableAll <- rbind(corTable,corTableAll)
     }
+    print(head(corTableAll))
   }
 
   ## subsampling
@@ -177,7 +179,7 @@ for (g in c("10","20","50","75","100","200")){
   w.cor$origIdent <- bm.sub$orig.ident[1]
 
   corTableAll <- rbind(corTableAll,w.cor)
-
+  print(head(corTableAll))
 
 }
 
@@ -356,6 +358,7 @@ w.cor.pearson
 # source("../../../fun_r/FeatureFeaturePlot.SuperCell.R")
 corTableAll <- w.cor.pearson
 for (g in c("10","20","50","75","100","200")){
+  print(g)
   for (i in c('SuperCellMulti',"randomMetacells")){
     file <- paste0("../../../output/pbmcMultiome/",
                    i,"/g",
@@ -372,6 +375,7 @@ for (g in c("10","20","50","75","100","200")){
       corTable <- corTable[corTable$gene %in% features.ga.rna.pbmc,]
 
       corTableAll <- rbind(corTable,corTableAll)
+      print(head(corTableAll))
     }
   }
 
@@ -395,7 +399,7 @@ for (g in c("10","20","50","75","100","200")){
   w.cor$gamma <- g
 
   corTableAll <- rbind(corTableAll,w.cor)
-
+  print(head(corTableAll))
 
 }
 

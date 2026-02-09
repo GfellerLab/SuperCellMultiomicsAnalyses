@@ -9,6 +9,7 @@ library(BSgenome.Hsapiens.UCSC.hg38)
 library(SuperCell)
 library(getopt)
 library(doParallel)
+set.seed(2026)
 
 spec = matrix(c(
   'help',        'h', 0, "logical",   "Help about the program",
