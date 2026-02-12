@@ -27,7 +27,7 @@ You can install our workflow conda env like this:
     conda activate snakemake
     
     snakemake -j 30 \
-        -kps snakefile.py \
+        -kps snakefile_manuscript.py \
         --configfile config/workflow.yml \
         --use-singularity \
         --conda-frontend conda \
