@@ -1,45 +1,32 @@
-# SuperCellMultiomicsAnalyses
+# Analysis Workflows for our study : SuperCell2.0 enables semi-supervised construction of multimodal metacell atlases
 
-Workflow for SuperCellMultiomics Analyses
+* Benchmark Supercell2.0 against [SEACells](https://github.com/dpeerlab/SEACells) and [metacell-2](https://www.weizmann.ac.il/math/tanay/research-activities/metacell-2) on single-cell multimodal data. 
+* Analyse intermodality consistency at the metacell level.
+* Benchmark the construction of the PBMC CITE-seq metacell atlas with semi-supervised and unsupervised workflows using our metacell tool [SuperCell2.0](https://github.com/GfellerLab/SuperCell) and [STACAS](https://github.com/carmonalab/STACAS).
+* Annotate and analyze the semi-supervised PBMC CITE-seq metacell atlas.
 
-## installation
-conda install mamba -n base -c conda-forge
+## Additional data
 
-mkdir -p cluster/snakemake
+Additional data (eg. containers, transcription factor motifs pfm matrix, gene signatures from the literature) required for this workflow are availbale on [zenodo](https://doi.org/10.5281/zenodo.18613560)
 
-cd config
+## Launch the snakemake workflow (snakemake v7.15.2) on a cluster with slurm and singularity
 
-git clone 
+### Workflow env
 
+This workflow has been developped using snakemake v7.15.2.
+You can install our workflow conda env like this:
 
-### Command line to test the workflow (dry run) 
-    conda activate snakemake
-    
-    snakemake -j 1 \
-        -nps snakefile.py \
-        --configfile config/workflow.yml \
-        --use-conda \ 
-    
-        
-        
-## Draw workflow 
-    
-    snakemake -j 1  -nps snakefile.py --configfile config/workflow.yml --use-conda --conda-frontend conda  --forceall --rulegraph > dag.dot
-        
-### Print workflow
-
-    dot -Tpng dag.dot > dag.png
-
-### command line to launch the snakemake workflow (snakemake v7.15.2) on a cluster with slurm and singularity
+    conda env create -n snakemake -f config/snakemake_v7.15.2.yml
 
 #### load singularity module
 
     module load singularityce
    
-
 #### launch snakemake
-
-   snakemake -j 30 \
+    
+    conda activate snakemake
+    
+    snakemake -j 30 \
         -kps snakefile.py \
         --configfile config/workflow.yml \
         --use-singularity \
@@ -54,26 +41,4 @@ git clone
         --cpus-per-task {cluster.cpus-per-task}\
         --output {cluster.output} \
         --error {cluster.error}"
-
-### command line to launch the snakemake workflow on a cluster with slurm
-
-    conda activate snakemake
-
-    export PATH="/dcsrsoft/spack/hetre/v1.2/spack/opt/spack/linux-rhel8-zen2/gcc-9.3.0/miniconda3-4.9.2-jle3zxexkucvzivrdnjax2kreaql6izj/bin:$PATH"
-    snakemake -j 30 \
-        -kps snakefile.py \
-        --configfile config/workflow.yml \
-        --use-conda \
-        --conda-frontend conda \
-        --cluster-config config/cluster.yml \
-        --cluster "sbatch -A {cluster.account} \
-        -p {cluster.partition} \
-        -N {cluster.N} \
-        -t {cluster.time} \
-        --job-name {cluster.name} \
-        --mem {cluster.mem} \
-        --cpus-per-task {cluster.cpus-per-task}\
-        --output {cluster.output} \
-        --error {cluster.error}"
-        
 
