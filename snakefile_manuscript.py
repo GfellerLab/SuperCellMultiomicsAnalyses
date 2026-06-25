@@ -1,7 +1,7 @@
 import os
 import re
 import pandas as pd
-import scanpy as sc
+#import scanpy as sc
 import numpy as np
 import random
 SEED = 448
@@ -37,13 +37,13 @@ rule all:
   input:
     "reports/bmCiteSeq/bm_cite_analysis.html",
     "figures/manuscript/final_figures_Rmd/Figure2_bench_BMCiteseq.html",
-    "figures/manuscript/final_figures_Rmd/Figure2_pbmcMultiome_bench_v2.html",
-    "figures/manuscript/final_figures_Rmd/Figure4_bench_pbmc_cite_atlas_integration_v2.html",
-    "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/edgeR_res_pairwise.txt",
-    "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/edgeR_res_CD14.txt",
-    "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/ADT_diff/edgeR_res_pairwise.txt",
-    "figures/manuscript/final_figures_Rmd/figure_3_intermodality_v2.html",
-    "figures/manuscript/final_figures_Rmd/figure_S4_intermodality.html"
+    "figures/manuscript/final_figures_Rmd/Figure2_pbmcMultiome_bench_v2.html"
+    # "figures/manuscript/final_figures_Rmd/Figure4_bench_pbmc_cite_atlas_integration_v2.html",
+    # "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/edgeR_res_pairwise.txt",
+    # "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/edgeR_res_CD14.txt",
+    # "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/ADT_diff/edgeR_res_pairwise.txt",
+    # "figures/manuscript/final_figures_Rmd/figure_3_intermodality_v2.html",
+    # "figures/manuscript/final_figures_Rmd/figure_S4_intermodality.html"
     # expand("output/pbmcMultiome/test_seacellsRNA_rep/g{gamma}/rep{rep}/repro.seurat.multiome.mcMetrics.rds", gamma = GAMMA_seacell_tests, rep = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
 
 

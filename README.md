@@ -22,6 +22,28 @@ You can install our workflow conda env like this:
 
     module load singularityce
    
+
+#### launch snakemake revisions
+    
+    conda activate snakemake
+    
+    snakemake -j 30 \
+        -kps snakefile_manuscript.py \
+        --configfile config/workflow_revisions.yml \
+        --use-singularity \
+        --conda-frontend conda \
+        --cluster-config config/cluster.yml \
+        --cluster "sbatch -A {cluster.account} \
+        -p {cluster.partition} \
+        -N {cluster.N} \
+        -t {cluster.time} \
+        --job-name {cluster.name} \
+        --mem {cluster.mem} \
+        --cpus-per-task {cluster.cpus-per-task}\
+        --output {cluster.output} \
+        --error {cluster.error}"
+
+
 #### launch snakemake
     
     conda activate snakemake
