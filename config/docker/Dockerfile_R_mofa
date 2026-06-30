@@ -1,0 +1,13 @@
+FROM continuumio/miniconda3 as builder
+# install mamba
+RUN conda install -c conda-forge mamba
+# Copy your Conda environment file
+COPY ./mofa_env.yaml /tmp/mofa_env.yml
+
+
+# Create the environment using Mamba
+RUN mamba env create -f /tmp/mofa_env.yml
+
+ENV PATH /opt/conda/envs/mofa_env/bin:$PATH
+
+
