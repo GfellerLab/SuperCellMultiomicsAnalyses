@@ -43,6 +43,17 @@ rule singlecells_wnn_analysis_bm_cite:
           -d -y {params.python} \
           -p 1:30 \
           -q 1:18"
+          
+rule singlecells_mofa_analysis_bm_cite:
+  input: dataset=  "input/bmCiteSeq/bmcite.rds"
+  output: "output/bmCiteSeq/singlecells_analysis/adata_mofa.h5ad"
+  singularity: config["sif_file_mofa"]
+  params: python = "/opt/conda/envs/mofa/bin/python3.9"
+  shell: "Rscript snakemakeWorkflows/bmCiteSeq/R/mofaAnalysisBM_CiteCL.R -i {input.dataset} \
+          -o output/bmCiteSeq/singlecells_analysis \
+          -d -y {params.python} \
+          -p 1:30 \
+          -q 1:18"
 
 rule metacell_identification_bm_cite:
   input:
@@ -144,6 +155,7 @@ rule data_aggregation_bm_ADT:
           -s seurat"
 
 
+          
 
 rule metacell_identification_bm_seacellsRNA:
   input:
@@ -170,6 +182,37 @@ rule data_aggregation_bm_seacellsRNA:
           -o output/bmCiteSeq/seacellsRNA/g{wildcards.gamma}/ \
           -g {wildcards.gamma} -x SEACell-\
           -y SEACells_RNA \
+          -z {input.gene_protein} \
+          -t {params.python}\
+          -s seurat"
+
+
+
+rule metacell_identification_bm_seacellsMOFA:
+  input:
+        singlecells = "output/bmCiteSeq/singlecells_analysis/adata_mofa.h5ad"
+  output: "output/bmCiteSeq/seacellsMulti/g{gamma}/seacellMemberships.csv"
+  singularity: config["sif_file"]
+  benchmark: "benchmark/bmCiteSeq/seacellsMOFA/g{gamma}/benchIdentification.txt"
+  shell: "python3.9 python/SEACellsCL.py -i {input.singlecells} \
+          -o output/bmCiteSeq/seacellsMOFA/g{wildcards.gamma}/ \
+          -d 1:30 -r mofa -g {wildcards.gamma}"
+
+rule data_aggregation_bm_seacellsMOFA:
+  input:
+        singlecells = "output/bmCiteSeq/singlecells_analysis/seuratWNN.rds",
+        memberships = "output/bmCiteSeq/seacellsMOFA/g{gamma}/seacellMemberships.csv",
+        gene_protein = "input/bmCiteSeq/gene_protein.csv"
+  output: "output/bmCiteSeq/seacellsMOFA/g{gamma}/seurat.cite.mc.rds",
+          "output/bmCiteSeq/seacellsMOFA/g{gamma}/metaData.csv",
+          "output/bmCiteSeq/seacellsMOFA/g{gamma}/corrTablePearson.csv"
+  singularity: config["sif_file"]
+  params: workdir = wdir,
+          python = "/opt/conda/envs/MetacellAnalysisToolkit/bin/python3.9"
+  shell: "Rscript R/SCimplifyCiteSeq_v5_CL.R -i {input.singlecells} -c {input.memberships} \
+          -o output/bmCiteSeq/seacellsMOFA/g{wildcards.gamma}/ \
+          -g {wildcards.gamma} -x SEACell-\
+          -y SEACells_MOFA \
           -z {input.gene_protein} \
           -t {params.python}\
           -s seurat"
@@ -295,7 +338,7 @@ rule report_bm_cite_atlas_samples:
 rule generate_figures_from_figure2_bm:
   input:
     "figures/manuscript/final_figures_Rmd/Figure2_bench_BMCiteseq.Rmd",
-    expand("output/bmCiteSeq/{inputMetacells}/g{gamma}/seurat.cite.mc.rds", gamma = ["20","50","75","100","200"], inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellADT","SuperCellRNA","seacellsRNA","seacellsADT","MetaCellRNA"]),
+    expand("output/bmCiteSeq/{inputMetacells}/g{gamma}/seurat.cite.mc.rds", gamma = ["20","50","75","100","200"], inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellADT","SuperCellRNA","seacellsRNA","seacellsADT","seacellsMOFA","MetaCellRNA"]),
     expand("output/bmCiteSeq/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
   output: "figures/manuscript/final_figures_Rmd/Figure2_bench_BMCiteseq.html"
   singularity: config["sif_file"]
