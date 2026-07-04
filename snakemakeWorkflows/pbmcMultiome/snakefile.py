@@ -100,6 +100,15 @@ rule wnn_single_cell_pbmc_multiome:
           -d -y {params.python} \
           -p 1:40 -q 2:40 -a SCTransform "
 
+rule singlecells_mofa_analysis_pbmc_multiome:
+  input: dataset=  "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds",
+         script= "R/mofaAnalysis10xMultiomeCL.R"
+  output: "output/pbmcMultiome/singlecells_analysis/adata_mofa.h5ad"
+  singularity: config["sif_file_mofa"]
+  params: python = "/opt/conda/envs/mofa_env/bin/python"
+  shell: "Rscript {input.script} -i {input.dataset} \
+          -o output/pbmcMultiome/singlecells_analysis \
+          -y {params.python}"
 
 rule metacell_identification_pbmc_multiome:
   input:
@@ -172,6 +181,28 @@ rule data_aggregation_pbmc_SuperCellATAC:
           Rscript R/SCimplify10xMultiome_v5_CL.R -i {input.singlecells} -c {input.memberships} \
           -o output/pbmcMultiome/SuperCellATAC/g{wildcards.gamma}/ \
           -f -g {wildcards.gamma}"
+          
+rule metacell_identification_pbmc_seacellsMOFA:
+  input:
+        singlecells = "output/pbmcMultiome/singlecells_analysis/adata_mofa.h5ad"
+  output: "output/pbmcMultiome/seacellsMOFA/g{gamma}/seacellMemberships.csv"
+  singularity: config["sif_file"]
+  benchmark:"benchmark/pbmcMultiome/seacellsMOFA/g{gamma}/seacellMemberships.txt"
+  shell: "python3 python/SEACellsCL.py -i {input.singlecells} \
+          -o output/pbmcMultiome/seacellsMOFA/g{wildcards.gamma}/ \
+          -r mofa -g {wildcards.gamma}"
+
+rule data_aggregation_pbmc_seacellsMOFA:
+  input:
+        singlecells = "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds",
+        memberships = "output/pbmcMultiome/seacellsMOFA/g{gamma}/seacellMemberships.csv"
+  output: "output/pbmcMultiome/seacellsMOFA/g{gamma}/seurat.multiome.mc.rds"
+  singularity: config["sif_file"]
+  params: workdir = wdir
+  shell: "export PATH={params.workdir}/config/bin/htslib-1.16/bin:$PATH;\
+          Rscript R/SCimplify10xMultiome_v5_CL.R -i {input.singlecells} -c {input.memberships} \
+          -o output/pbmcMultiome/seacellsMOFA/g{wildcards.gamma}/ \
+          -f -g {wildcards.gamma} -x SEACell-"
 
 rule metacell_identification_pbmc_seacellsRNA:
   input:
@@ -478,8 +509,8 @@ rule generate_figures_from_figure2:
   input:
     "figures/manuscript/final_figures_Rmd/Figure2_pbmcMultiome_bench_v2.Rmd",
     "output/pbmcMultiome/singlecells_analysis/seurat.multiome.activities.rds",
-    expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.mcMetrics.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsRNA","seacellsATAC","MetaCellRNA"]),
-    expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsRNA","seacellsATAC","MetaCellRNA"]),
+    expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.mcMetrics.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsMOFA","seacellsRNA","seacellsATAC","MetaCellRNA"]),
+    expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsMOFA","seacellsRNA","seacellsATAC","MetaCellRNA"]),
     expand("output/pbmcMultiome/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
   output: "figures/manuscript/final_figures_Rmd/Figure2_pbmcMultiome_bench_v2.html"
   singularity: config["sif_file"]

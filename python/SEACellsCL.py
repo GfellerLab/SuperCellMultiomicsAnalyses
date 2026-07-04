@@ -11,6 +11,7 @@ np.random.seed(1234)
 def main(argv):
     matrixFile = ''
     outDir = ''
+    dimStr = None
     try:
         opts, args = getopt.getopt(argv,"hi:g:d:r:o:",["inputH5ad=","gamma=","dims=","reductionKey=","outDir="])
     except getopt.GetoptError:
@@ -35,17 +36,24 @@ def main(argv):
     print('Output dir is "', outDir)
     print('inputH5ad is "', inputH5ad)
     print('gamma is "', gamma)
-    print('dims are "', dimStr)
+    
     print('reductionKey is"', reductionKey)
     ad = sc.read_h5ad(inputH5ad)
 
     # remove attributes added by SeuratDisk that cause SEACells to crash
     del ad.obsp
     del ad.uns
+    
+    if dimStr is not None:
+      print('dims are "', dimStr)
+      dimStrList = dimStr.split(":")
+      build_kernel_on = "X_"+ reductionKey
+      ad.obsm[build_kernel_on] = ad.obsm[build_kernel_on][:,range(int(dimStrList[0])-1, int(dimStrList[1]))]
 
-    dimStrList = dimStr.split(":")
-    build_kernel_on = "X_"+ reductionKey
-    ad.obsm[build_kernel_on] = ad.obsm[build_kernel_on][:,range(int(dimStrList[0])-1, int(dimStrList[1]))]
+    else:
+      print('build kernel on full ', reductionKey)
+      build_kernel_on = "X_"+ reductionKey
+    
     n_SEACells = int(len(ad)/gamma)
     n_waypoint_eigs = 10 # Number of eigenvalues to consider when initializing metacells
 

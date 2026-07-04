@@ -35,7 +35,7 @@ include: "snakemakeWorkflows/pbmcCiteSeqAtlas/snakefile.py"
 
 rule all:
   input:
-    "reports/bmCiteSeq/bm_cite_analysis.html",
+    #"reports/bmCiteSeq/bm_cite_analysis.html",
     "figures/manuscript/final_figures_Rmd/Figure2_bench_BMCiteseq.html",
     "figures/manuscript/final_figures_Rmd/Figure2_pbmcMultiome_bench_v2.html"
     # "figures/manuscript/final_figures_Rmd/Figure4_bench_pbmc_cite_atlas_integration_v2.html",
