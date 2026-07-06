@@ -157,7 +157,7 @@ rule data_aggregation_bm_ADT:
 rule metacell_identification_bm_metaqRNA:
  input:
        singlecells = "output/bmCiteSeq/singlecells_analysis/seurat.RNA.h5ad"
- output: "output/bmCiteSeq/metaqRNA/g{gamma}/seacellMemberships.csv"
+ output: "output/bmCiteSeq/metaqRNA/g{gamma}/metaqMemberships.csv"
  singularity: config["sif_file_metaq"]
  benchmark: "benchmark/bmCiteSeq/metaqRNA/g{gamma}/benchIdentification.txt"
  shell: "/opt/conda/envs/MetaQ/bin/python python/MetaQ_CL.py --data_path {input.singlecells} \
@@ -168,7 +168,7 @@ rule metacell_identification_bm_metaqRNA:
 rule data_aggregation_bm_metaqRNA:
   input:
         singlecells = "output/bmCiteSeq/singlecells_analysis/seuratWNN.rds",
-        memberships = "output/bmCiteSeq/metaqRNA/g{gamma}/seacellMemberships.csv",
+        memberships = "output/bmCiteSeq/metaqRNA/g{gamma}/metaqMemberships.csv",
         gene_protein = "input/bmCiteSeq/gene_protein.csv"
   output: "output/bmCiteSeq/metaqRNA/g{gamma}/seurat.cite.mc.rds",
           "output/bmCiteSeq/metaqRNA/g{gamma}/metaData.csv",
@@ -178,14 +178,72 @@ rule data_aggregation_bm_metaqRNA:
           python = "/opt/conda/envs/MetacellAnalysisToolkit/bin/python3.9"
   shell: "Rscript R/SCimplifyCiteSeq_v5_CL.R -i {input.singlecells} -c {input.memberships} \
           -o output/bmCiteSeq/metaqRNA/g{wildcards.gamma}/ \
-          -g {wildcards.gamma} -x SEACell-\
+          -g {wildcards.gamma} -x MetaQ-\
           -y MetaQ_RNA \
           -z {input.gene_protein} \
           -t {params.python}\
           -s seurat"
 
+rule metacell_identification_bm_metaqADT:
+  input:
+      singlecells = "output/bmCiteSeq/singlecells_analysis/seurat.ADT.h5ad"
+  output: "output/bmCiteSeq/metaqADT/g{gamma}/metaqMemberships.csv"
+  singularity: config["sif_file_metaq"]
+  benchmark: "benchmark/bmCiteSeq/metaqADT/g{gamma}/benchIdentification.txt"
+  shell: "/opt/conda/envs/MetaQ/bin/python python/MetaQ_CL.py --data_path {input.singlecells} \
+         --data_type 'ADT' \
+         --outdir output/bmCiteSeq/metaqADT/g{wildcards.gamma}/ \
+         --gamma {wildcards.gamma}"
 
+rule data_aggregation_bm_metaqADT:
+  input:
+       singlecells = "output/bmCiteSeq/singlecells_analysis/seuratWNN.rds",
+       memberships = "output/bmCiteSeq/metaqADT/g{gamma}/metaqMemberships.csv",
+       gene_protein = "input/bmCiteSeq/gene_protein.csv"
+  output: "output/bmCiteSeq/metaqADT/g{gamma}/seurat.cite.mc.rds",
+          "output/bmCiteSeq/metaqADT/g{gamma}/metaData.csv",
+          "output/bmCiteSeq/metaqADT/g{gamma}/corrTablePearson.csv"
+  singularity: config["sif_file"]
+  params: workdir = wdir,
+          python = "/opt/conda/envs/MetacellAnalysisToolkit/bin/python3.9"
+  shell: "Rscript R/SCimplifyCiteSeq_v5_CL.R -i {input.singlecells} -c {input.memberships} \
+         -o output/bmCiteSeq/metaqADT/g{wildcards.gamma}/ \
+         -g {wildcards.gamma} -x MetaQ-\
+         -y MetaQ_ADT \
+         -z {input.gene_protein} \
+         -t {params.python}\
+         -s seurat"
           
+rule metacell_identification_bm_metaqMulti:
+  input:
+      adt = "output/bmCiteSeq/singlecells_analysis/seurat.ADT.h5ad",
+      rna = "output/bmCiteSeq/singlecells_analysis/seurat.RNA.h5ad"
+  output: "output/bmCiteSeq/metaqMulti/g{gamma}/metaqMemberships.csv"
+  singularity: config["sif_file_metaq"]
+  benchmark: "benchmark/bmCiteSeq/metaqMulti/g{gamma}/benchIdentification.txt"
+  shell: "/opt/conda/envs/MetaQ/bin/python python/MetaQ_CL.py --data_path {input.rna} {input.adt} \
+         --data_type 'RNA' 'ADT' \
+         --outdir output/bmCiteSeq/metaqMulti/g{wildcards.gamma}/ \
+         --gamma {wildcards.gamma}"
+
+rule data_aggregation_bm_metaqMulti:
+  input:
+       singlecells = "output/bmCiteSeq/singlecells_analysis/seuratWNN.rds",
+       memberships = "output/bmCiteSeq/metaqMulti/g{gamma}/metaqMemberships.csv",
+       gene_protein = "input/bmCiteSeq/gene_protein.csv"
+  output: "output/bmCiteSeq/metaqMulti/g{gamma}/seurat.cite.mc.rds",
+          "output/bmCiteSeq/metaqMulti/g{gamma}/metaData.csv",
+          "output/bmCiteSeq/metaqMulti/g{gamma}/corrTablePearson.csv"
+  singularity: config["sif_file"]
+  params: workdir = wdir,
+          python = "/opt/conda/envs/MetacellAnalysisToolkit/bin/python3.9"
+  shell: "Rscript R/SCimplifyCiteSeq_v5_CL.R -i {input.singlecells} -c {input.memberships} \
+         -o output/bmCiteSeq/metaqMulti/g{wildcards.gamma}/ \
+         -g {wildcards.gamma} -x MetaQ-\
+         -y MetaQ_Multi \
+         -z {input.gene_protein} \
+         -t {params.python}\
+         -s seurat"
 
 rule metacell_identification_bm_seacellsRNA:
   input:
@@ -368,7 +426,7 @@ rule report_bm_cite_atlas_samples:
 rule generate_figures_from_figure2_bm:
   input:
     "figures/manuscript/final_figures_Rmd/Figure2_bench_BMCiteseq.Rmd",
-    expand("output/bmCiteSeq/{inputMetacells}/g{gamma}/seurat.cite.mc.rds", gamma = ["50","75","100","200"], inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellADT","SuperCellRNA","metaqRNA","seacellsRNA","seacellsADT","seacellsMOFA","MetaCellRNA"]),
+    expand("output/bmCiteSeq/{inputMetacells}/g{gamma}/seurat.cite.mc.rds", gamma = ["20","50","75","100","200"], inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellADT","SuperCellRNA","metaqRNA","metaqADT","metaqMulti","seacellsRNA","seacellsADT","seacellsMOFA","MetaCellRNA"]),
     expand("output/bmCiteSeq/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
   output: "figures/manuscript/final_figures_Rmd/Figure2_bench_BMCiteseq.html"
   singularity: config["sif_file"]

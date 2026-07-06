@@ -42,7 +42,10 @@ def main(args):
             + "/metacell.h5ad"
         )
     print(metacell_path)
-    n_cells = len(sc.read_h5ad(args.data_path[0],backed = "r"))
+    adata_read = sc.read_h5ad(args.data_path[0],backed = "r")
+    n_cells = len(adata_read)
+    memb_df = pd.DataFrame({"index" : adata_read.obs_names})
+    del adata_read
     # if isinstance(adata.X, sparse.csr_matrix) or isinstance(adata.X, sparse.csc_matrix):
     #     adata.X = adata.X.toarray()
     # raw = adata.X.copy()
@@ -149,8 +152,6 @@ def main(args):
     print("* Codebook Loss:", loss_codebook)
     print("")
     
-    if not os.path.exists("./save/"):
-        os.makedirs("./save/")
 
     for i in range(omics_num):
         metacell_path = (
@@ -165,40 +166,52 @@ def main(args):
     assignment_path = (
         args.outdir + "/metacell_ids.h5ad"
     )
+
+    memb_path = (
+        args.outdir + "/metaqMemberships.csv"
+    )
+
     adata = sc.AnnData(embeds, dtype=np.float32)
     adata.obs["metacell"] = ids
-    if args.type_key in adata_list[0].obs_keys():
-        adata.obs[args.type_key] = adata_list[0].obs[args.type_key]
-    sc.set_figure_params(figsize=(7, 7), dpi=300)
-    sc.pp.neighbors(adata, use_rep="X", metric="cosine")
-    sc.tl.umap(adata)
-    if args.type_key in adata.obs_keys():
-        sc.pl.umap(
-            adata,
-            color=[args.type_key],
-            save= args.outdir + "/embedding.png",
-            palette=sns.color_palette(
-                "husl", np.unique(adata.obs[args.type_key].values).size
-            ),
-            show=False,
-        )
+    #if args.type_key in adata_list[0].obs_keys():
+    #    adata.obs[args.type_key] = adata_list[0].obs[args.type_key]
+    #sc.set_figure_params(figsize=(7, 7), dpi=300)
+    #sc.pp.neighbors(adata, use_rep="X", metric="cosine")
+    #sc.tl.umap(adata)
+    #if args.type_key in adata.obs_keys():
+    #    sc.pl.umap(
+    #        adata,
+    #        color=[args.type_key],
+    #        save= args.outdir + "/embedding.png",
+    #        palette=sns.color_palette(
+    #            "husl", np.unique(adata.obs[args.type_key].values).size
+    #        ),
+    #        show=False,
+    #    )
     rcParams.update(matplotlib.rcParamsDefault)
     adata.write_h5ad(assignment_path)
     print("Metacell assignment saved at:", assignment_path)
     print("")
+    memb_df["MetaQ"] =[ "MetaQ-" + str(m) for m in adata.obs["metacell"]]
+    memb_df.to_csv(memb_path,index=0)
 
-    fig_save_name = args.outdir + "/metacell"
-    plot_metacell_umap(adata, fig_save_name)
-    plot_metacell_size(adata, fig_save_name)
-    if args.type_key in adata.obs_keys():
-        plot_celltype_purity(adata, adata.obs[args.type_key], fig_save_name)
-    for i in range(omics_num):
-        plot_compactness_separation(
-            dataloader_train.dataset.raw_list[i].numpy(),
-            adata,
-            fig_save_name + "_" + args.data_type[i],
-            omics_num > 1,
-        )
+    print("Metacell membership saved at:", memb_path)
+    print("")
+
+    #os.makedirs(args.outdir + "/figures",exist_ok = True)
+    #os.chdir(args.outdir)
+    #fig_save_name = "metacell"
+    #plot_metacell_umap(adata, fig_save_name)
+    #plot_metacell_size(adata, fig_save_name)
+    #if args.type_key in adata.obs_keys():
+    #    plot_celltype_purity(adata, adata.obs[args.type_key], fig_save_name)
+    #for i in range(omics_num):
+    #    plot_compactness_separation(
+    #        dataloader_train.dataset.raw_list[i].numpy(),
+    #        adata,
+    #        fig_save_name + "_" + args.data_type[i],
+    #        omics_num > 1,
+    #    )
 
     print("======= Inference Done =======")
 
