@@ -136,7 +136,7 @@ closestSubtypes$closestSubtypes <- gsub(x=closestSubtypes$closestSubtypes,patter
 write.csv(closestSubtypes,paste0(opt$outdir,"/closest_celltypes.csv"))
 
 # pct.to.hide <- c(0:10)*10
-pct.to.shuffle <- c(0,5,10,25,50,NA)
+pct.to.shuffle <- c(0,1,5,10,20,50,NA)
 meta.data.all <- data.frame()
 
 for (p in pct.to.shuffle) {
