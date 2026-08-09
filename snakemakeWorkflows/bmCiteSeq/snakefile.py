@@ -409,6 +409,34 @@ rule Semi_sup_test_bm_cite_rna:
   shell: "Rscript R/SCimplify_test_semi_sup_CL.R -i {input.singlecells} \
           -o output/bmCiteSeq/SuperCellRNA/testSemiSup/g{wildcards.graining}/ \
           -p 1:30 -r RNA -v pca -g {wildcards.graining} -s 2025 -l celltype.l2"
+          
+####################################################################################################################################
+################################################ Test supervised with noise  #######################################################
+####################################################################################################################################
+
+
+
+rule Shuffling_sup_test_bm_cite:
+  input:
+        singlecells = "output/bmCiteSeq/singlecells_analysis/seuratWNN.rds"
+  output: "output/bmCiteSeq/SuperCellMulti/testShufflingSup/g{graining}/results_test_shuffling.csv"
+  singularity: config["sif_file"]
+  params: workdir = wdir
+  # benchmark :  "benchmark/pbmcMultiome/SuperCellMulti/g{graining}/seurat.multiome.mc.txt"
+  shell: "Rscript R/SCimplify_test_shuffle_closest_CL.R -i {input.singlecells} \
+          -o output/bmCiteSeq/SuperCellMulti/testShufflingSup/g{wildcards.graining}/ \
+          -p 1:30 -q 1:18 -r RNA -a ADT -v pca -w apca -g {wildcards.graining} -s 2025 -l celltype.l2"
+
+rule Shuffling_sup_test_bm_cite_rna:
+  input:
+        singlecells = "output/bmCiteSeq/singlecells_analysis/seuratWNN.rds"
+  output: "output/bmCiteSeq/SuperCellRNA/testShufflingSup/g{graining}/results_test_shuffling.csv"
+  singularity: config["sif_file"]
+  params: workdir = wdir
+  # benchmark :  "benchmark/pbmcMultiome/SuperCellMulti/g{graining}/seurat.multiome.mc.txt"
+  shell: "Rscript R/SCimplify_test_shuffle_closest_CL.R -i {input.singlecells} \
+          -o output/bmCiteSeq/SuperCellRNA/testShufflingSup/g{wildcards.graining}/ \
+          -p 1:30 -r RNA -v pca -g {wildcards.graining} -s 2025 -l celltype.l2"
 
 ####################################################################################################################################
 ####################################################################################################################################
@@ -419,15 +447,21 @@ rule report_bm_cite_atlas_samples:
   input:  expand("output/bmCiteSeq/{method}/g{gamma}/metaData.csv", gamma = ["20","50","75","100","200"],method = CiteAtlasMethod),
           expand("output/bmCiteSeq/{method}/g{gamma}/corrTablePearson.csv", gamma = ["20","50","75","100","200"],method = CiteAtlasMethod),
           expand("output/bmCiteSeq/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
-          expand("output/bmCiteSeq/SuperCellRNA/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"])
+          expand("output/bmCiteSeq/SuperCellRNA/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
+          expand("output/bmCiteSeq/SuperCellRNA/testShufflingSup/g{graining}/results_test_shuffling.csv", graining = ["20","75"]),
+          expand("output/bmCiteSeq/SuperCellMulti/testShufflingSup/g{graining}/results_test_shuffling.csv", graining = ["20","75"])
   output: "reports/bmCiteSeq/bm_cite_analysis.html"
   shell: "touch {output}"
 
 rule generate_figures_from_figure2_bm:
   input:
     "figures/manuscript/final_figures_Rmd/Figure2_bench_BMCiteseq.Rmd",
-    expand("output/bmCiteSeq/{inputMetacells}/g{gamma}/seurat.cite.mc.rds", gamma = ["20","50","75","100","200"], inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellADT","SuperCellRNA","metaqRNA","metaqADT","metaqMulti","seacellsRNA","seacellsADT","seacellsMOFA","MetaCellRNA"]),
+    expand("output/bmCiteSeq/{method}/g{gamma}/metaData.csv", gamma = ["20","50","75","100","200"],method = CiteAtlasMethod),
+    expand("output/bmCiteSeq/{method}/g{gamma}/corrTablePearson.csv", gamma = ["20","50","75","100","200"],method = CiteAtlasMethod),
     expand("output/bmCiteSeq/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
+    expand("output/bmCiteSeq/SuperCellRNA/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
+    expand("output/bmCiteSeq/SuperCellRNA/testShufflingSup/g{graining}/results_test_shuffling.csv", graining = ["20","75"]),
+    expand("output/bmCiteSeq/SuperCellMulti/testShufflingSup/g{graining}/results_test_shuffling.csv", graining = ["20","75"])
   output: "figures/manuscript/final_figures_Rmd/Figure2_bench_BMCiteseq.html"
   singularity: config["sif_file"]
   shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"
