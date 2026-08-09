@@ -419,7 +419,7 @@ rule Semi_sup_test_bm_cite_rna:
 rule Shuffling_sup_test_bm_cite:
   input:
         singlecells = "output/bmCiteSeq/singlecells_analysis/seuratWNN.rds"
-  output: "output/bmCiteSeq/SuperCellMulti/testShufflingSup/g{graining}/results_test_shuffling.csv"
+  output: "output/bmCiteSeq/SuperCellMulti/testShufflingSup/g{graining}/results_test_shuffle_closest.csv"
   singularity: config["sif_file"]
   params: workdir = wdir
   # benchmark :  "benchmark/pbmcMultiome/SuperCellMulti/g{graining}/seurat.multiome.mc.txt"
@@ -430,7 +430,7 @@ rule Shuffling_sup_test_bm_cite:
 rule Shuffling_sup_test_bm_cite_rna:
   input:
         singlecells = "output/bmCiteSeq/singlecells_analysis/seuratWNN.rds"
-  output: "output/bmCiteSeq/SuperCellRNA/testShufflingSup/g{graining}/results_test_shuffling.csv"
+  output: "output/bmCiteSeq/SuperCellRNA/testShufflingSup/g{graining}/results_test_shuffle_closest.csv"
   singularity: config["sif_file"]
   params: workdir = wdir
   # benchmark :  "benchmark/pbmcMultiome/SuperCellMulti/g{graining}/seurat.multiome.mc.txt"
@@ -448,8 +448,8 @@ rule report_bm_cite_atlas_samples:
           expand("output/bmCiteSeq/{method}/g{gamma}/corrTablePearson.csv", gamma = ["20","50","75","100","200"],method = CiteAtlasMethod),
           expand("output/bmCiteSeq/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
           expand("output/bmCiteSeq/SuperCellRNA/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
-          expand("output/bmCiteSeq/SuperCellRNA/testShufflingSup/g{graining}/results_test_shuffling.csv", graining = ["20","75"]),
-          expand("output/bmCiteSeq/SuperCellMulti/testShufflingSup/g{graining}/results_test_shuffling.csv", graining = ["20","75"])
+          expand("output/bmCiteSeq/SuperCellRNA/testShufflingSup/g{graining}/results_test_shuffle_closest.csv", graining = ["20","75"]),
+          expand("output/bmCiteSeq/SuperCellMulti/testShufflingSup/g{graining}/results_test_shuffle_closest.csv", graining = ["20","75"])
   output: "reports/bmCiteSeq/bm_cite_analysis.html"
   shell: "touch {output}"
 
@@ -460,8 +460,8 @@ rule generate_figures_from_figure2_bm:
     expand("output/bmCiteSeq/{method}/g{gamma}/corrTablePearson.csv", gamma = ["20","50","75","100","200"],method = CiteAtlasMethod),
     expand("output/bmCiteSeq/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
     expand("output/bmCiteSeq/SuperCellRNA/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
-    expand("output/bmCiteSeq/SuperCellRNA/testShufflingSup/g{graining}/results_test_shuffling.csv", graining = ["20","75"]),
-    expand("output/bmCiteSeq/SuperCellMulti/testShufflingSup/g{graining}/results_test_shuffling.csv", graining = ["20","75"])
+    expand("output/bmCiteSeq/SuperCellRNA/testShufflingSup/g{graining}/results_test_shuffle_closest.csv", graining = ["20","75"]),
+    expand("output/bmCiteSeq/SuperCellMulti/testShufflingSup/g{graining}/results_test_shuffle_closest.csv", graining = ["20","75"])
   output: "figures/manuscript/final_figures_Rmd/Figure2_bench_BMCiteseq.html"
   singularity: config["sif_file"]
   shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"

@@ -447,6 +447,29 @@ rule Semi_sup_test_pbmc_multiome:
           -o output/pbmcMultiome/SuperCellMulti/testSemiSup/g{wildcards.graining}/ \
           -p 1:40 -q 2:40 -r SCT -a ATAC -v pca -w lsi -g {wildcards.graining} -s 2025 -l seurat_annotations"
 
+
+
+####################################################################################################################################
+################################################ Test supervised with noise  #######################################################
+####################################################################################################################################
+
+
+
+rule Shuffling_sup_test_pbmc_multiome:
+  input:
+        singlecells = "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds"
+  output: "output/pbmcMultiome/SuperCellMulti/testShufflingSup/g{graining}/results_test_shuffle_closest.csv"
+  singularity: config["sif_file"]
+  params: workdir = wdir
+  # benchmark :  "benchmark/pbmcMultiome/SuperCellMulti/g{graining}/seurat.multiome.mc.txt"
+  shell: "Rscript R/SCimplify_test_shuffle_closest_CL.R -i {input.singlecells} \
+          -o output/pbmcMultiome/SuperCellMulti/testShufflingSup/g{wildcards.graining}/ \
+          -p 1:40 -q 2:40 -r SCT -a ATAC -v pca -w lsi -g {wildcards.graining} -s 2025 -l seurat_annotations"
+
+
+
+
+
 ####################################################################################################################################
 ########################################## Benchmark and Correlations  #############################################################
 ####################################################################################################################################
@@ -583,6 +606,7 @@ rule generate_figures_from_figure2:
     expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.mcMetrics.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsMOFA","metaqMulti","metaqRNA","metaqATAC","seacellsRNA","seacellsATAC","MetaCellRNA"]),
     expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsMOFA","metaqMulti","metaqRNA","metaqATAC","seacellsRNA","seacellsATAC","MetaCellRNA"]),
     expand("output/pbmcMultiome/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
+    expand("output/pbmcMultiome/SuperCellMulti/testShufflingSup/g{graining}/results_test_shuffle_closest.csv", graining = ["20","75"])
   output: "figures/manuscript/final_figures_Rmd/Figure2_pbmcMultiome_bench_v2.html"
   singularity: config["sif_file"]
   shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"

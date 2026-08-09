@@ -106,8 +106,8 @@ dir.create(opt$outdir,recursive = T,showWarnings = F)
 
 
 seurat <- readRDS(opt$inputSeurat)
-
-seurat.pseudobulk <- AggregateExpression(seurat,group.by = "celltype.l2",slot = "counts",return.seurat = T)
+DefaultAssay(seurat) <- "RNA"
+seurat.pseudobulk <- AggregateExpression(seurat,group.by = opt$guiding_label,slot = "counts",return.seurat = T)
 seurat.pseudobulk <- NormalizeData(seurat.pseudobulk)
 
 distances <- dist(as.matrix(Matrix::t(GetAssayData(seurat.pseudobulk,assay = "RNA"))))
@@ -136,17 +136,17 @@ closestSubtypes$closestSubtypes <- gsub(x=closestSubtypes$closestSubtypes,patter
 write.csv(closestSubtypes,paste0(opt$outdir,"/closest_celltypes.csv"))
 
 # pct.to.hide <- c(0:10)*10
-pct.to.hide <- c(0,5,10,25,50,NA)
+pct.to.shuffle <- c(0,5,10,25,50,NA)
 meta.data.all <- data.frame()
 
-for (p in pct.to.hide) {
+for (p in pct.to.shuffle) {
   if (!is.na(p)) {
   guiding_label_col <- paste0("guiding_label_",p,"_pct_shuffled")
   
   set.seed(opt$seed)
   seurat[["label_col"]] <- seurat[[opt$guiding_label]]
   cells.to.shuffle <- sample(colnames(seurat),
-                             size = as.integer(pct.to.shuffle[p] * ncol(seurat) / 100))
+                             size = p * ncol(seurat) / 100)
   seurat@meta.data[cells.to.shuffle,"label_col"] <- plyr::mapvalues(x=seurat@meta.data[cells.to.shuffle,"label_col"],
                                                                     from = rownames(closestSubtypes),
                                                                     to = closestSubtypes$closestSubtypes)
