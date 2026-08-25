@@ -384,7 +384,7 @@ blank <- element_blank()
 
 
 ```{r fig.height=5,fig.width=7}
-save.image("./draft_review_fig2_bm.Rdata")
+#save.image("./draft_review_fig2_bm.Rdata")
 # fig1.A$layers[[1]] <- NULL
 # fig1.A
 ```
@@ -432,7 +432,7 @@ same scale for all
 legend.celltypes <- ggpubr::get_legend(
   fig1.A +
     scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
-               breaks = c(100,200,300,400,2000,4000))  +guides(
+               breaks = c(50,200,800,3200))  +guides(
                  colour = guide_legend(ncol =2,title = "Cell types",
                                        override.aes = list(size=3)),  # One column for colors
                  size = guide_legend(ncol = 1)
@@ -444,45 +444,45 @@ legend.celltypes <- ggpubr::get_legend(
 figS2A <-  cowplot::plot_grid(umap.sc.multi + 
                                 NoLegend() +
                                 scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
-                                           breaks = c(50,100,200,400))+ ggtitle("SuperCell Protein+RNA"),
+                                           breaks = c(50,200,800,3200))+ ggtitle("SuperCell Protein+RNA"),
                               umap.sc.adt  + 
                                 NoLegend() +
                                 scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
-                                           breaks = c(50,100,200,400)) +
+                                           breaks = c(50,200,800,3200)) +
                                 ggtitle("SuperCell Protein") ,
                               umap.sc.rna + 
                                 NoLegend() +
                                 scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
-                                           breaks = c(50,100,200,400)) + ggtitle("SuperCell RNA"),
+                                           breaks = c(50,200,800,3200)) + ggtitle("SuperCell RNA"),
                               umap.sea.mofa + 
                                 NoLegend() +
                                 scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
-                                           breaks = c(50,100,200,400)) + ggtitle("SEACells Protein+RNA"),
+                                           breaks = c(50,200,800,3200)) + ggtitle("SEACells Protein+RNA"),
                               umap.sea.adt + 
                                 NoLegend() +
                                 scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
-                                           breaks = c(50,100,200,400)) + ggtitle("SEACells Protein"),
+                                           breaks = c(50,200,800,3200)) + ggtitle("SEACells Protein"),
                               umap.sea.rna + 
                                 NoLegend() +
                                 scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
-                                           breaks = c(50,100,200,400)) + ggtitle("SEACells RNA"),
+                                           breaks = c(50,200,800,3200)) + ggtitle("SEACells RNA"),
                               umap.metaq.multi + 
                                 NoLegend() +
                                 scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
-                                           breaks = c(50,100,200,400)) + ggtitle("MetaQ Protein+RNA"),
+                                           breaks = c(50,200,800,3200)) + ggtitle("MetaQ Protein+RNA"),
                               umap.metaq.adt + 
                                 NoLegend() +
                                 scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
-                                           breaks = c(50,100,200,400)) + ggtitle("MetaQ Protein"),
+                                           breaks = c(50,200,800,3200)) + ggtitle("MetaQ Protein"),
                               umap.metaq.rna + 
                                 NoLegend() +
                                 scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
-                                           breaks = c(50,100,200,400)) + ggtitle("MetaQ RNA"),
+                                           breaks = c(50,200,800,3200)) + ggtitle("MetaQ RNA"),
                               umap.sc,legend.celltypes,
                               umap.mc.rna + 
                                 NoLegend() +
                                 scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),
-                                           breaks = c(50,100,200,400)) + ggtitle("MetaCell2 RNA"),
+                                           breaks = c(50,200,800,3200)) + ggtitle("MetaCell2 RNA"),
                               ncol = 3
 )
 
@@ -1164,6 +1164,8 @@ bench.75.no.random$compactness_apca[bench.75.no.random$size == 1] <- 0
 bench.75.no.random$compactness_pca[bench.75.no.random$size == 1] <- 0
 
 bench.75.no.random$pct_known <- 0
+bench.75.no.random$guiding_labels <- NA
+
 
 # add semi sup tests for scaling comp/sep
 semi.sup.multi <- read.csv("../../../output/bmCiteSeq//SuperCellMulti/testSemiSup/g75/results_test_semisup.csv",row.names = 1)
@@ -1171,16 +1173,46 @@ semi.sup.multi$gamma <- 75
 semi.sup.multi$input <- "Protein+RNA" 
 semi.sup.multi$tool <- "ssSuperCell" 
 semi.sup.multi$method <- "SuperCell Protein+RNA" 
+semi.sup.multi$guiding_labels <- NA
 
 semi.sup.rna <- read.csv("../../../output/bmCiteSeq//SuperCellRNA//testSemiSup/g75/results_test_semisup.csv",row.names = 1)
 semi.sup.rna$gamma <- 75
 semi.sup.rna$input <- "RNA" 
 semi.sup.rna$tool <- "ssSuperCell" 
-semi.sup.rna$method <- "SuperCell RNA" 
+semi.sup.rna$method <- "SuperCell RNA"
+semi.sup.rna$guiding_labels <- NA
 
-cn <- colnames(bench.75.no.random)[colnames(bench.75.no.random) %in% colnames(semi.sup.multi)]
 
-bench.75.no.random <- rbind(bench.75.no.random[,cn],semi.sup.multi[,cn],semi.sup.rna[,cn])
+keep.shuffling <-c("guiding_label_0_pct_shuffled",
+                   "guiding_label_1_pct_shuffled",
+                   "guiding_label_5_pct_shuffled",
+                   "guiding_label_10_pct_shuffled",
+                   "guiding_label_20_pct_shuffled",
+                   "unsupervised")
+
+sup.multi <- read.csv("../../../output/bmCiteSeq//SuperCellMulti/testShufflingSup/g75/results_test_shuffle_closest.csv",row.names = 1)
+sup.multi <- sup.multi[sup.multi$guiding_labels %in% keep.shuffling,]
+sup.multi$gamma <- 75
+sup.multi$input <- "Protein+RNA" 
+sup.multi$tool <- "supSuperCell" 
+sup.multi$method <- "SuperCell Protein+RNA" 
+sup.multi$pct_known <- 100
+
+
+sup.rna <- read.csv("../../../output/bmCiteSeq//SuperCellRNA//testShufflingSup/g75/results_test_shuffle_closest.csv",row.names = 1)
+sup.rna <- sup.rna[sup.rna$guiding_labels %in% keep.shuffling,]
+sup.rna$gamma <- 75
+sup.rna$input <- "RNA" 
+sup.rna$tool <- "supSuperCell" 
+sup.rna$method <- "SuperCell RNA" 
+sup.rna$pct_known <- 100
+
+
+
+cn <- colnames(bench.75.no.random)[colnames(bench.75.no.random) %in% colnames(sup.multi)]
+
+bench.75.no.random <- rbind(bench.75.no.random[,cn],semi.sup.multi[,cn],semi.sup.rna[,cn],
+                            sup.multi[,cn],sup.rna[,cn])
 
 
 
@@ -1188,6 +1220,8 @@ minMaxScaling <- function(x) {
   y <- (x-min(x))/(max(x)-min(x))
   return(y)
 }
+
+
 
 bench.75.no.random$compactness_pca_scaled <- minMaxScaling(bench.75.no.random$compactness_pca)
 bench.75.no.random$compactness_apca_scaled <- minMaxScaling(bench.75.no.random$compactness_apca)
@@ -1203,6 +1237,19 @@ bench.75.no.random$separation_apca_scaled <- minMaxScaling(bench.75.no.random$se
 
 bench.75.no.random$multimodal_separation <- (bench.75.no.random$separation_pca_scaled + bench.75.no.random$separation_apca_scaled) / 2
 
+#check min max used for scaling
+bench.75.no.random[which.min(bench.75.no.random$compactness_apca),c("method","tool")]
+bench.75.no.random[which.max(bench.75.no.random$compactness_apca),c("method","tool")]
+
+bench.75.no.random[which.min(bench.75.no.random$compactness_pca),c("method","tool")]
+bench.75.no.random[which.max(bench.75.no.random$compactness_pca),c("method","tool")]
+
+bench.75.no.random[which.min(bench.75.no.random$separation_apca),c("method","tool")]
+bench.75.no.random[which.max(bench.75.no.random$separation_apca),c("method","tool")]
+
+bench.75.no.random[which.min(bench.75.no.random$separation_pca),c("method","tool")]
+bench.75.no.random[which.max(bench.75.no.random$separation_pca),c("method","tool")]
+
 # limits <- bench.75.no.random[bench.75.no.random$method != "Random None",] %>%
 #   group_by(method) %>%
 #   summarize(
@@ -1217,7 +1264,7 @@ bench.75.no.random$multimodal_separation <- (bench.75.no.random$separation_pca_s
 #
 # step_increase <- 0.075*0.25/(limits$ymax-limits$ymin)
 
-bench.75.unsup <- bench.75.no.random[bench.75.no.random$tool != "ssSuperCell",]
+bench.75.unsup <- bench.75.no.random[!bench.75.no.random$tool %in% c("ssSuperCell","supSuperCell"),]
 
 sig.multimodal.compactness.g75  <- ggplot(bench.75.unsup,aes(y=multimodal_compactness,x = method,fill = input)) +
   geom_boxplot(outlier.shape = NA) + theme_bw() +
@@ -1575,7 +1622,7 @@ heatmap_wilcox
 
 
 ```{r}
-pdf(file = "../../../pdf_files/FigS2/FigS2Anew_WilcoxHeatmap.pdf",height = 12,width=5)
+pdf(file = "../../../pdf_files/FigS2/FigS2Anew_WilcoxHeatmap.pdf",height = 4,width=8)
 heatmap_wilcox
 dev.off()
 ```
@@ -1591,7 +1638,7 @@ table(bench.20$size == 1,bench.20$method)
 ```
 
 Set a compactness of 0 for singleton gives
-Warning: Removed 79 rows containing non-finite outside the scale range (`stat_signif()`) correspond to singletons.
+Warning: Removed 79 rows containing non-finite outside the scale range (`stat_signif()`) correspond to singletons when log scale is used
 
 ```{r fig.height=4,fig.width=4}
 
@@ -2451,197 +2498,28 @@ dev.off()
 ```
 Idea switch fig main to RNA with more differences
 
-```{r}
-bm.pseudobulk <- AggregateExpression(bm,group.by = "celltype.l2",slot = "counts",return.seurat = T)
-bm.pseudobulk <- NormalizeData(bm.pseudobulk)
 
-distances <- dist(as.matrix(Matrix::t(GetAssayData(bm.pseudobulk,assay = "RNA"))))
-
-library(reshape2)
-
-distances.df <- melt(as.matrix(distances), varnames = c("row", "col"))
-
-
-distances.df
-```
-
-## Plot distance matrix
-```{r}
-distances.df$distance <- distances.df$value
-distances.df$distance[distances.df$distance == 0] <- NA
-
-ggplot(distances.df, aes(row, col, fill= distance)) + 
-  geom_tile() + scale_fill_gradient2(low = scales::muted("red"),
-  mid = "white",midpoint = median(distances.df$distance,na.rm = T),
-  high = scales::muted("blue")) + scale_x_discrete(guide = guide_axis(angle=45)) + xlab("") + ylab("")
-```
-
-## Getting closest neighbors
-```{r}
-library(ggplot2)
-getClosestSubtype <- function(distances) {
-  res <- as.character(rownames(as.matrix(distances))[order(as.matrix(distances)[,1])[2]])
-  return(res)
-}
-
-
-
-closestSubtypes <- apply(data.frame(as.matrix(distances)),MARGIN = 2,FUN = getClosestSubtype)
-names(closestSubtypes) <- rownames(as.matrix(distances))
-
-closestSubtypes <- data.frame(closestSubtypes)
-rownames(closestSubtypes) <- gsub(x=rownames(closestSubtypes),pattern = "-",replacement = "_")
-closestSubtypes$closestSubtypes <- gsub(x=closestSubtypes$closestSubtypes,pattern = "-",replacement = "_")
-
-```
-
-```{r}
-#pct.to.shuffle <- c(0,25,50,75,100)
-pct.to.shuffle <- c(0,5,10,20,50)
-guiding_label_cols <- paste0("guiding_label_",pct.to.shuffle,"_pct_shuffled")
-names(pct.to.shuffle) <- guiding_label_cols
-meta.data.all <- data.frame()
-  
-opt <- list()
-opt$guiding_label <- "celltype.l2"
-opt$Mod1assay <- "RNA"
-opt$Mod2assay <- "ADT"
-opt$Mod1comp <- 1:30
-opt$Mod2comp <- 1:18
-opt$Mod1red <- "pca"
-opt$Mod2red <- "apca"
-opt$gamma <- 75
-seurat <- bm
-res <- list()
-res_df <- data.frame()
-for (p in guiding_label_cols) {
-    set.seed(opt$seed)
-
-
-    seurat[["label_col"]] <- seurat[[opt$guiding_label]]
-    cells.to.shuffle <- sample(colnames(seurat),
-                            size = as.integer(pct.to.shuffle[p] * ncol(seurat) / 100))
-    seurat@meta.data[cells.to.shuffle,"label_col"] <- plyr::mapvalues(x=seurat@meta.data[cells.to.shuffle,"label_col"],
-                                                                      from = rownames(closestSubtypes),
-                                                                      to = closestSubtypes$closestSubtypes)
-
-  seurat.mc.multi <- SCimplify_for_Seurat_v5(
-    seurat,
-    assay = c(opt$Mod1assay),
-    reduction = list(opt$Mod1red),
-    dims = list(opt$Mod1comp),
-    label = "label_col",
-    gamma = opt$gamma
-  )
-  res[[p]] <- seurat.mc.multi
-
-  res[[p]]@meta.data$pct_shuffle <- pct.to.shuffle[p]
-  
-  res_df <- rbind(res_df,res[[p]]@meta.data )
-}
-
-
-unsup  <- SCimplify_for_Seurat_v5(
-    seurat,
-    assay = c(opt$Mod1assay),
-    reduction = list(opt$Mod1red),
-    dims = list(opt$Mod1comp),
-    gamma = opt$gamma
-  )
-
-unsup$label_col <- unsup$celltype.l2
-unsup$label_col_with_unknown <- NA
-unsup$label_col_with_unknown_purity <- NA
-unsup$pct_shuffle <- "unsupervised"
-
-boxplot(bm.supercell.rna$celltype.l2_purity,
-        unsup$celltype.l2_purity)
-
-res_df <- rbind(res_df,unsup@meta.data )
-
-ggplot(res_df,aes(x= as.character(pct_shuffle),y = celltype.l2_purity)) + geom_boxplot()
-ggplot(res_df,aes(x= as.character(pct_shuffle),y = size)) + geom_boxplot()
-
-
-table(seurat$label_col,seurat$celltype.l2)
-```
-
-```{r}
- 
-opt <- list()
-opt$guiding_label <- "celltype.l2"
-opt$Mod1assay <- "RNA"
-opt$Mod2assay <- "ADT"
-opt$Mod1comp <- 1:30
-opt$Mod2comp <- 1:18
-opt$Mod1red <- "pca"
-opt$Mod2red <- "apca"
-opt$gamma <- 75
-seurat <- bm
-res <- list()
-res_df <- data.frame()
-for (p in guiding_label_cols) {
-    set.seed(opt$seed)
-
-
-    seurat[["label_col"]] <- seurat[[opt$guiding_label]]
-    cells.to.shuffle <- sample(colnames(seurat),
-                            size = as.integer(pct.to.shuffle[p] * ncol(seurat) / 100))
-    seurat@meta.data[cells.to.shuffle,"label_col"] <- plyr::mapvalues(x=seurat@meta.data[cells.to.shuffle,"label_col"],
-                                                                      from = rownames(closestSubtypes),
-                                                                      to = closestSubtypes$closestSubtypes)
-
-  seurat.mc.multi <- SCimplify_for_Seurat_v5(
-    seurat,
-    assay = c(opt$Mod1assay,opt$Mod2assay),
-    reduction = list(opt$Mod1red,opt$Mod2red),
-    dims = list(opt$Mod1comp,opt$Mod2comp),
-    label = "label_col",
-    gamma = opt$gamma
-  )
-  res[[p]] <- seurat.mc.multi
-
-  res[[p]]@meta.data$pct_shuffle <- pct.to.shuffle[p]
-  
-  res_df <- rbind(res_df,res[[p]]@meta.data )
-}
-
-
-unsup  <- SCimplify_for_Seurat_v5(
-    seurat,
-    assay = c(opt$Mod1assay,opt$Mod2assay),
-    reduction = list(opt$Mod1red,opt$Mod2red),
-    dims = list(opt$Mod1comp,opt$Mod2comp),
-    gamma = opt$gamma
-  )
-
-unsup$label_col <- unsup$celltype.l2
-unsup$label_col_with_unknown <- NA
-unsup$label_col_with_unknown_purity <- NA
-unsup$pct_shuffle <- "unsupervised"
-
-res_df <- rbind(res_df,unsup@meta.data )
-
-ggplot(res_df,aes(x= as.character(pct_shuffle),y = celltype.l2_purity)) + geom_boxplot()
-ggplot(res_df,aes(x= as.character(pct_shuffle),y = size)) + geom_boxplot()
-
-
-table(seurat$label_col,seurat$celltype.l2)
-```
 
 ```{r fig.height=4,fig.width=18}
 plot.list <- list()
 for (p in c(100,75,50,25,0)) {
   sobj <- readRDS(paste0("../../../output/bmCiteSeq//SuperCellMulti/testSemiSup/g75/guiding_label_",p,"_pct_hiddenseurat.mc.rds"))
   sobj <- addCellType(sobj)
-  plot.list[[paste0("pct_",p)]] <- DimPlotSC(seurat = bm,
-                                             seurat.mc = sobj,
-                                             metacell.col = "celltype",
-                                             sc.col = "celltype",
-                                             mc.color = color.celltypes.bm ,
-                                             sc.color = color.celltypes.bm) + theme_classic() + ggtitle(label = "SuperCell Protein+RNA",
-                                                                                                        subtitle = paste0(100-p, "% annotated cells")) + 
-    scale_size(limits = c(0,max(bench.75.no.random.semi.sup$size)),breasks = c(50,100,150,200))  +
+  plot.list[[paste0("pct_",p)]] <- SingleCellsMetacellsWnnUMAP(
+    sobj.sc = bm,
+    sobj.mc = sobj,
+    dimred_1 = "pca",
+    dimred_2= "apca",
+    dims.list = list(1:30, 1:18),
+    cols = color.celltypes.bm,
+    group.by = "celltype",
+    dims.umap = c(1,2)
+    ) + 
+    theme_classic() + 
+  #NoLegend() +
+  # scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),breaks = c(50,100,200,400)) +
+  ggtitle(label = "SuperCell Protein+RNA", subtitle = paste0(100-p, "% annotated cells")) + 
+    scale_size(limits = c(0,max(bench.75.no.random.semi.sup$size)),breaks = c(100,200,300,400))  +
     guides(fill=guide_legend(ncol =2,title = "Cell types",
                              override.aes = list(size=4)),
            colour = "none",
@@ -2717,8 +2595,8 @@ multimodal_compactness.75.semi.sup.rna <- ggplot(bench.75.no.random.semi.sup[ben
   theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Multimodal Compactness")  +  # Hides outliers
   coord_cartesian(ylim = c(0,0.15))   + NoLegend() + 
   geom_signif(comparisons = comparisons.semi.sup,
-              y_position = 0.09,
-              step_increase=0.025,
+              y_position = 0.07,
+              step_increase=0.045,
               map_signif_level=T,
               extend_line = -0.005,
               tip_length = 0.005,
@@ -2732,8 +2610,8 @@ multimodal_separation.75.semi.sup.rna <- ggplot(bench.75.no.random.semi.sup[benc
   theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Multimodal Separation")  +  # Hides outliers
   coord_cartesian(ylim = c(0, 0.2))+ NoLegend() + 
   geom_signif(comparisons = comparisons.semi.sup,
-              y_position = 0.11,
-              step_increase=0.035,
+              y_position = 0.1,
+              step_increase=0.065,
               map_signif_level=T,
               extend_line = -0.005,
               tip_length = 0.01,
@@ -2768,14 +2646,19 @@ plot.list <- list()
 for (p in c(100,75,50,25,0)) {
   sobj <- readRDS(paste0("../../../output/bmCiteSeq//SuperCellRNA/testSemiSup/g75/guiding_label_",p,"_pct_hiddenseurat.mc.rds"))
   sobj <- addCellType(sobj)
-  plot.list[[paste0("pct_",p)]] <- DimPlotSC(seurat = bm,
-                                             seurat.mc = sobj,
-                                             metacell.col = "celltype",
-                                             sc.col = "celltype",
-                                             mc.color = color.celltypes.bm ,
-                                             sc.color = color.celltypes.bm) + theme_classic() + ggtitle(label = "SuperCell RNA",
-                                                                                                        subtitle = paste0(100 - p, "% annotated cells")) + 
-    scale_size(limits = c(0,max(bench.75.no.random.semi.sup$size)),breaks = c(50,100,150,200))  +
+  plot.list[[paste0("pct_",p)]] <- SingleCellsMetacellsWnnUMAP(
+    sobj.sc = bm,
+    sobj.mc = sobj,
+    dimred_1 = "pca",
+    dimred_2= "apca",
+    dims.list = list(1:30, 1:18),
+    cols = color.celltypes.bm,
+    group.by = "celltype",
+    dims.umap = c(1,2)
+    ) + 
+    theme_classic() + ggtitle(label = "SuperCell RNA",
+                              subtitle = paste0(100 - p, "% annotated cells")) + 
+    scale_size(limits = c(0,max(bench.75.no.random.semi.sup$size)),breaks = c(50,100,200,400))  +
     guides(fill=guide_legend(ncol =2,title = "Cell types",
                              override.aes = list(size=4)),
            colour = "none",
@@ -2814,16 +2697,150 @@ pdf("../../../pdf_files/FigS3/figS3E_semi_sup_bm_rna_acrprot.pdf",height = 3,wid
 acr.prot.supercell.rna.semi.sup + NoLegend()
 dev.off()
 ```
+# sup test with shuffling neivghbors
+
+
 
 
 ```{r}
+bench.75.no.random.noisy.sup <- bench.75.no.random[bench.75.no.random$tool == "supSuperCell",]
+
+bench.75.no.random.noisy.sup$shuffled_labels <- gsub(x = bench.75.no.random.noisy.sup$guiding_labels,pattern = "[a-z]*",replacement = "")
+bench.75.no.random.noisy.sup$shuffled_labels <- gsub(x = bench.75.no.random.noisy.sup$shuffled_labels,pattern = "_*",replacement = "")
+bench.75.no.random.noisy.sup$shuffled_labels <- paste0(bench.75.no.random.noisy.sup$shuffled_labels,"%")
+bench.75.no.random.noisy.sup$shuffled_labels[bench.75.no.random.noisy.sup$shuffled_labels == "%"] <- "Unsup."
+bench.75.no.random.noisy.sup$shuffled_labels <- factor(bench.75.no.random.noisy.sup$shuffled_labels,levels = rev(c("0%","1%","5%","10%","20%","Unsup.")))
+
 
 ```
 
 
+```{r fig.height=4,fig.width=4}
+
+comparisons.noisy.sup <- list(
+  c("Unsup.","20%"),
+  c("Unsup.","10%"),
+  c("Unsup.","5%"),
+  c("Unsup.","1%"),
+  c("Unsup.","0%")
+)
+
+
+purity.pbmc.multiome.g75.noisy.sup <- ggplot(bench.75.no.random.noisy.sup[bench.75.no.random.noisy.sup$input == "Protein+RNA",],
+                                            aes(y=celltype.l2_purity,x = shuffled_labels,fill = input)) + 
+  geom_boxplot()  + theme_bw()  + 
+  geom_signif(comparisons = comparisons.noisy.sup,
+              step_increase=0.145,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3)+
+  scale_y_continuous(breaks = c(0.4,0.6,0.8,1),limits = c(0.3,1.45)) + 
+  
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + theme_bw() + xlab("Misannotated cells") +ylab("Purity") + NoLegend()
+
+
+purity.pbmc.multiome.g75.noisy.sup 
+```
+
+
+```{r fig.width=4, fig.height=4}
+
+size.pbmc.multiome.g75.noisy.sup <- ggplot(bench.75.no.random.noisy.sup[bench.75.no.random.noisy.sup$input == "Protein+RNA",],
+                                          aes(y=size,x = shuffled_labels,fill = input)) + 
+  geom_boxplot() + theme_bw()  + 
+  geom_signif(comparisons = comparisons.noisy.sup,
+              step_increase=0.125,
+              map_signif_level=T,
+              extend_line = -0.005,
+              textsize = 3)+
+  #ylim(c(0,525))+ 
+  
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + theme_bw() + xlab("misannotated cells") +ylab("Purity") + NoLegend()
 
 
 
+size.pbmc.multiome.g75.noisy.sup
+```
+
+```{r fig.height=4,fig.width=4}
+
+multimodal_compactness.75.noisy.sup <- ggplot(bench.75.no.random.noisy.sup[bench.75.no.random.noisy.sup$input == "Protein+RNA",],aes(y=multimodal_compactness,x = shuffled_labels,fill = input)) + 
+  geom_boxplot(outlier.shape = NA)  + theme_bw() + 
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Multimodal Compactness")  +  # Hides outliers
+  coord_cartesian(ylim = c(0,0.0725))   + NoLegend() + 
+  geom_signif(comparisons = comparisons.noisy.sup,
+              y_position = 0.0325,
+              step_increase=0.025,
+              map_signif_level=T,
+              extend_line = -0.005,
+              tip_length = 0.005,
+              textsize = 3) + xlab("Misannotated cells")
+multimodal_compactness.75.noisy.sup
+
+```
+```{r fig.height=4,fig.width=4}
+multimodal_separation.75.noisy.sup <- ggplot(bench.75.no.random.noisy.sup[bench.75.no.random.noisy.sup$input == "Protein+RNA",],aes(y=multimodal_separation,x = shuffled_labels,fill = input)) + 
+  geom_boxplot(outlier.shape = NA) +theme_bw() +
+  theme(legend.position = "bottom")  + scale_fill_manual(values = input.colors.cite) + ylab("Multimodal Separation")  +  # Hides outliers
+  coord_cartesian(ylim = c(0, 0.18))+ NoLegend() + 
+  geom_signif(comparisons = comparisons.noisy.sup,
+              y_position = 0.075,
+              step_increase=0.0375,
+              map_signif_level=T,
+              extend_line = -0.005,
+              tip_length = 0.01,
+              textsize = 3) + xlab("Misannotated cells")
+multimodal_separation.75.noisy.sup
+```
+```{r fig.height=3,fig.width = 7}
+wrap_plots(purity.pbmc.multiome.g75.noisy.sup,multimodal_compactness.75.noisy.sup,multimodal_separation.75.noisy.sup,nrow = 1) &scale_x_discrete(guide = guide_axis(angle = 45)) 
+
+pdf("../../../pdf_files/Fig2/fig2N_noisy_sup.pdf",height = 3,width = 7)
+wrap_plots(purity.pbmc.multiome.g75.noisy.sup,multimodal_compactness.75.noisy.sup,multimodal_separation.75.noisy.sup,nrow = 1)
+dev.off()
+```
+
+
+
+```{r fig.height=4,fig.width=18}
+plot.list <- list()
+for (p in c(1,5,10,20)) {
+  sobj <- readRDS(paste0("../../../output/bmCiteSeq//SuperCellMulti/testShufflingSup/g75/guiding_label_",p,"_pct_shuffledseurat.mc.rds"))
+  sobj <- addCellType(sobj)
+  plot.list[[paste0("pct_",p)]] <- SingleCellsMetacellsWnnUMAP(
+    sobj.sc = bm,
+    sobj.mc = sobj,
+    dimred_1 = "pca",
+    dimred_2= "apca",
+    dims.list = list(1:30, 1:18),
+    cols = color.celltypes.bm,
+    group.by = "celltype",
+    dims.umap = c(1,2)
+    ) + 
+    theme_classic() + 
+  #NoLegend() +
+  # scale_size(limits = c(0,max(metrics$size[metrics$gamma == 75])),breaks = c(50,100,200,400)) +
+  ggtitle(label = "SuperCell Protein+RNA", subtitle = paste0(p, "% misannotated cells")) + 
+    scale_size(limits = c(0,max(bench.75.no.random.semi.sup$size)),breaks = c(100,200,300,400))  +
+    guides(fill=guide_legend(ncol =2,title = "Cell types",
+                             override.aes = list(size=4)),
+           colour = "none",
+           size = guide_legend(title = "Size"))
+  
+  
+}
+
+
+wrap_plots(plot.list[[1]],plot.list[[2]],plot.list[[3]],plot.list[[4]],guide_area(),guides = "collect",nrow = 1) & 
+  theme(legend.spacing.y = unit(-0.35, "line"),legend.key.size = unit(1, "line"))
+
+dir.create("../../../pdf_files/FigS3", recursive = T, showWarnings = F)
+pdf("../../../pdf_files/FigS3/figSN_noisy_sup_bm_cite.pdf", height = 4,width = 18)
+wrap_plots(plot.list[[1]],plot.list[[2]],plot.list[[3]],plot.list[[4]],guide_area(),guides = "collect",nrow = 1) & 
+  theme(legend.spacing.y = unit(-0.35, "line"),legend.key.size = unit(1, "line"))
+
+dev.off()
+```
 
 ```{r}
 semi.sup <- read.csv("../../../output/bmCiteSeq//SuperCellMulti/testSemiSup/g75/results_test_semisup.csv")
