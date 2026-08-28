@@ -50,8 +50,10 @@ rule singlecells_mofa_analysis_bm_cite:
   output: "output/bmCiteSeq/singlecells_analysis/adata_mofa.h5ad"
   singularity: config["sif_file_mofa"]
   params: python = "/opt/conda/envs/mofa_env/bin/python"
+  benchmark: "benchmark/bmCiteSeq/singlecells_analysis/adata_mofa.txt"
   shell: "Rscript snakemakeWorkflows/bmCiteSeq/R/mofaAnalysisBM_CiteCL.R -i {input.dataset} \
           -o output/bmCiteSeq/singlecells_analysis \
+          -n 50 \
           -y {params.python}"
 
 rule metacell_identification_bm_cite:

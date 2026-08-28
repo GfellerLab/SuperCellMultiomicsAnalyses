@@ -106,8 +106,10 @@ rule singlecells_mofa_analysis_pbmc_multiome:
   output: "output/pbmcMultiome/singlecells_analysis/adata_mofa.h5ad"
   singularity: config["sif_file_mofa"]
   params: python = "/opt/conda/envs/mofa_env/bin/python"
+  benchmark: "benchmark/pbmcMultiome/singlecells_analysis/adata_mofa.txt"
   shell: "Rscript {input.script} -i {input.dataset} \
           -o output/pbmcMultiome/singlecells_analysis \
+          -n 50 \
           -y {params.python}"
 
 rule metacell_identification_pbmc_multiome:
