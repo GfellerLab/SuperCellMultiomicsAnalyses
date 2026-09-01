@@ -107,9 +107,10 @@ rule singlecells_mofa_analysis_pbmc_multiome:
   singularity: config["sif_file_mofa"]
   params: python = "/opt/conda/envs/mofa_env/bin/python"
   benchmark: "benchmark/pbmcMultiome/singlecells_analysis/adata_mofa.txt"
-  shell: "Rscript {input.script} -i {input.dataset} \
+  shell: "Rscript {input.script} \
+          -i {input.dataset} \
           -o output/pbmcMultiome/singlecells_analysis \
-          -n 50 \
+          -n 40 \
           -y {params.python}"
 
 rule metacell_identification_pbmc_multiome:
@@ -469,6 +470,37 @@ rule Shuffling_sup_test_pbmc_multiome:
           -p 1:40 -q 2:40 -r SCT -a ATAC -v pca -w lsi -g {wildcards.graining} -s 2025 -l seurat_annotations"
 
 
+####################################################################################################################################
+################################################ Test k_nn ################# #######################################################
+####################################################################################################################################
+
+
+
+rule k_nn_test_pbmc_multiome:
+  input:
+        script = "R/SCimplify_test_k_nn_CL.R",
+        singlecells = "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds"
+  output: "output/pbmcMultiome/SuperCellMulti/testKNN/g{graining}/results_test_k_nn.csv"
+  singularity: config["sif_file"]
+  params: workdir = wdir
+  # benchmark :  "benchmark/pbmcMultiome/SuperCellMulti/g{graining}/seurat.multiome.mc.txt"
+  shell: "Rscript R/SCimplify_test_k_nn_CL.R -i {input.singlecells} \
+          -o output/pbmcMultiome/SuperCellMulti/testKNN/g{wildcards.graining}/ \
+          -p 1:40 -q 2:40 -r SCT -a ATAC -v pca -w lsi -g {wildcards.graining}"
+
+
+rule k_nn_test_pbmc_multiome_sup:
+  input:
+        script = "R/SCimplify_test_k_nn_CL.R",
+        singlecells = "output/pbmcMultiome/singlecells_analysis/seuratWNN.rds"
+  output: "output/pbmcMultiome/SuperCellMulti/testKNN_sup/g{graining}/results_test_k_nn.csv"
+  singularity: config["sif_file"]
+  params: workdir = wdir
+  # benchmark :  "benchmark/pbmcMultiome/SuperCellMulti/g{graining}/seurat.multiome.mc.txt"
+  shell: "Rscript R/SCimplify_test_k_nn_CL.R -i {input.singlecells} \
+          -o output/pbmcMultiome/SuperCellMulti/testKNN_sup/g{wildcards.graining}/ \
+          -p 1:40 -q 2:40 -r SCT -a ATAC -v pca -w lsi -g {wildcards.graining} -l seurat_annotations"
+
 
 
 
@@ -608,7 +640,9 @@ rule generate_figures_from_figure2:
     expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.mcMetrics.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsMOFA","metaqMulti","metaqRNA","metaqATAC","seacellsRNA","seacellsATAC","MetaCellRNA"]),
     expand("output/pbmcMultiome/{inputMetacells}/g{gamma}/seurat.multiome.activities.rds", gamma = GAMMA, inputMetacells = ["SuperCellMulti","randomMetacells","SuperCellATAC","SuperCellRNA","seacellsMOFA","metaqMulti","metaqRNA","metaqATAC","seacellsRNA","seacellsATAC","MetaCellRNA"]),
     expand("output/pbmcMultiome/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
-    expand("output/pbmcMultiome/SuperCellMulti/testShufflingSup/g{graining}/results_test_shuffle_closest.csv", graining = ["20","75"])
+    expand("output/pbmcMultiome/SuperCellMulti/testShufflingSup/g{graining}/results_test_shuffle_closest.csv", graining = ["20","75"]),
+    expand("output/pbmcMultiome/SuperCellMulti/testKNN/g{graining}/results_test_k_nn.csv", graining = ["20","75"]),
+    expand("output/pbmcMultiome/SuperCellMulti/testKNN_sup/g{graining}/results_test_k_nn.csv", graining = ["20","75"])
   output: "figures/manuscript/final_figures_Rmd/Figure2_pbmcMultiome_bench_v2.html"
   singularity: config["sif_file"]
   shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"

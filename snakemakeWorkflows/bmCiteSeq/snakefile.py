@@ -53,7 +53,7 @@ rule singlecells_mofa_analysis_bm_cite:
   benchmark: "benchmark/bmCiteSeq/singlecells_analysis/adata_mofa.txt"
   shell: "Rscript snakemakeWorkflows/bmCiteSeq/R/mofaAnalysisBM_CiteCL.R -i {input.dataset} \
           -o output/bmCiteSeq/singlecells_analysis \
-          -n 50 \
+          -n 30 \
           -y {params.python}"
 
 rule metacell_identification_bm_cite:
@@ -440,6 +440,33 @@ rule Shuffling_sup_test_bm_cite_rna:
           -o output/bmCiteSeq/SuperCellRNA/testShufflingSup/g{wildcards.graining}/ \
           -p 1:30 -r RNA -v pca -g {wildcards.graining} -s 2025 -l celltype.l2"
 
+
+rule knn_test_bm_cite:
+  input:
+        singlecells = "output/bmCiteSeq/singlecells_analysis/seuratWNN.rds"
+  output: "output/bmCiteSeq/SuperCellMulti/testKNN/g{graining}/results_test_k_nn.csv"
+  singularity: config["sif_file"]
+  params: workdir = wdir
+  # benchmark :  "benchmark/pbmcMultiome/SuperCellMulti/g{graining}/seurat.multiome.mc.txt"
+  shell: "Rscript R/SCimplify_test_k_nn_CL.R -i {input.singlecells} \
+          -o output/bmCiteSeq/SuperCellMulti/testKNN/g{wildcards.graining}/ \
+          -p 1:30 -q 1:18 -r RNA -a ADT -v pca -w apca -g {wildcards.graining}"
+
+
+rule knn_test_bm_cite_sup:
+  input:
+        singlecells = "output/bmCiteSeq/singlecells_analysis/seuratWNN.rds"
+  output: "output/bmCiteSeq/SuperCellMulti/testKNN_sup/g{graining}/results_test_k_nn.csv"
+  singularity: config["sif_file"]
+  params: workdir = wdir
+  # benchmark :  "benchmark/pbmcMultiome/SuperCellMulti/g{graining}/seurat.multiome.mc.txt"
+  shell: "Rscript R/SCimplify_test_k_nn_CL.R -i {input.singlecells} \
+          -o output/bmCiteSeq/SuperCellMulti/testKNN_sup/g{wildcards.graining}/ \
+          -p 1:30 -q 1:18 -r RNA -a ADT -v pca -w apca -g {wildcards.graining} -l celltype.l2"
+
+
+
+
 ####################################################################################################################################
 ####################################################################################################################################
 ####################################################################################################################################
@@ -463,7 +490,9 @@ rule generate_figures_from_figure2_bm:
     expand("output/bmCiteSeq/SuperCellMulti/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
     expand("output/bmCiteSeq/SuperCellRNA/testSemiSup/g{graining}/results_test_semisup.csv", graining = ["20","75"]),
     expand("output/bmCiteSeq/SuperCellRNA/testShufflingSup/g{graining}/results_test_shuffle_closest.csv", graining = ["20","75"]),
-    expand("output/bmCiteSeq/SuperCellMulti/testShufflingSup/g{graining}/results_test_shuffle_closest.csv", graining = ["20","75"])
+    expand("output/bmCiteSeq/SuperCellMulti/testShufflingSup/g{graining}/results_test_shuffle_closest.csv", graining = ["20","75"]),
+    expand("output/bmCiteSeq/SuperCellMulti/testKNN/g{graining}/results_test_k_nn.csv", graining = ["20","75"]),
+    expand("output/bmCiteSeq/SuperCellMulti/testKNN_sup/g{graining}/results_test_k_nn.csv", graining = ["20","75"])
   output: "figures/manuscript/final_figures_Rmd/Figure2_bench_BMCiteseq.html"
   singularity: config["sif_file"]
   shell: "Rscript -e 'rmarkdown::render(\"{input[0]}\")'"
