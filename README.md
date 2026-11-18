@@ -33,7 +33,7 @@ You can install our workflow conda env like this:
         --use-singularity \
         --conda-frontend conda \
         --cluster-config config/cluster.yml \
-        --cluster "sbatch -A {cluster.account} \
+        --cluster "sbatch \
         -p {cluster.partition} \
         -N {cluster.N} \
         -t {cluster.time} \

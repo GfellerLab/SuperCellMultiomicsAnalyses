@@ -65,6 +65,9 @@ spec <- matrix(byrow = TRUE, ncol = 5, c(
   "rna-comp",            "R", 1, "character", "PCA dimensions for RNA, e.g. '1:30' or '1,2,5:10' [default: 1:30]",
   "max-seed-objects",    "m", 1, "integer",   "STACAS max.seed.objects (ignored when references are set) [default: 10]",
   "stacas-min-sample-size", "M", 1, "integer", "Samples with fewer metacells than this cannot be integrated by STACAS and cause an error [default: 100]",
+  "n-variable-features", "nvf", 1, "integer",   "Number of HVGs to select [default: 1000]",
+  "exclude_Mito_hvg",    "Mt", 1, "logical",   "Filter mitochondrial protein genes from HVGs (after selection [default: TRUE]",
+  "exclude_Ribo_hvg",    "Rb", 1, "logical",   "Filter ribosomal protein genes from HVGs (after selection [default: TRUE]",
 
   # Misc
   "seed",                "e", 1, "integer",   "Random seed [default: 1234]",
@@ -91,7 +94,10 @@ defaults <- list(
   clean_cache = FALSE,
   seed = 1234L,
   figure_width = 12,
-  figure_height = 5
+  figure_height = 5,
+  n_variable_features = 1000,
+  exclude_Ribo_hvg = TRUE,
+  exclude_Mito_hvg = TRUE
 )
 
 script_usage <- function(status = 0) {
@@ -286,6 +292,21 @@ options(future.globals.maxSize= (opt$n_core_samples-2)*(1024^3))
 time_step("RNA unintegrated analysis", {
   merged.objs <- NormalizeData(merged.objs)
   merged.objs <- FindVariableFeatures(merged.objs)
+  if (opt$exclude_Ribo_hvg) {
+      cat(paste0("Excluding Ribosomal protein genes from HVGs\n"))
+      ribo <- STACAS:::get.blocklist(merged.objs)$Ribo
+      ribo <- c(names(ribo),as.character(ribo))
+      VariableFeatures(merged.objs) <- VariableFeatures(merged.objs)[!VariableFeatures(merged.objs) %in% ribo]
+  }
+  if (opt$exclude_Mito_hvg) {
+      cat(paste0("Excluding Mitochondrial protein genes from HVGs\n"))
+      mito <- STACAS:::get.blocklist(merged.objs)$Mito
+      mito <- c(names(mito),as.character(mito))
+      VariableFeatures(merged.objs) <- VariableFeatures(merged.objs)[!VariableFeatures(merged.objs) %in% mito]
+  }
+  cat(paste0("Kept HVGs for metacell identification: ", length(VariableFeatures(merged.objs)), "\n"))
+  
+  
   merged.objs <- ScaleData(merged.objs)
   merged.objs <- RunPCA(merged.objs, reduction.name = "pca")
   merged.objs <- RunUMAP(merged.objs, reduction = "pca", dims = rna_comp)
