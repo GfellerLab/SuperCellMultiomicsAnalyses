@@ -31,7 +31,7 @@ ruleorder: metacell_identification_pbmc_cite_atlas_g10 > metacell_identification
 ruleorder: data_aggregation_pbmc_cite_atlas_g10 > data_aggregation_pbmc_cite_atlas
 ruleorder: random_metacell_pbmc_cite_atlas_g10 > random_metacell_pbmc_cite_atlas
 include: "snakemakeWorkflows/pbmcCiteSeqAtlas/snakefile.py"
-include: "nakemakeWorkflows/prefrontalCortexMultiome/snakekfile.py"
+include: "snakemakeWorkflows/prefrontalCortexMultiome/snakefile.py"
 
 rule all:
   input:

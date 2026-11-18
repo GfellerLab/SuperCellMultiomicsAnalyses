@@ -317,7 +317,7 @@ time_step("Metacell construction", {
                                label = opt$label_col,
                                n_variable_features = opt$n_variable_features,
                                exclude_Ribo_hvg = opt$exclude_Ribo_hvg,
-                               exclude_Mibo_hvg = opt$exclude_Mibo_hvg)
+                               exclude_Mito_hvg = opt$exclude_Mito_hvg)
       cache_save(sobj, sid)
     }
     stats[[sid]] <- sample_stats(sobj)

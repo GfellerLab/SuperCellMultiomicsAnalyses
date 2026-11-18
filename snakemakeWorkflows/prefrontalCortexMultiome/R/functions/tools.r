@@ -132,7 +132,7 @@ process_multiome <- function(smp_id,
                              # --- RNA ---
                              n_variable_features = 1000,
                              exclude_Ribo_hvg = TRUE,
-                             exlude_Mito_hvg = TRUE,
+                             exclude_Mito_hvg = TRUE,
                              rna_dims = 1:30,
                              # --- ATAC ---
                              atac_min_cutoff = 1,
@@ -156,19 +156,22 @@ process_multiome <- function(smp_id,
   DefaultAssay(sobj) <- "RNA"
   sobj <- NormalizeData(sobj, verbose = verbose)
   sobj <- FindVariableFeatures(sobj, nfeatures = n_variable_features, verbose = verbose)
+  if (exclude_Ribo_hvg | exclude_Mito_hvg) {
+      data("genes.blocklist",package= "STACAS")
+  }
   if (exclude_Ribo_hvg) {
-      cat(paste0("Excluding Ribosomal protein genes from HVGs"))
-      ribo <- STACAS:::get.blocklist(merged.objs)$Ribo
+      cat(paste0("Excluding Ribosomal protein genes from HVGs\n"))
+      ribo <- STACAS:::get.blocklist(sobj)$Ribo
       ribo <- c(names(ribo),as.character(ribo))
       VariableFeatures(sobj) <- VariableFeatures(sobj)[!VariableFeatures(sobj) %in% ribo]
   }
-  if (exlude_Mito_hvg) {
-      cat(paste0("Excluding Mitochondrial protein genes from HVGs"))
-      mito <- STACAS:::get.blocklist(merged.objs)$Mito
+  if (exclude_Mito_hvg) {
+      cat(paste0("Excluding Mitochondrial protein genes from HVGs\n"))
+      mito <- STACAS:::get.blocklist(sobj)$Mito
       mito <- c(names(mito),as.character(mito))
       VariableFeatures(sobj) <- VariableFeatures(sobj)[!VariableFeatures(sobj) %in% mito]
   }
-  cat(paste0("Kept HVGs for metacell identification: ", length(VariableFeatures(sobj))))
+  cat(paste0("Kept HVGs for metacell identification: ", length(VariableFeatures(sobj)), "\n"))
   sobj <- ScaleData(sobj, verbose = verbose)                    # variable features only (default)
   sobj <- RunPCA(sobj, npcs = max(rna_dims), verbose = verbose)
 
