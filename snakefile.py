@@ -69,14 +69,17 @@ include: "snakemakeWorkflows/pbmcCiteSeqAtlas/snakefile.py"
 include: "snakemakeWorkflows/bmCiteSeq/snakefile.py"
 include: "snakemakeWorkflows/covidRen21/snakefile.py"
 include: "snakemakeWorkflows/PBMC_Boukhaled/snakefile.py"
+include: "snakemakeWorkflows/prefrontalCortexMultiome/snakefile.py"
+
 
 
 
 rule all:
-  input:  "reports/bmCiteSeq/bm_cite_analysis.html",
-          "reports/pbmcMultiome/pbmcMultiome.html",
-          "reports/pbmcCiteSeqAtlas/Correlation_MC_metrics_pbmc_cite_atlas_analysis.html",
-           "reports/pbmcCiteSeqAtlas/pbmc_cite_atlas_integration_metacell_analysis.html"
+  input:
+    "reports/bmCiteSeq/bm_cite_analysis.html",
+    "reports/pbmcMultiome/pbmcMultiome.html",
+    "reports/pbmcCiteSeqAtlas/Correlation_MC_metrics_pbmc_cite_atlas_analysis.html",
+    "reports/pbmcCiteSeqAtlas/pbmc_cite_atlas_integration_metacell_analysis.html"
           # "reports/pbmcCiteSeqAtlas/pbmc_cite_atlas_integration_metacell_analysis.html",
           #  "output/testKernel/pbmcMultiome/detectRarePop/all_seeds_processed_at_all_gammas"
         #"output/pbmcCiteSeqAtlas/pbmcCiteSeqAtlas_sup_metacells_supSTACAS/g20/metacell_SCT_STACAS_logNorm/seuratCombinedWNN_2.rds",

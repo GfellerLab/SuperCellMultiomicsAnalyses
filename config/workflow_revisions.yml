@@ -48,4 +48,6 @@ prefrontalCortexMultiome:
   input_dir: "/mnt/beegfs01/scratch/l_herault/tests//SuperCellMultiomicsAnalyses/input/prefontal_cortex_catching/"
   output_dir: "/mnt/beegfs01/scratch/l_herault/tests//SuperCellMultiomicsAnalyses/output/prefontal_cortex_catching/"
   sif: "/mnt/beegfs01/scratch/l_herault/tests//SuperCellMultiomicsAnalyses/config/docker/supercell_qs2.sif"
-
+  python: "/opt/conda/envs/supercell_qs2/bin/python"
+  url_rna: "https://zenodo.org/records/20834804/files/final_rna_data.h5ad"
+  url_atac: "https://zenodo.org/records/20834804/files/final_atac_data.h5ad"
