@@ -31,13 +31,14 @@ ruleorder: metacell_identification_pbmc_cite_atlas_g10 > metacell_identification
 ruleorder: data_aggregation_pbmc_cite_atlas_g10 > data_aggregation_pbmc_cite_atlas
 ruleorder: random_metacell_pbmc_cite_atlas_g10 > random_metacell_pbmc_cite_atlas
 include: "snakemakeWorkflows/pbmcCiteSeqAtlas/snakefile.py"
-
+include: "nakemakeWorkflows/prefrontalCortexMultiome/snakekfile.py"
 
 rule all:
   input:
     #"reports/bmCiteSeq/bm_cite_analysis.html",
-    "figures/manuscript/final_figures_Rmd/Figure2_bench_BMCiteseq.html",
-    "figures/manuscript/final_figures_Rmd/Figure2_pbmcMultiome_bench_v2.html"
+    "reports/prefrontalCortexMultiome/prefrontalCortexMultiome_analysis.html",
+    #"figures/manuscript/final_figures_Rmd/Figure2_bench_BMCiteseq.html",
+    #"figures/manuscript/final_figures_Rmd/Figure2_pbmcMultiome_bench_v2.html"
     # "figures/manuscript/final_figures_Rmd/Figure4_bench_pbmc_cite_atlas_integration_v2.html",
     # "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/edgeR_res_pairwise.txt",
     # "output/pbmcCiteSeqAtlas/supMetacells_SCT_supStacas_lognorm/g20/edgeR_res_CD14.txt",
